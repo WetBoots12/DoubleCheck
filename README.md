@@ -73,6 +73,10 @@ The claim detector reads English only. On a page in another language it says so 
 the panel and stays out of the way, rather than flagging sentences it cannot judge.
 The thumbs-up on the site row overrides that if you want it to try anyway.
 
+The extension's own options page opens on a guide: what the flags mean, what each
+button costs, where to get an API key if you want one, and what every setting does.
+A second tab lists the licences and the training data behind the model.
+
 ## Installing
 
 No build step. Load it unpacked:

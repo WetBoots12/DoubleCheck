@@ -86,11 +86,73 @@
       button:hover { opacity: 0.9; }
       #saved { color: var(--ok); font-size: 13px; opacity: 0; transition: opacity 0.2s; }
       #saved.show { opacity: 1; }
+
+      /* Tabs: the guide comes first, because someone opening this page for the first
+         time needs to know what the extension does before changing how it does it. */
+      .tabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        margin: 20px 0 22px;
+        flex-wrap: wrap;
+      }
+      button.tab {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 500;
+        padding: 9px 14px;
+        margin-bottom: -1px;
+        cursor: pointer;
+      }
+      button.tab:hover { color: var(--fg); opacity: 1; }
+      button.tab[aria-selected="true"] {
+        color: var(--fg);
+        border-bottom-color: var(--btn-bg);
+      }
+      .tabpanel[hidden] { display: none; }
+
+      .tabpanel h3 { font-size: 14px; margin: 20px 0 6px; }
+      .tabpanel p { margin: 0 0 12px; line-height: 1.55; }
+      .tabpanel ul, .tabpanel ol { margin: 0 0 12px; padding-left: 20px; line-height: 1.55; }
+      .tabpanel li { margin-bottom: 7px; }
+      .tabpanel a { color: var(--link, #2f6ea8); }
+      .tabpanel code {
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        border-radius: 3px;
+        padding: 1px 4px;
+        font-size: 12px;
+      }
+      ol.steps li { margin-bottom: 10px; }
+      table.guide { border-collapse: collapse; width: 100%; margin: 0 0 12px; }
+      table.guide th {
+        text-align: left;
+        vertical-align: top;
+        width: 190px;
+        padding: 9px 12px 9px 0;
+        font-weight: 600;
+        border-top: 1px solid var(--border);
+      }
+      table.guide td {
+        vertical-align: top;
+        padding: 9px 0;
+        line-height: 1.5;
+        border-top: 1px solid var(--border);
+      }
+      ul.cites { font-size: 13px; color: var(--muted); }
+      @media (max-width: 620px) {
+        table.guide th, table.guide td { display: block; width: auto; border-top: none; padding: 2px 0; }
+        table.guide th { padding-top: 10px; border-top: 1px solid var(--border); }
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <h1>FactCheck settings</h1>
+      <h1>FactCheck</h1>
       <p class="sub">
         Keys are stored locally on this device and are only ever sent to the provider you
         select below. This extension has no server of its own.
@@ -102,6 +164,199 @@
         Provided as is, with no warranty and no liability accepted.
       </p>
 
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button role="tab" id="tab-guide-btn" class="tab" aria-controls="tab-guide" aria-selected="true">How to use it</button>
+        <button role="tab" id="tab-settings-btn" class="tab" aria-controls="tab-settings" aria-selected="false">Settings</button>
+        <button role="tab" id="tab-credits-btn" class="tab" aria-controls="tab-credits" aria-selected="false">Credits and licences</button>
+      </nav>
+
+      <div class="tabpanel" id="tab-guide" role="tabpanel" aria-labelledby="tab-guide-btn">
+        <section>
+          <h2>What this does, and what it does not</h2>
+          <p>
+            As you read a page or watch a video with captions, a small model running on
+            this machine reads each sentence and estimates how <em>check-worthy</em> it
+            is: whether it states a fact that could be looked up and would matter if it
+            were wrong. Those sentences are highlighted on the page and listed in the
+            side panel.
+          </p>
+          <p>
+            <strong>It never decides whether anything is true.</strong> A highlight means
+            "this is a factual claim, worth a look", not "this is false". Everything past
+            that point is you pressing a button to go and see what other sources say.
+          </p>
+          <p class="hint">
+            No page text leaves this machine unless you press one of the buttons below.
+            Scanning, scoring and highlighting all happen locally, for free.
+          </p>
+        </section>
+
+        <section>
+          <h2>Getting started, with no keys at all</h2>
+          <ol class="steps">
+            <li>Open a news article, then click the extension icon to open the side panel.
+              The badge on the icon counts the claims found on the page.</li>
+            <li>Press <strong>Check sources</strong> on a claim. Out of the box this
+              searches Wikipedia, which needs no account and no key.</li>
+            <li>Press <strong>Search in browser</strong> to open the same claim in
+              whichever search engine your browser already uses, in a new tab.</li>
+            <li>Use the arrows at the top of the panel, or Alt+Shift+N and Alt+Shift+P, to
+              step through the claims on the page the way Ctrl+F steps through matches.</li>
+          </ol>
+          <p>
+            That is the whole extension, working, with nothing configured. API keys widen
+            what <strong>Check sources</strong> can reach; they are not needed to use it.
+          </p>
+        </section>
+
+        <section>
+          <h2>The buttons</h2>
+          <table class="guide">
+            <tr><th>Check sources</th><td>Searches for the claim, reads the top results' own pages, and looks for a published fact-check. One search call per press.</td></tr>
+            <tr><th>Search in browser</th><td>Opens the claim in your default search engine in a new tab. No key, no quota.</td></tr>
+            <tr><th>Check with AI</th><td>Searches, then asks your chosen AI model what those sources actually say. Needs an AI provider set up.</td></tr>
+            <tr><th>Summarize with AI</th><td>Same summary, over results already fetched, without spending another search call.</td></tr>
+            <tr><th>Rescan</th><td>Reads the current page again with the current settings. Press this after changing the threshold or a provider, since settings otherwise only apply to pages opened afterwards.</td></tr>
+            <tr><th>Open the transcript</th><td>On YouTube with subtitles off, opens the video's own transcript so it can be read.</td></tr>
+            <tr><th>&#128077; and &#128078;</th><td>Always scan this site, or never scan it. Your choice outranks the built-in rules in both directions.</td></tr>
+            <tr><th>Right-click a sentence</th><td>"Check this claim with FactCheck" sends a sentence the model missed straight to the panel.</td></tr>
+          </table>
+        </section>
+
+        <section>
+          <h2>Where the numbers in the panel come from</h2>
+          <p>
+            Each claim shows a <strong>check-worthiness</strong> score from the local
+            model, and after a check an <strong>evidence</strong> reading built from
+            things that can be inspected rather than from an AI's opinion of itself:
+          </p>
+          <ul>
+            <li>how much of the claim's distinctive wording appears in each source;</li>
+            <li>whether the source hedges, editorialises or shouts;</li>
+            <li>what kind of outlet it is, which you can override in Settings;</li>
+            <li>whether a source gives a <em>different figure</em> from the claim;</li>
+            <li>whether it was published early enough to be about the right period;</li>
+            <li>if an AI ran, whether each source supports or contradicts the claim;</li>
+            <li>a published fact-check, when one exists, which outranks all of the above.</li>
+          </ul>
+          <p class="hint">
+            The panel lists these reasons in plain language under each reading, so you can
+            disagree with it.
+          </p>
+        </section>
+
+        <section>
+          <h2>API keys: what each one buys you</h2>
+          <p>
+            Every key is optional. Keys are stored in this browser's local storage on this
+            device, are sent only to the provider they belong to, and are never sent
+            anywhere by this extension otherwise. There is no server in this project.
+          </p>
+
+          <h3>Web search, instead of Wikipedia</h3>
+          <p>
+            Wikipedia is excellent for people, places, organisations and long-standing
+            figures, and useless for anything that happened this week. A web search key
+            puts full results in the panel, with snippets, sources and dates.
+          </p>
+          <ul>
+            <li>
+              <strong>Brave Search API</strong> —
+              <a href="https://api-dashboard.search.brave.com/" target="_blank" rel="noreferrer">api-dashboard.search.brave.com</a>.
+              Create an account, subscribe to the free plan, then copy the key from the
+              API Keys page. Independent index, and the free tier is generous enough for
+              ordinary reading.
+            </li>
+            <li>
+              <strong>SerpAPI</strong> —
+              <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noreferrer">serpapi.com/manage-api-key</a>.
+              Returns Google results. The free tier is small, so it suits occasional
+              checking rather than a day of browsing.
+            </li>
+          </ul>
+          <p class="hint">
+            Free allowances change; check the provider's current pricing page rather than
+            trusting a number written here. Nothing is ever called automatically, so a
+            quota is only spent when you press a button.
+          </p>
+
+          <h3>Published fact-checks</h3>
+          <ul>
+            <li>
+              <strong>Google Fact Check Tools</strong> —
+              <a href="https://console.cloud.google.com/apis/library/factchecktools.googleapis.com" target="_blank" rel="noreferrer">enable the API</a>
+              in a Google Cloud project, then create an API key under Credentials. It is
+              free. This searches verdicts already published by organisations such as
+              Snopes, PolitiFact and Full Fact. Most claims have never been fact-checked,
+              so expect it to find nothing more often than not, and to be worth a lot when
+              it does.
+            </li>
+          </ul>
+
+          <h3>AI summaries</h3>
+          <p>
+            An AI model reads the sources fetched for a claim and reports what they say,
+            including which ones disagree. Four ways to have one, in order of least fuss:
+          </p>
+          <ul>
+            <li>
+              <strong>Your browser's built-in model</strong> — no key, nothing installed,
+              nothing sent anywhere. Shown in the provider list only if this browser
+              actually exposes it. Chrome downloads the model on first use, so the first
+              summary is slow. Brave's Leo has no extension API, so use a local model there.
+            </li>
+            <li>
+              <strong>A local model</strong> —
+              <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> or
+              LM Studio, or anything else speaking the OpenAI chat format. Point the
+              endpoint at it, name the model, and no key or account is involved. Your
+              reading never leaves the machine.
+            </li>
+            <li>
+              <strong>Anthropic</strong> —
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com/settings/keys</a>.
+              Keys begin with <code>sk-ant-</code>. The default model here is the cheapest
+              current one; you can name a stronger model in the Model field.
+            </li>
+            <li>
+              <strong>OpenAI</strong> —
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a>.
+              Keys begin with <code>sk-</code>. Any chat model your account can use works.
+            </li>
+          </ul>
+          <p class="hint">
+            Hosted providers are paid per request, which is why the AI step is behind its
+            own button and never runs on its own. A summary sends the claim and the search
+            snippets, not the page you are reading.
+          </p>
+        </section>
+
+        <section>
+          <h2>Tuning the settings</h2>
+          <table class="guide">
+            <tr><th>Flagging threshold</th><td>How sure the local model must be before a sentence is flagged. Lower catches more and flags more chatter; higher flags only strong factual claims. Start at the default and move it a little at a time, then press Rescan.</td></tr>
+            <tr><th>Check automatically</th><td>Off stops all scanning everywhere, without uninstalling anything.</td></tr>
+            <tr><th>Private sites</th><td>Banking, health, email and account pages are never scanned, and neither is any page showing a password or card field. Add your own domains, or override either way with the thumbs buttons.</td></tr>
+            <tr><th>Trusted and distrusted sources</th><td>Domains you list here weigh more or less in the evidence reading. This is your judgment, applied consistently, and it is visible in the reasons the panel lists.</td></tr>
+            <tr><th>Shorten long claims</th><td>Sends the distinctive words of a long sentence rather than the whole thing. Better recall on some engines, worse on others, which is why it is off by default and has a comparison page.</td></tr>
+            <tr><th>Academic mode</th><td>Biases web search towards scholarly sources and asks OpenAlex, a free index of research papers, for peer-reviewed work on the claim.</td></tr>
+            <tr><th>Read the sources' pages</th><td>Fetches the top results and uses the paragraphs that mention the claim instead of a 150-character snippet. Requests carry no cookies.</td></tr>
+            <tr><th>Remember answers</th><td>Keeps answers for a day so checking the same claim twice costs one call, not two. Stored on this machine, and clearable here.</td></tr>
+          </table>
+        </section>
+
+        <section>
+          <h2>If something looks wrong</h2>
+          <ul>
+            <li><strong>Nothing is flagged.</strong> Check the panel banner: the site may be on a never-scan list, the page may not be in English, or auto-check may be off.</li>
+            <li><strong>A setting had no effect.</strong> Press Rescan. Settings apply to sentences not already judged.</li>
+            <li><strong>Sign-up boxes get flagged.</strong> Tell me, or raise the threshold. Page furniture is filtered by rules that no set of rules covers completely.</li>
+            <li><strong>A video is not being read.</strong> Turn on subtitles, or press "Open the transcript" in the panel.</li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="tabpanel" id="tab-settings" role="tabpanel" aria-labelledby="tab-settings-btn" hidden>
       <section>
         <h2>Checking</h2>
         <p class="hint">
@@ -320,6 +575,110 @@
         <button id="save">Save settings</button>
         <span id="saved">Saved</span>
       </footer>
+      </div>
+
+      <div class="tabpanel" id="tab-credits" role="tabpanel" aria-labelledby="tab-credits-btn" hidden>
+        <section>
+          <h2>This extension</h2>
+          <p>
+            FactCheck Sidebar is released under the <strong>MIT licence</strong>,
+            Copyright &copy; 2026 John Sluk. You may use, modify and redistribute it,
+            including commercially, provided the licence and copyright notice travel with
+            it. It comes with no warranty and no liability, which for a tool that touches
+            what you believe is worth reading twice rather than skipping.
+          </p>
+          <p class="hint">
+            It has no third-party JavaScript dependencies. Nothing is bundled, minified or
+            fetched from a CDN: every file in the extension was written for it, and the
+            browser loads them directly.
+          </p>
+        </section>
+
+        <section>
+          <h2>Training data: the ClaimBuster dataset</h2>
+          <p>
+            The model that decides what is worth checking is trained on the
+            <strong>ClaimBuster</strong> dataset, created by the IDIR Lab at the
+            University of Texas at Arlington. It is a corpus of sentences from United
+            States presidential debates, each labelled by human annotators as a
+            check-worthy factual claim, an unimportant factual sentence, or not a factual
+            sentence at all.
+          </p>
+          <ul>
+            <li>Project: <a href="https://idir.uta.edu/claimbuster/" target="_blank" rel="noreferrer">idir.uta.edu/claimbuster</a></li>
+            <li>Dataset: <a href="https://zenodo.org/records/3836810" target="_blank" rel="noreferrer">zenodo.org/records/3836810</a>, DOI 10.5281/zenodo.3609356</li>
+            <li>Licence: <strong>Creative Commons Attribution 4.0 International</strong>, which permits redistribution and derivative works, including commercial use, on condition that the source is credited</li>
+          </ul>
+          <p>
+            A model trained on that data is a derivative work of it, so the credit travels
+            inside <code>model.json</code> as well as sitting here and in
+            <code>ATTRIBUTION.md</code>. The raw data is not redistributed with this
+            project; it is downloaded from the Zenodo record above.
+          </p>
+          <h3>Papers the dataset authors ask to be cited</h3>
+          <ul class="cites">
+            <li>Arslan, Hassan, Li and Tremayne (2020). <em>A Benchmark Dataset of Check-worthy Factual Claims.</em> 14th International AAAI Conference on Web and Social Media.</li>
+            <li>Meng, Jimenez, Arslan, Devasier, Obembe and Li (2020). <em>Gradient-Based Adversarial Training on Transformer Networks for Detecting Check-Worthy Factual Claims.</em></li>
+          </ul>
+          <h3>Funding, as stated by the dataset authors</h3>
+          <p class="hint">
+            The work is partially supported by NSF grants IIS-1408928, IIP-1565699,
+            IIS-1719054, OIA-1937143, a Knight Prototype Fund from the Knight Foundation,
+            and subawards from Duke University as part of a grant to the Duke Tech &amp;
+            Check Cooperative from the Knight Foundation and Facebook. Any opinions,
+            findings, and conclusions or recommendations expressed in this publication are
+            those of the authors and do not necessarily reflect the views of the funding
+            agencies.
+          </p>
+          <h3>What the labels mean, and do not</h3>
+          <p>
+            ClaimBuster labels whether a sentence is <em>worth checking</em>, never whether
+            it is true. The classifier inherits exactly that scope. Its scores are not
+            truth ratings and are not presented as any.
+          </p>
+        </section>
+
+        <section>
+          <h2>Services this extension can call</h2>
+          <p>
+            All of these are optional, all are called with your own key or not at all, and
+            each is used under the terms you accepted with that provider. No data from any
+            of them is redistributed here.
+          </p>
+          <table class="guide">
+            <tr><th>Wikipedia</th><td>Searched through the Wikimedia REST API. Article text is licensed CC BY-SA by its authors; the panel links to every article it quotes.</td></tr>
+            <tr><th>Google Fact Check Tools</th><td>Returns ClaimReview records published by independent fact-checking organisations. Each is shown with the publisher's name, their own wording of the rating, and a link to their article. Ratings are never remapped onto a scale invented here.</td></tr>
+            <tr><th>OpenAlex</th><td>A free and open index of scholarly work, used in academic mode. Its data is released into the public domain under CC0.</td></tr>
+            <tr><th>Brave Search, SerpAPI</th><td>Commercial search APIs, called with your key under their terms.</td></tr>
+            <tr><th>Anthropic, OpenAI</th><td>Commercial AI APIs, called with your key under their terms.</td></tr>
+            <tr><th>Ollama, LM Studio</th><td>Local model servers. Nothing leaves your machine, and no account exists to have terms.</td></tr>
+            <tr><th>Your browser's built-in model</th><td>Runs inside the browser, offline once downloaded.</td></tr>
+          </table>
+        </section>
+
+        <section>
+          <h2>Media bias ratings</h2>
+          <p>
+            Outlet lean estimates in the panel are generated by whichever AI model you
+            configured, and are labelled as estimates. This project does not use,
+            redistribute, or claim any compatibility with commercial media-bias services
+            such as AllSides, Ad Fontes Media or Media Bias/Fact Check. Source tiers are a
+            short, visible list in this extension that you can edit.
+          </p>
+        </section>
+
+        <section>
+          <h2>If you redistribute this</h2>
+          <p>
+            Keep <code>LICENSE</code> and <code>ATTRIBUTION.md</code> with it. If you ship
+            the trained model, the ClaimBuster credit above must travel with it, which is
+            why it is embedded in the model file itself. If you retrain on other data, add
+            that dataset's licence and credit before publishing the result.
+          </p>
+        </section>
+      </div>
+
+
     </div>
     <script type="module" src="options.js"></script>
   </body>

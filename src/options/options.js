@@ -3,6 +3,33 @@ import { SEARCH_PROVIDERS, LLM_PROVIDERS, FACTCHECK_PROVIDERS } from '../provide
 import { parseDomainList } from '../shared/privacy.js';
 
 const el = (id) => document.getElementById(id);
+
+// Three panels behind one page: the guide, the settings, and the credits. The guide
+// is first and open by default, because someone opening this page for the first time
+// needs to know what the extension does before changing how it does it.
+const TABS = ['guide', 'settings', 'credits'];
+
+function showTab(name) {
+  for (const id of TABS) {
+    const panel = el(`tab-${id}`);
+    const button = el(`tab-${id}-btn`);
+    if (!panel || !button) continue;
+    const selected = id === name;
+    panel.hidden = !selected;
+    button.setAttribute('aria-selected', String(selected));
+  }
+  // Deep links: options.html#credits opens on the credits, which is where a licence
+  // question is usually coming from.
+  if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+}
+
+function wireTabs() {
+  for (const id of TABS) {
+    el(`tab-${id}-btn`)?.addEventListener('click', () => showTab(id));
+  }
+  const requested = location.hash.slice(1);
+  showTab(TABS.includes(requested) ? requested : 'guide');
+}
 const fields = {
   autoCheck: el('autoCheck'),
   threshold: el('threshold'),
@@ -193,5 +220,6 @@ async function save() {
     status.textContent = res?.ok ? 'Cleared.' : 'Could not clear; try again.';
     setTimeout(() => { status.textContent = ''; }, 2500);
   });
+  wireTabs();
   el('save').addEventListener('click', save);
 })();
