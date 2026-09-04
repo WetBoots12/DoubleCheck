@@ -88,7 +88,7 @@
     return out;
   }
 
-  // Shared with the video script; see src/content/segment.cjs.
+  // Shared with the video script; see src/content/segment.js.
   function segment(text) {
     return FCSegment.splitSentences(text, 30);
   }
