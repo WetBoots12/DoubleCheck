@@ -7,6 +7,7 @@
     SENTENCES: 'sentences',
     HIGHLIGHT_CLICKED: 'highlightClicked',
     GET_STATE: 'getState',
+    PAGE_CHANGED: 'pageChanged',
     SCAN_CONFIG: 'scanConfig',
     CLAIM_STATUS: 'claimStatus',
     FOCUS_SENTENCE: 'focusSentence',
@@ -145,13 +146,39 @@
     timer = setTimeout(collect, 800);
   };
 
-  chrome.runtime.sendMessage({ type: MSG.GET_STATE }).then((res) => {
-    autoCheck = res?.autoCheck ?? true;
-    if (!autoCheck) return;
-    collect();
-    new MutationObserver(debouncedCollect).observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
-  }).catch(() => {});
+  // Same document, new page: reset local state so the new page is scanned from
+  // scratch, and tell the worker to drop the old page's claims.
+  function onPageChanged() {
+    sent.clear();
+    highlighted.clear();
+    chrome.runtime
+      .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
+      .catch(() => {});
+    setTimeout(collect, 900); // let the new view render first
+  }
+
+  let lastUrl = location.href;
+  setInterval(() => {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      onPageChanged();
+    }
+  }, 1000);
+
+  // Scanning must not depend on this round trip succeeding. A Manifest V3 service
+  // worker that is asleep or mid-restart can reject it, and gating setup on the
+  // reply used to kill scanning on the page silently and permanently.
+  new MutationObserver(debouncedCollect).observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+  collect();
+
+  chrome.runtime
+    .sendMessage({ type: MSG.GET_STATE })
+    .then((res) => {
+      autoCheck = res?.autoCheck ?? true;
+      if (autoCheck) collect();
+    })
+    .catch(() => {}); // default (on) already applied
 })();

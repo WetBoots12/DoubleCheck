@@ -20,13 +20,17 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => 
 
 chrome.tabs.onRemoved.addListener((tabId) => tabs.delete(tabId));
 
+// Any URL change resets the tab: a real load reports a status, while a single-page-app
+// navigation (history.pushState) reports only a url. Requiring both missed every SPA.
 chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (info.status === 'loading' && info.url) {
-    tabs.delete(tabId);
-    updateBadge(tabId);
-    pushPanel(tabId);
-  }
+  if (info.url) resetTab(tabId);
 });
+
+function resetTab(tabId) {
+  tabs.delete(tabId);
+  updateBadge(tabId);
+  pushPanel(tabId);
+}
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   updateBadge(tabId);
@@ -39,7 +43,11 @@ function updateBadge(tabId) {
   chrome.action.setBadgeBackgroundColor({ tabId, color: '#b4462d' }).catch(() => {});
 }
 
-function pushPanel(tabId) {
+// Only the active tab may drive the panel, otherwise a background tab navigating
+// blanks whatever the user is currently reading.
+async function pushPanel(tabId) {
+  const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!active || active.id !== tabId) return;
   const claims = [...(tabs.get(tabId)?.claims.values() || [])];
   chrome.runtime
     .sendMessage({ type: MSG.PANEL_UPDATE, tabId, claims })
@@ -148,6 +156,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case MSG.GET_STATE:
       getSettings().then((s) => sendResponse({ autoCheck: s.autoCheck }));
       return true;
+
+    case MSG.PAGE_CHANGED:
+      if (tabId != null) resetTab(tabId);
+      return false;
 
     case MSG.SENTENCES:
       if (tabId != null) handleSentences(tabId, msg.sentences || []);
