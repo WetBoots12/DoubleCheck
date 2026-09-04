@@ -26,17 +26,32 @@ let bannerTabId = null;
 let pageStatus = null;
 let captionMsg = null;
 
+// Only the languages a reader is likely to meet; anything else is named by its code.
+const LANGUAGE_NAMES = {
+  ar: 'Arabic', bn: 'Bengali', cs: 'Czech', da: 'Danish', de: 'German', el: 'Greek',
+  es: 'Spanish', fa: 'Persian', fi: 'Finnish', fr: 'French', he: 'Hebrew', hi: 'Hindi',
+  hu: 'Hungarian', id: 'Indonesian', it: 'Italian', ja: 'Japanese', ko: 'Korean',
+  nl: 'Dutch', no: 'Norwegian', pl: 'Polish', pt: 'Portuguese', ro: 'Romanian',
+  ru: 'Russian', sv: 'Swedish', th: 'Thai', tr: 'Turkish', uk: 'Ukrainian',
+  vi: 'Vietnamese', zh: 'Chinese',
+};
+
 const PRIVATE_REASONS = {
   user: (d) => `Not scanning ${d}: you turned it off. Press \u{1F44D} to allow it.`,
   builtin: (d) => `Not scanning ${d}: it looks like a private site (banking, health, email, accounts). Press \u{1F44D} to scan it anyway.`,
   local: () => 'Not scanning: this is a local or private network address.',
   fields: () => 'Not scanning this page: it has a password or card field.',
+  language: (_d, msg) => {
+    const name = LANGUAGE_NAMES[msg?.language] || '';
+    return `Not scanning: this page looks like it is in ${name || 'another language'}. `
+      + 'The claim detector only reads English. Press \u{1F44D} to scan it anyway.';
+  },
   unsupported: () => '',
 };
 
 function renderBanner() {
   let text = '';
-  if (pageStatus?.blocked) text = (PRIVATE_REASONS[pageStatus.reason] || PRIVATE_REASONS.builtin)(pageStatus.domain);
+  if (pageStatus?.blocked) text = (PRIVATE_REASONS[pageStatus.reason] || PRIVATE_REASONS.builtin)(pageStatus.domain, pageStatus);
   else if (captionMsg) text = captionHintText(captionMsg) || '';
   banner.hidden = !text;
   banner.textContent = text;

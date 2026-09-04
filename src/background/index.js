@@ -419,6 +419,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       return false;
 
+    case MSG.PAGE_LANGUAGE:
+      // Not a privacy rule: the classifier simply cannot read this page. The panel
+      // says which language it looks like, and the thumbs-up still overrides it.
+      if (tabId != null) {
+        scanPolicy(tabId).then((policy) =>
+          pushPageStatus(tabId, {
+            ...policy,
+            blocked: true,
+            reason: 'language',
+            language: msg.language || null,
+          }),
+        );
+      }
+      return false;
+
     case MSG.SITE_RULE:
       (async () => {
         const settings = await getSettings();

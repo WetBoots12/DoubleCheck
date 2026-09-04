@@ -69,6 +69,10 @@ Answers are also remembered for a day, on your machine only, so checking the sam
 claim twice, or reading a second article about the same event, costs one call
 instead of two. The options page can switch that off and empty what is stored.
 
+The claim detector reads English only. On a page in another language it says so in
+the panel and stays out of the way, rather than flagging sentences it cannot judge.
+The thumbs-up on the site row overrides that if you want it to try anyway.
+
 ## Installing
 
 No build step. Load it unpacked:
