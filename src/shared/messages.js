@@ -29,6 +29,7 @@ export const MSG = {
   SET_AUTOCHECK: 'setAutoCheck',    // { autoCheck }
   FOCUS_CLAIM: 'focusClaim',        // { claimId } -> forward to content script
   CHECK_CLAIM: 'checkClaim',        // { claimId } -> user asked to spend a search call
+  BROWSER_SEARCH: 'browserSearch',  // { claimId } -> open the claim in the browser's default search engine
   SITE_RULE: 'siteRule',            // { domain, action: 'allow' | 'block' } -> thumbs up / down
 
   // The browser's built-in model needs a document context, so the panel runs it.
@@ -50,7 +51,7 @@ export const SETTINGS_KEY = 'fc_settings';
 export const DEFAULT_SETTINGS = {
   autoCheck: true,
   threshold: 0.7,
-  searchProvider: 'serpapi',
+  searchProvider: 'wikipedia', // needs no key, so the extension works out of the box; keyed providers are the upgrade
   searchApiKey: '',
   distillQueries: false, // shorten long claims before web search; see tools/query-compare.html
   academicMode: false,   // bias web search toward scholarly sources and ask OpenAlex for peer-reviewed work

@@ -124,6 +124,12 @@ function pushHighlights(tabId, claims) {
     .catch(() => {});
 }
 
+// A provider that needs no key, such as Wikipedia, is ready the moment the
+// extension is installed. Keyed providers need their key before a check can run.
+function searchReady(settings) {
+  return !getSearchProvider(settings.searchProvider).requiresKey || Boolean(settings.searchApiKey);
+}
+
 // --- pipeline ---------------------------------------------------------------
 
 async function handleSentences(tabId, sentences) {
@@ -152,7 +158,7 @@ async function handleSentences(tabId, sentences) {
       text: s.text,
       ts: s.ts,
       score: Number(scores[i].toFixed(2)),
-      status: settings.searchApiKey ? STATUS.UNCHECKED : STATUS.NO_KEY,
+      status: searchReady(settings) ? STATUS.UNCHECKED : STATUS.NO_KEY,
     };
     state.claims.set(claim.id, claim);
     flagged.push(claim);
@@ -183,7 +189,7 @@ async function requestCheck(claimId, withAi) {
     return;
   }
 
-  if (!settings.searchApiKey) {
+  if (!searchReady(settings)) {
     claim.status = STATUS.NO_KEY;
     await tabStore.save(tabId);
     pushPanel(tabId);
@@ -342,7 +348,7 @@ async function addUserClaim(tabId, selection) {
       text,
       score: null, // never scored; the user decided this one
       userAdded: true,
-      status: settings.searchApiKey ? STATUS.UNCHECKED : STATUS.NO_KEY,
+      status: searchReady(settings) ? STATUS.UNCHECKED : STATUS.NO_KEY,
     });
     await tabStore.save(tabId);
     updateBadge(tabId);
@@ -473,6 +479,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.error) claim.error = `Summary unavailable: ${msg.error}`;
         await tabStore.save(id);
         pushPanel(id);
+      });
+      return false;
+
+    case MSG.BROWSER_SEARCH:
+      // The browser's own default engine, whichever the user set: native, keyless,
+      // and the same as the user typing the claim into the address bar. The results
+      // open in a tab rather than the panel, because no browser hands them to
+      // extensions as data.
+      activeTabId().then(async (id) => {
+        const state = id == null ? null : await tabStore.peek(id);
+        const claim = state?.claims.get(msg.claimId);
+        if (!claim) return;
+        Promise.resolve(chrome.search?.query({ text: claim.text, disposition: 'NEW_TAB' })).catch(() => {});
       });
       return false;
 

@@ -165,12 +165,18 @@
       </section>
 
       <section>
-        <h2>Search (required)</h2>
+        <h2>Search</h2>
         <div class="field">
           <label for="searchProvider">Provider</label>
           <select id="searchProvider"></select>
+          <div class="hint">
+            Wikipedia works the moment the extension is installed and needs no key.
+            SerpAPI or Brave Search give full web results in the panel and need one.
+            Every claim also has a "Search in browser" button that opens your default
+            search engine, whichever you use, with no key at all.
+          </div>
         </div>
-        <div class="field">
+        <div class="field" id="searchKeyField">
           <label for="searchApiKey">API key</label>
           <input type="password" id="searchApiKey" autocomplete="off" spellcheck="false" />
           <div class="err" id="searchErr"></div>
