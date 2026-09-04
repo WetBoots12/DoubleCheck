@@ -62,7 +62,17 @@ clears them. `tools/youtube-caption-probe.js` reports what the content script se
 without needing the extension loaded, which isolates caption reading from the rest
 of the pipeline. Live streams are untested and may need their own handling.
 
-Two further video checks. With captions switched off, a hint should appear both
+Three further video checks. First, open the transcript from the video's
+description (…more, then Show transcript): the panel banner should switch to
+"Reading captions and transcript" with a sentence count that climbs, and claims
+should appear with timestamps taken from the transcript. That count is the
+diagnostic for the whole video path: a rising count with no claims means the
+threshold is the reason, a count stuck at zero means nothing is being read. The
+caption probe now also reports transcript segment counts and whether the page
+enforces Trusted Types, which YouTube does and which makes any innerHTML
+assignment throw, so the video script must never use one.
+
+Then the two checks that follow. With captions switched off, a hint should appear both
 in the on-page overlay and as a banner at the top of the panel, and both should
 clear the moment captions are turned on; on a video that has no caption track at
 all, the hint should say so instead. That second case rests on the state and

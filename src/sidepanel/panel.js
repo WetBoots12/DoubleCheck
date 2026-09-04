@@ -12,12 +12,24 @@ const banner = document.getElementById('banner');
 // The video script explains an idle state that has a cause the viewer can fix.
 const CAPTION_HINTS = {
   off: 'Turn on YouTube subtitles (the CC button) so claims in this video can be detected.',
-  none: 'This video has no captions, so nothing can be detected from it.',
+  none: 'No captions on this video. If it has a transcript, open it (…more, then Show transcript) and it will be read.',
 };
 let bannerTabId = null;
 
+// "reading" carries a live count, so that a video which is being read but has
+// produced nothing above the threshold does not look like one that is not read.
+function captionHintText(msg) {
+  if (msg.hint === 'reading') {
+    const n = msg.scanned || 0;
+    return n
+      ? `Reading captions and transcript: ${n} sentence${n === 1 ? '' : 's'} scanned so far.`
+      : 'Reading captions and transcript: waiting for the first sentence.';
+  }
+  return CAPTION_HINTS[msg.hint];
+}
+
 function renderCaptionHint(msg) {
-  const text = CAPTION_HINTS[msg.hint];
+  const text = captionHintText(msg);
   banner.hidden = !text;
   banner.textContent = text || '';
   bannerTabId = text ? msg.tabId : null;

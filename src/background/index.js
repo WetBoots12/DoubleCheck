@@ -340,7 +340,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       activeTabId().then((id) => {
         if (tabId == null || id !== tabId) return;
         chrome.runtime
-          .sendMessage({ type: MSG.CAPTION_HINT, tabId, hint: msg.hint ?? null })
+          .sendMessage({ type: MSG.CAPTION_HINT, tabId, hint: msg.hint ?? null, scanned: msg.scanned ?? 0 })
           .catch(() => {});
       });
       return false;
