@@ -111,10 +111,16 @@ def main():
     df = pd.read_csv(args.data).dropna(subset=["text", "label"])
     texts = df["text"].astype(str).tolist()
     labels = df["label"].astype(int).to_numpy()
+    # Written by prepare_data.py when several corpora are blended. One overall number
+    # can hide a blend that improved one domain and wrecked another, which is exactly
+    # the failure to watch for when training beyond political debates.
+    domains = (df["domain"].astype(str).to_numpy()
+               if "domain" in df.columns else np.array(["all"] * len(texts)))
     print(f"{len(texts)} sentences, {labels.sum()} check-worthy ({labels.mean():.1%})")
 
-    x_train_text, x_test_text, y_train, y_test = train_test_split(
-        texts, labels, test_size=args.test_size, random_state=args.seed, stratify=labels
+    x_train_text, x_test_text, y_train, y_test, _, d_test = train_test_split(
+        texts, labels, domains,
+        test_size=args.test_size, random_state=args.seed, stratify=labels
     )
 
     vectorizer = TfidfVectorizer(
@@ -149,6 +155,26 @@ def main():
         print(f"  {threshold:.2f}      {p:.3f}      {r:.3f}   {f1:.3f}   {flagged}")
     print("\nPick the extension's default threshold from this table: precision matters "
           "more than recall here, since every flagged claim costs the user a search call.")
+
+    if len(set(d_test)) > 1:
+        print("\n--- Held-out performance by domain ---")
+        print(f"{'domain':<24}{'rows':>7}{'positives':>11}{'AP':>8}{'P@0.70':>9}")
+        for name in sorted(set(d_test)):
+            mask = d_test == name
+            y_d = y_test[mask]
+            s_d = scores[mask]
+            positives = int(y_d.sum())
+            if positives == 0 or positives == len(y_d):
+                # Average precision is undefined with a single class present.
+                print(f"{name:<24}{len(y_d):>7}{positives:>11}{'n/a':>8}{'n/a':>9}")
+                continue
+            ap_d = average_precision_score(y_d, s_d)
+            pred = (s_d >= 0.70).astype(int)
+            p_d, _, _, _ = precision_recall_fscore_support(
+                y_d, pred, average="binary", zero_division=0)
+            print(f"{name:<24}{len(y_d):>7}{positives:>11}{ap_d:>8.3f}{p_d:>9.3f}")
+        print("\nA blend is only worth keeping if no domain got worse. One overall "
+              "number can hide a corpus that dragged another one down.")
 
     os.makedirs(args.out, exist_ok=True)
     vocabulary = {term: int(i) for term, i in vectorizer.vocabulary_.items()}
