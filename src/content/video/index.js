@@ -129,7 +129,7 @@
   // Why nothing is being detected, when that has a cause the viewer can fix.
   const HINT_TEXT = {
     off: 'Turn on subtitles (CC) to detect claims in this video.',
-    none: 'This video has no captions, so no claims can be detected.',
+    none: 'No captions on this video. If it has a transcript, open it (…more, then Show transcript).',
   };
   let currentHint = null;
 
@@ -141,7 +141,7 @@
       return;
     }
     el.classList.add('visible');
-    el.innerHTML = '';
+    el.replaceChildren(); // not innerHTML: YouTube enforces Trusted Types, which makes it throw
     if (hintText) {
       const h = document.createElement('div');
       h.className = 'hint';
@@ -152,7 +152,10 @@
     for (const [id, m] of recent) {
       const row = document.createElement('div');
       row.className = 'marker';
-      row.innerHTML = `<span class="time">${fmt(m.ts)}</span>`;
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = fmt(m.ts);
+      row.appendChild(time);
       row.appendChild(document.createTextNode(m.text.slice(0, 90) + (m.text.length > 90 ? '…' : '')));
       row.addEventListener('click', () => {
         const v = video();
@@ -216,21 +219,29 @@
 
   function captionState() {
     if (!location.pathname.startsWith('/watch') || !video()) return null;
+    // An open transcript panel is a source in its own right, captions on or off.
+    if (document.querySelector('ytd-transcript-segment-renderer')) return 'reading';
     const btn = document.querySelector('.ytp-subtitles-button');
     // No usable button means there is no caption track to turn on.
     if (!btn || btn.getAttribute('aria-disabled') === 'true' || !btn.offsetParent) return 'none';
-    return btn.getAttribute('aria-pressed') === 'false' ? 'off' : null;
+    return btn.getAttribute('aria-pressed') === 'false' ? 'off' : 'reading';
   }
 
-  let lastHint; // undefined until first reported, so the first tick clears any stale banner
+  // Reported when the state changes, and while reading, when the scanned count
+  // changes, so the panel can show that sentences are arriving even if none has
+  // cleared the threshold yet. That distinguishes "nothing read" from "read,
+  // nothing flagged", which otherwise look identical.
+  let lastReport = '';
 
   function reportCaptionState() {
     const state = autoCheck ? captionState() : null;
-    if (state === lastHint) return;
-    lastHint = state;
+    const scanned = sent.size;
+    const key = `${state}:${state === 'reading' ? scanned : ''}`;
+    if (key === lastReport) return;
+    lastReport = key;
     currentHint = state;
     renderMarkers();
-    chrome.runtime.sendMessage({ type: MSG.CAPTION_HINT, hint: state }).catch(() => {});
+    chrome.runtime.sendMessage({ type: MSG.CAPTION_HINT, hint: state, scanned }).catch(() => {});
   }
 
   chrome.runtime.onMessage.addListener((msg) => {
@@ -251,6 +262,71 @@
       reportCaptionState();
     }
   });
+
+  // --- transcript panel -------------------------------------------------------
+  // When the viewer opens YouTube's transcript, its segments are already in the
+  // page: timestamped, and punctuated for uploader captions. Reading them covers
+  // the whole video at once, and reacting the moment the panel appears is what
+  // makes opening it feel like it did something.
+
+  let transcriptObserver = null;
+  let observedTranscript = null;
+  let lastTranscriptCount = 0;
+  let transcriptTimer = null;
+
+  function parseTimestamp(text) {
+    const parts = (text || '').trim().split(':').map(Number);
+    if (!parts.length || parts.some(Number.isNaN)) return 0;
+    return parts.reduce((acc, n) => acc * 60 + n, 0);
+  }
+
+  function ingestTranscript(force = false) {
+    const nodes = document.querySelectorAll('ytd-transcript-segment-renderer');
+    if (!nodes.length) return;
+    if (!force && nodes.length === lastTranscriptCount) return;
+    lastTranscriptCount = nodes.length;
+
+    // Segments are cue-sized fragments. Group them until one ends a sentence, or
+    // by length for auto-transcripts that carry no punctuation at all.
+    let group = [];
+    let words = 0;
+    const flush = () => {
+      if (!group.length) return;
+      ship(FCSegment.splitSentences(group.map((g) => g.text).join(' ')), group[0].ts);
+      group = [];
+      words = 0;
+    };
+    for (const node of nodes) {
+      const text = (node.querySelector('.segment-text')?.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!text) continue;
+      group.push({ text, ts: parseTimestamp(node.querySelector('.segment-timestamp')?.textContent) });
+      words += text.split(' ').length;
+      if (/[.!?]["')\]]?$/.test(text) || words >= 40) flush();
+    }
+    if (words >= 8) flush();
+  }
+
+  function attachTranscriptObserver() {
+    const panel = document.querySelector('ytd-transcript-renderer, ytd-transcript-search-panel-renderer');
+    if (!panel) return;
+    if (panel === observedTranscript && panel.isConnected) return;
+    detachTranscriptObserver();
+    transcriptObserver = new MutationObserver(() => {
+      // The panel renders in bursts; ingest once they settle.
+      clearTimeout(transcriptTimer);
+      transcriptTimer = setTimeout(() => { if (autoCheck) ingestTranscript(true); }, 250);
+    });
+    transcriptObserver.observe(panel, { childList: true, subtree: true });
+    observedTranscript = panel;
+    if (autoCheck) ingestTranscript(true);
+  }
+
+  function detachTranscriptObserver() {
+    transcriptObserver?.disconnect();
+    transcriptObserver = null;
+    observedTranscript = null;
+    clearTimeout(transcriptTimer);
+  }
 
   // --- caption observer -------------------------------------------------------
   // At 1.5x or 2x playback a cue can appear and vanish between one-second polls,
@@ -289,8 +365,10 @@
     sent.clear();
     markers.clear();
     currentId = null;
-    lastHint = undefined;
+    lastReport = '';
+    lastTranscriptCount = 0;
     detachCaptionObserver();
+    detachTranscriptObserver();
     renderMarkers();
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
@@ -305,7 +383,11 @@
       onPageChanged();
     }
     attachCaptionObserver();
-    if (autoCheck) readCues(); // fallback in case a mutation was coalesced away
+    attachTranscriptObserver();
+    if (autoCheck) {
+      readCues(); // fallback in case a mutation was coalesced away
+      ingestTranscript(); // cheap when the count is unchanged
+    }
     reportCaptionState();
   }, 1000);
 

@@ -22,6 +22,14 @@
   console.log('[probe] captions button:', !!document.querySelector('.ytp-subtitles-button'),
     'pressed:', document.querySelector('.ytp-subtitles-button')?.getAttribute('aria-pressed'));
   console.log('[probe] caption segments right now:', document.querySelectorAll('.ytp-caption-segment').length);
+  console.log('[probe] transcript segments right now:', document.querySelectorAll('ytd-transcript-segment-renderer').length,
+    '(open the transcript from the description to populate these)');
+  try {
+    document.createElement('div').innerHTML = '<b></b>';
+    console.log('[probe] Trusted Types: not enforced on this page');
+  } catch (e) {
+    console.warn('[probe] Trusted Types ENFORCED: any innerHTML assignment throws here.', e.message);
+  }
   if (!document.querySelectorAll('.ytp-caption-segment').length) {
     console.warn('[probe] No caption segments visible. Turn captions ON (the CC button) and rerun.');
   }
