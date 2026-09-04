@@ -80,6 +80,43 @@ test('"voted no." ends a sentence but "No. 42" does not', () => {
   assert.equal(endsWithAbbreviation('filed as No.', '42 in the docket'), true);
 });
 
+// --- isBoilerplate ------------------------------------------------------------
+// Page furniture that reaches the extractor as plain paragraphs. The first cut of
+// these patterns shipped with literal backspace bytes where \b should have been,
+// so every boundary is asserted here rather than assumed.
+
+const { isBoilerplate } = FCSegment;
+
+test('newsletter and subscription pitches are boilerplate', () => {
+  assert.equal(isBoilerplate('Sign up for our newsletter to get the latest news delivered to your inbox every morning.'), true);
+  assert.equal(isBoilerplate('Join 2 million readers and subscribe today for just 1 dollar a week.'), true);
+  assert.equal(isBoilerplate('Enter your email to stay up to date.'), true);
+});
+
+test('legal lines and sharing prompts are boilerplate', () => {
+  assert.equal(isBoilerplate('© 2026 Example Media. All rights reserved.'), true);
+  assert.equal(isBoilerplate('Copyright (c) 2026 Example Media'), true);
+  assert.equal(isBoilerplate('By continuing you agree to our Terms of Service and Privacy Policy.'), true);
+  assert.equal(isBoilerplate('Follow us on social media and share this story with your friends.'), true);
+  assert.equal(isBoilerplate('Download the app from the App Store or Google Play.'), true);
+});
+
+test('factual claims are not boilerplate, even with numbers in them', () => {
+  assert.equal(isBoilerplate('The company reported record revenue of 5 billion dollars in 2023.'), false);
+  assert.equal(isBoilerplate('Unemployment fell to 4.2 percent last quarter, according to the Labor Department.'), false);
+  assert.equal(isBoilerplate('Officials confirmed the vote was delayed until March.'), false);
+});
+
+test('word boundaries keep pattern words from matching inside other words', () => {
+  assert.equal(isBoilerplate('The chemical subscript in the formula was wrong, the paper said.'), false);
+  assert.equal(isBoilerplate('The design was reconsidered after the review.'), false);
+});
+
+test('empty input is not boilerplate', () => {
+  assert.equal(isBoilerplate(''), false);
+  assert.equal(isBoilerplate(undefined), false);
+});
+
 test('ordinals such as 21st. are sentence ends, not St.', () => {
   assert.equal(splitSentences('The city ranks 21st. Its rival ranks 3rd.').length, 2);
   assert.equal(endsWithAbbreviation('The city ranks 21st.'), false);
