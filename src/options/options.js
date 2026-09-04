@@ -1,6 +1,9 @@
 import { getSettings, saveSettings, MSG } from '../shared/messages.js';
 import { SEARCH_PROVIDERS, LLM_PROVIDERS, FACTCHECK_PROVIDERS } from '../providers/index.js';
 import { parseDomainList } from '../shared/privacy.js';
+import {
+  HIGHLIGHT_STYLES, HIGHLIGHT_COLORS, THICKNESS, PANEL_SIZES, applyAppearance,
+} from '../shared/appearance.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -39,6 +42,11 @@ const fields = {
   searchKeyField: el('searchKeyField'),
   distillQueries: el('distillQueries'),
   cacheResults: el('cacheResults'),
+  highlightStyle: el('highlightStyle'),
+  highlightColor: el('highlightColor'),
+  highlightThickness: el('highlightThickness'),
+  panelTextSize: el('panelTextSize'),
+  showVideoOverlay: el('showVideoOverlay'),
   readSources: el('readSources'),
   academicMode: el('academicMode'),
   privateSitesRule: el('privateSitesRule'),
@@ -96,6 +104,20 @@ function syncLlmKeyVisibility() {
   }
 }
 
+// What the sample shows, live, without saving first: the same variables the real
+// highlights use are written onto this page's root.
+function currentAppearance() {
+  return {
+    highlightStyle: fields.highlightStyle.value,
+    highlightColor: fields.highlightColor.value,
+    highlightThickness: fields.highlightThickness.value,
+  };
+}
+
+function previewAppearance() {
+  applyAppearance(document.documentElement, currentAppearance());
+}
+
 function showError(id, message) {
   const node = el(id);
   node.textContent = message;
@@ -145,6 +167,11 @@ async function save() {
     searchApiKey: fields.searchApiKey.value.trim(),
     distillQueries: fields.distillQueries.checked,
     cacheResults: fields.cacheResults.checked,
+    highlightStyle: fields.highlightStyle.value,
+    highlightColor: fields.highlightColor.value,
+    highlightThickness: fields.highlightThickness.value,
+    panelTextSize: fields.panelTextSize.value,
+    showVideoOverlay: fields.showVideoOverlay.checked,
     readSources: fields.readSources.checked,
     academicMode: fields.academicMode.checked,
     privateSitesRule: fields.privateSitesRule.checked,
@@ -188,6 +215,19 @@ async function save() {
   fields.searchApiKey.value = s.searchApiKey;
   fields.distillQueries.checked = Boolean(s.distillQueries);
   fields.cacheResults.checked = s.cacheResults !== false;
+  fill(fields.highlightStyle, HIGHLIGHT_STYLES);
+  fill(fields.highlightColor, HIGHLIGHT_COLORS);
+  fill(fields.highlightThickness, THICKNESS);
+  fill(fields.panelTextSize, PANEL_SIZES);
+  fields.highlightStyle.value = s.highlightStyle;
+  fields.highlightColor.value = s.highlightColor;
+  fields.highlightThickness.value = s.highlightThickness;
+  fields.panelTextSize.value = s.panelTextSize;
+  fields.showVideoOverlay.checked = s.showVideoOverlay !== false;
+  previewAppearance();
+  for (const f of [fields.highlightStyle, fields.highlightColor, fields.highlightThickness]) {
+    f.addEventListener('change', previewAppearance);
+  }
   fields.readSources.checked = s.readSources !== false;
   fields.academicMode.checked = Boolean(s.academicMode);
   fields.privateSitesRule.checked = s.privateSitesRule !== false;

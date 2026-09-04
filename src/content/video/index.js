@@ -20,6 +20,9 @@
   };
 
   let autoCheck = true;
+  // Some viewers want the panel and a clean player. The claims are still found and
+  // still listed; only the markers over the video go away.
+  let showOverlay = true;
 
   // --- language ---------------------------------------------------------------
   // The classifier reads English only, and a video's captions are often in a
@@ -210,7 +213,7 @@
   function renderMarkers() {
     const el = overlay();
     const hintText = HINT_TEXT[currentHint];
-    if (isAdShowing() || (!markers.size && !hintText)) {
+    if (!showOverlay || isAdShowing() || (!markers.size && !hintText)) {
       el.classList.remove('visible');
       return;
     }
@@ -351,6 +354,7 @@
     } else if (msg.type === MSG.OPEN_TRANSCRIPT) {
       openTranscript();
     } else if (msg.type === MSG.SCAN_CONFIG) {
+      if (msg.appearance) showOverlay = msg.appearance.showVideoOverlay !== false;
       autoCheck = msg.autoCheck && msg.scanAllowed !== false;
       // Reaching here after a language block means the user pressed the thumbs-up
       // for this site. Their yes outranks our reading of the captions.
@@ -530,7 +534,10 @@
     // The new URL may fall under a different rule; ask again.
     chrome.runtime
       .sendMessage({ type: MSG.GET_STATE })
-      .then((res) => { autoCheck = (res?.autoCheck ?? true) && res?.scanAllowed !== false; })
+      .then((res) => {
+        autoCheck = (res?.autoCheck ?? true) && res?.scanAllowed !== false;
+        if (res?.appearance) showOverlay = res.appearance.showVideoOverlay !== false;
+      })
       .catch(() => {});
   }
 

@@ -20,6 +20,18 @@
     RESCAN: 'rescan',
   };
 
+  // How the highlights look. Computed by the worker, which can import the shared
+  // module; this script only applies what it is given. Every value has a fallback in
+  // highlight.css, so a page rendered before this arrives still looks right.
+  function applyAppearance(look) {
+    if (!look) return;
+    const root = document.documentElement;
+    for (const [name, value] of Object.entries(look.vars || {})) {
+      root.style.setProperty(name, value);
+    }
+    if (look.style) root.setAttribute('data-fc-style', look.style);
+  }
+
   let autoCheck = true;
   let scanAllowed = true; // the worker's verdict on this page's URL
   let privateFieldsReported = false;
@@ -379,6 +391,7 @@
     else if (msg.type === MSG.NAV_CLAIM) navigate(msg.direction);
     else if (msg.type === MSG.RESCAN) rescan();
     else if (msg.type === MSG.SCAN_CONFIG) {
+      applyAppearance(msg.appearance);
       autoCheck = msg.autoCheck;
       if (msg.scanAllowed !== undefined) {
         scanAllowed = msg.scanAllowed;
@@ -435,9 +448,12 @@
       .then((res) => {
         autoCheck = res?.autoCheck ?? autoCheck;
         scanAllowed = res?.scanAllowed !== false;
+        applyAppearance(res?.appearance);
         collect();
       })
-      .catch(() => collect()); // a sleeping worker must not stop the rescan
+      // A sleeping worker must not stop a rescan, but it must not turn a "no" into
+      // a "yes" either: without an answer, whatever was decided before stands.
+      .catch(() => { if (scanAllowed) collect(); });
   }
 
   function onPageChanged() {
@@ -468,14 +484,29 @@
     }
   }, 1000);
 
-  // Scanning must not depend on this round trip succeeding. A Manifest V3 service
-  // worker that is asleep or mid-restart can reject it, and gating setup on the
-  // reply used to kill scanning on the page silently and permanently.
+  // Ask whether this page may be read at all, and wait a moment for the answer.
+  //
+  // Two failures to avoid at once. Gating scanning on this round trip permanently
+  // killed the extension on a page whenever a sleeping service worker rejected it.
+  // Ignoring the round trip entirely meant a never-scan page was read locally first
+  // and refused afterwards. So: a short wait for the answer, then scan regardless.
+  // The worker refuses anything from a blocked page in any case, and the wait means
+  // that on a bank or a medical portal the page is usually never read at all.
+  const POLICY_WAIT_MS = 1200;
+  let firstScan = null;
+
+  function firstCollect() {
+    if (firstScan) return;
+    firstScan = true;
+    collect();
+  }
   // Scanning is the expensive half, so a mutation only schedules one when it
   // actually brought reading material with it. The observer stays on document.body
   // rather than narrowing to contentRoot(): the pages that mutate hardest are
   // infinite feeds that append whole articles as siblings of the one being read,
   // and an observer scoped to the current article would go quiet exactly there.
+  setTimeout(firstCollect, POLICY_WAIT_MS); // no answer in time: read it anyway
+
   new MutationObserver((records) => {
     const worth = FCMutations.worthScanning(records, {
       isExcluded: (node) => inExcludedRegion(node, document.body),
@@ -486,14 +517,17 @@
     childList: true,
     subtree: true,
   });
-  collect();
-
   chrome.runtime
     .sendMessage({ type: MSG.GET_STATE })
     .then((res) => {
       autoCheck = res?.autoCheck ?? true;
       scanAllowed = res?.scanAllowed !== false;
-      if (autoCheck && scanAllowed) collect();
+      applyAppearance(res?.appearance);
+      if (!scanAllowed) {
+        firstScan = true; // a "no" arrived first: never read this page
+        return;
+      }
+      if (autoCheck) firstCollect();
     })
-    .catch(() => {}); // default (on) already applied
+    .catch(() => {}); // the timeout above still runs the first scan
 })();

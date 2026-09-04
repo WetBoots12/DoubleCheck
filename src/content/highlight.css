@@ -1,28 +1,68 @@
+/* Highlight styling, driven by CSS variables so the options page can change it.
+   The content script writes the variables onto the page's root element; every
+   value here falls back to the default, so a page loaded before the settings
+   arrive still looks right. */
+
 .fc-highlight {
-  border-bottom: 2px solid #c8963e;
-  background: rgba(200, 150, 62, 0.12);
+  --fc-unchecked: var(--fc-color, #c8963e);
+  --fc-thickness: var(--fc-line, 2px);
+
+  border-bottom: var(--fc-thickness) solid var(--fc-unchecked);
+  background: color-mix(in srgb, var(--fc-unchecked) 12%, transparent);
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.fc-highlight:hover { background: rgba(200, 150, 62, 0.28); }
+.fc-highlight:hover {
+  background: color-mix(in srgb, var(--fc-unchecked) 28%, transparent);
+}
 .fc-highlight[data-fc-status="checked"] {
-  border-bottom-color: #3d7a5a;
-  background: rgba(61, 122, 90, 0.12);
+  --fc-unchecked: var(--fc-color-checked, #3d7a5a);
 }
 .fc-highlight[data-fc-status="error"],
 .fc-highlight[data-fc-status="noKey"] {
-  border-bottom-color: #9a9a9a;
-  background: rgba(154, 154, 154, 0.12);
+  --fc-unchecked: #9a9a9a;
 }
+
+/* Underline only: no wash behind the text, for reading long articles. */
+:root[data-fc-style="underline"] .fc-highlight,
+:root[data-fc-style="underline"] .fc-highlight:hover {
+  background: transparent;
+}
+
+/* Background only: no rule under the text, closer to a marker pen. */
+:root[data-fc-style="background"] .fc-highlight {
+  border-bottom: none;
+  background: color-mix(in srgb, var(--fc-unchecked) 22%, transparent);
+  border-radius: 2px;
+}
+
+/* A dotted rule, for pages where a solid one competes with links. */
+:root[data-fc-style="dotted"] .fc-highlight {
+  border-bottom-style: dotted;
+  border-bottom-width: max(var(--fc-thickness), 2px);
+  background: transparent;
+}
+
 /* The claim currently stepped to, styled like a find-in-page active match:
    it persists rather than flashing, so the user can read it. */
 .fc-highlight.fc-current {
-  background: #f5a623;
+  background: var(--fc-color-current, #f5a623);
   color: #1c1b19;
-  border-bottom-color: #b4711a;
-  outline: 2px solid #b4711a;
+  border-bottom-color: var(--fc-color-current-line, #b4711a);
+  outline: 2px solid var(--fc-color-current-line, #b4711a);
   outline-offset: 1px;
   scroll-margin: 40vh;
+}
+
+/* Some readers want the panel and nothing on the page itself. The claims are
+   still found, listed and navigable; they are simply not drawn over the article. */
+:root[data-fc-style="none"] .fc-highlight {
+  border-bottom: none;
+  background: transparent;
+}
+:root[data-fc-style="none"] .fc-highlight.fc-current {
+  background: var(--fc-color-current, #f5a623);
+  outline: 2px solid var(--fc-color-current-line, #b4711a);
 }
 
 /* The video overlay's styles live inside its shadow root in

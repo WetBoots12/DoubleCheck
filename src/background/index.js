@@ -26,6 +26,17 @@ import { tabStore } from './tabstate.js';
 import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
 import { createCache, cacheKey } from '../shared/cache.js';
+// Content scripts are classic scripts and cannot import, so the worker computes the
+// appearance and sends it as plain values with every state reply.
+import { highlightVars, highlightStyleName } from '../shared/appearance.js';
+
+function appearanceOf(settings) {
+  return {
+    vars: highlightVars(settings),
+    style: highlightStyleName(settings),
+    showVideoOverlay: settings.showVideoOverlay !== false,
+  };
+}
 
 // Provider answers are remembered for a day on the user's own machine, so reading a
 // second article about the same event, or re-opening a page, does not spend another
@@ -71,6 +82,7 @@ tabStore.recoverStale().catch(() => {});
 chrome.tabs.onRemoved.addListener((tabId) => {
   queue.drop(tabId);
   publishers.delete(tabId);
+  privateTabs.delete(tabId);
   tabStore.clear(tabId).catch(() => {});
 });
 
@@ -83,6 +95,7 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 async function resetTab(tabId) {
   queue.drop(tabId);
   publishers.delete(tabId);
+  privateTabs.delete(tabId); // a new page is judged on its own merits
   await tabStore.clear(tabId);
   updateBadge(tabId);
   pushPanel(tabId);
@@ -101,8 +114,15 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 
 const NO_TAB = { blocked: true, reason: 'unsupported', domain: '', rule: null };
 
+// The one place that decides whether anything may happen for a tab. Everything
+// that could read, score, store or send a page's text asks this first.
 async function scanPolicy(tabId) {
   if (tabId == null) return NO_TAB;
+  if (privateTabs.has(tabId)) {
+    // Reported by the page itself, and kept until the tab navigates. A form is
+    // invisible to a URL rule, so the report has to outlive the moment it arrived.
+    return { blocked: true, reason: 'fields', domain: await tabOrigin(tabId), rule: null };
+  }
   try {
     const tab = await chrome.tabs.get(tabId);
     return evaluateUrl(tab?.url || '', await getSettings());
@@ -296,6 +316,12 @@ async function tabOrigin(tabId) {
 // second from the page's canonical link, Open Graph URL and credit line.
 const publishers = new Map(); // tabId -> domains
 
+// Tabs the content script reported as private for a reason the URL cannot show: a
+// password box, a card field. The URL rules cannot see those, so the report has to
+// be remembered rather than only shown once, or the next thing that asks about this
+// tab would be told it is fine to scan.
+const privateTabs = new Set();
+
 async function excludedDomains(tabId) {
   const origin = await tabOrigin(tabId);
   const extra = publishers.get(tabId) || [];
@@ -413,6 +439,17 @@ async function addUserClaim(tabId, selection) {
   const text = selection.replace(/\s+/g, ' ').trim();
   if (text.length < 10) return;
 
+  // A right-click is an explicit request, and it still does not override the
+  // never-scan rules. Sending a sentence from a bank statement or a medical portal
+  // to a search API is exactly what those rules exist to prevent, and the thumbs-up
+  // in the panel is the deliberate way to change your mind about a site.
+  const policy = await scanPolicy(tabId);
+  if (policy.blocked) {
+    await chrome.sidePanel?.open?.({ tabId }).catch(() => {});
+    pushPageStatus(tabId, policy); // the banner says which rule, and how to override
+    return;
+  }
+
   const state = await tabStore.get(tabId);
   const key = text.toLowerCase();
 
@@ -463,17 +500,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case MSG.GET_STATE:
       (async () => {
         const [settings, policy] = await Promise.all([getSettings(), scanPolicy(tabId)]);
-        sendResponse({ autoCheck: settings.autoCheck, scanAllowed: !policy.blocked, reason: policy.reason });
+        sendResponse({
+          autoCheck: settings.autoCheck,
+          scanAllowed: !policy.blocked,
+          reason: policy.reason,
+          appearance: appearanceOf(settings),
+        });
         if (tabId != null) pushPageStatus(tabId, policy);
       })();
       return true;
 
     case MSG.PAGE_PRIVATE:
-      // The page itself has a password or card field; say so, whatever the domain.
+      // The page itself has a password or card field; say so, whatever the domain,
+      // and remember it, because the URL rules cannot see a form. Anything already
+      // collected from this page goes: a login screen that appeared after the
+      // article must not leave claims from that page sitting in the panel.
       if (tabId != null) {
-        scanPolicy(tabId).then((policy) =>
-          pushPageStatus(tabId, { ...policy, blocked: true, reason: msg.reason || 'fields' }),
-        );
+        privateTabs.add(tabId);
+        queue.drop(tabId);
+        tabStore.clear(tabId)
+          .then(() => {
+            updateBadge(tabId);
+            pushPanel(tabId);
+            return scanPolicy(tabId);
+          })
+          .then((policy) => pushPageStatus(tabId, { ...policy, blocked: true, reason: msg.reason || 'fields' }))
+          .catch(() => {});
       }
       return false;
 
@@ -535,7 +587,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (id == null) return sendResponse({ ok: false });
         const policy = await scanPolicy(id);
         chrome.tabs
-          .sendMessage(id, { type: MSG.SCAN_CONFIG, autoCheck: settings.autoCheck, scanAllowed: !policy.blocked })
+          .sendMessage(id, {
+            type: MSG.SCAN_CONFIG,
+            autoCheck: settings.autoCheck,
+            scanAllowed: !policy.blocked,
+            appearance: appearanceOf(settings),
+          })
           .catch(() => {});
         if (policy.blocked) {
           // A site just turned off must not keep showing what was found on it.
@@ -591,7 +648,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         await saveSettings({ autoCheck: msg.autoCheck });
         const id = await activeTabId();
         const policy = await scanPolicy(id);
-        sendToActiveTab({ type: MSG.SCAN_CONFIG, autoCheck: msg.autoCheck, scanAllowed: !policy.blocked });
+        sendToActiveTab({
+          type: MSG.SCAN_CONFIG,
+          autoCheck: msg.autoCheck,
+          scanAllowed: !policy.blocked,
+          appearance: appearanceOf(await getSettings()),
+        });
         sendResponse({ ok: true });
       })();
       return true;
