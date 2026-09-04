@@ -9,10 +9,11 @@ export const MSG = {
   GET_STATE: 'getState',            // content asks whether to scan at all
   UNLOCATED: 'unlocated',           // { ids } -> claims with no highlight on the page
   CAPTION_HINT: 'captionHint',      // { hint: 'off' | 'none' | null } -> panel banner, video pages only
+  PAGE_PRIVATE: 'pagePrivate',      // { reason: 'fields' } -> page has a password or card field
   PAGE_CHANGED: 'pageChanged',      // { url } -> same document, new page (SPA navigation)
 
   // background -> content script
-  SCAN_CONFIG: 'scanConfig',        // { autoCheck }
+  SCAN_CONFIG: 'scanConfig',        // { autoCheck, scanAllowed }
   CLAIM_STATUS: 'claimStatus',      // { claims: [{id, status}] } -> draw/update highlights
   FOCUS_SENTENCE: 'focusSentence',  // { claimId } -> scroll page to it
   NAV_CLAIM: 'navClaim',            // { direction: 'next' | 'prev' } -> step like Ctrl+F
@@ -20,6 +21,7 @@ export const MSG = {
   // background -> side panel
   PANEL_UPDATE: 'panelUpdate',      // { tabId, claims: Claim[] }
   PANEL_FOCUS: 'panelFocus',        // { claimId }
+  PAGE_STATUS: 'pageStatus',        // { tabId, blocked, reason, domain, rule } -> banner + thumbs
   NAV_STATE: 'navState',            // { claimId, index, total } -> find-bar counter
 
   // side panel -> background
@@ -27,6 +29,7 @@ export const MSG = {
   SET_AUTOCHECK: 'setAutoCheck',    // { autoCheck }
   FOCUS_CLAIM: 'focusClaim',        // { claimId } -> forward to content script
   CHECK_CLAIM: 'checkClaim',        // { claimId } -> user asked to spend a search call
+  SITE_RULE: 'siteRule',            // { domain, action: 'allow' | 'block' } -> thumbs up / down
 
   // The browser's built-in model needs a document context, so the panel runs it.
   LLM_REQUEST: 'llmRequest',        // background -> panel { claimId, claim, results }
@@ -50,6 +53,9 @@ export const DEFAULT_SETTINGS = {
   searchProvider: 'serpapi',
   searchApiKey: '',
   distillQueries: false, // shorten long claims before web search; see tools/query-compare.html
+  privateSitesRule: true, // built-in never-scan rules for banks, health, mail, accounts, local addresses
+  blockedDomains: [],     // the user's never-scan list; always wins
+  allowedDomains: [],     // the user's always-scan list; overrides the built-in rules
   factCheckProvider: 'google',
   factCheckApiKey: '',
   llmProvider: 'none',

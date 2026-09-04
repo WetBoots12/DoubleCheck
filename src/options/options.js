@@ -1,5 +1,6 @@
 import { getSettings, saveSettings, MSG } from '../shared/messages.js';
 import { SEARCH_PROVIDERS, LLM_PROVIDERS, FACTCHECK_PROVIDERS } from '../providers/index.js';
+import { parseDomainList } from '../shared/privacy.js';
 
 const el = (id) => document.getElementById(id);
 const fields = {
@@ -9,6 +10,9 @@ const fields = {
   searchProvider: el('searchProvider'),
   searchApiKey: el('searchApiKey'),
   distillQueries: el('distillQueries'),
+  privateSitesRule: el('privateSitesRule'),
+  blockedDomains: el('blockedDomains'),
+  allowedDomains: el('allowedDomains'),
   llmProvider: el('llmProvider'),
   factCheckProvider: el('factCheckProvider'),
   factCheckApiKey: el('factCheckApiKey'),
@@ -105,6 +109,9 @@ async function save() {
     factCheckApiKey: fields.factCheckApiKey.value.trim(),
     searchApiKey: fields.searchApiKey.value.trim(),
     distillQueries: fields.distillQueries.checked,
+    privateSitesRule: fields.privateSitesRule.checked,
+    blockedDomains: parseDomainList(fields.blockedDomains.value),
+    allowedDomains: parseDomainList(fields.allowedDomains.value),
     llmProvider: fields.llmProvider.value,
     // Keep the key even while a keyless provider is selected, so switching back
     // later doesn't mean pasting it again.
@@ -140,6 +147,9 @@ async function save() {
   fields.searchProvider.value = s.searchProvider;
   fields.searchApiKey.value = s.searchApiKey;
   fields.distillQueries.checked = Boolean(s.distillQueries);
+  fields.privateSitesRule.checked = s.privateSitesRule !== false;
+  fields.blockedDomains.value = (s.blockedDomains || []).join('\n');
+  fields.allowedDomains.value = (s.allowedDomains || []).join('\n');
   // The comparison page is an extension page, so it can read the saved key itself.
   el('compareLink').href = chrome.runtime.getURL('tools/query-compare.html');
   el('compareLink').target = '_blank';

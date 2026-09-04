@@ -264,7 +264,7 @@
     } else if (msg.type === MSG.NAV_CLAIM) {
       navigate(msg.direction);
     } else if (msg.type === MSG.SCAN_CONFIG) {
-      autoCheck = msg.autoCheck;
+      autoCheck = msg.autoCheck && msg.scanAllowed !== false;
       if (!autoCheck) overlay().classList.remove('visible');
       reportCaptionState();
     }
@@ -380,6 +380,11 @@
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
       .catch(() => {});
+    // The new URL may fall under a different rule; ask again.
+    chrome.runtime
+      .sendMessage({ type: MSG.GET_STATE })
+      .then((res) => { autoCheck = (res?.autoCheck ?? true) && res?.scanAllowed !== false; })
+      .catch(() => {});
   }
 
   // Reading cues must not depend on the settings round trip succeeding; a sleeping
@@ -407,7 +412,7 @@
   chrome.runtime
     .sendMessage({ type: MSG.GET_STATE })
     .then((res) => {
-      autoCheck = res?.autoCheck ?? true;
+      autoCheck = (res?.autoCheck ?? true) && res?.scanAllowed !== false;
     })
     .catch(() => {}); // default (on) already applied
 })();

@@ -64,7 +64,21 @@
       h1 { font-size: 13px; margin: 0; letter-spacing: 0.01em; color: var(--fg); }
       .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
       main { padding: 10px 12px 24px; }
-      /* Video pages: why nothing is being detected, when that has a fixable cause. */
+      /* Thumbs up / thumbs down: always scan this site, or never. */
+      .siterow {
+        display: flex; align-items: center; gap: 6px;
+        padding: 6px 12px; font-size: 12px;
+        background: var(--card); color: var(--fg); border-bottom: 1px solid var(--border);
+      }
+      .site-name { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .thumb {
+        font: inherit; font-size: 13px; line-height: 1; cursor: pointer;
+        padding: 3px 8px; border-radius: 6px;
+        border: 1px solid var(--border); background: transparent; color: var(--fg);
+      }
+      .thumb:hover { background: var(--accent-soft); }
+      .thumb.active { background: var(--accent-soft); border-color: var(--warm); }
+      /* Why nothing is being detected, when that has a cause the viewer can act on. */
       .banner {
         padding: 8px 12px; font-size: 12px; line-height: 1.45;
         background: var(--accent-soft); color: var(--fg);
@@ -187,6 +201,11 @@
       <button id="next" title="Next claim (Alt+Shift+N)" aria-label="Next claim">&#9660;</button>
       <span id="counter">0 of 0</span>
       <span class="findhint">on this page</span>
+    </div>
+    <div class="siterow" id="site" hidden>
+      <span class="site-name" id="siteName"></span>
+      <button id="siteAllow" class="thumb" title="Always scan this site">&#128077;</button>
+      <button id="siteBlock" class="thumb" title="Never scan this site">&#128078;</button>
     </div>
     <div class="banner" id="banner" hidden></div>
     <main id="feed"><div class="empty">Nothing flagged yet on this page.<br>Select any text and right-click to check it.</div></main>

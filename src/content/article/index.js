@@ -14,10 +14,19 @@
     NAV_CLAIM: 'navClaim',
     NAV_STATE: 'navState',
     UNLOCATED: 'unlocated',
+    PAGE_PRIVATE: 'pagePrivate',
   };
 
   let autoCheck = true;
+  let scanAllowed = true; // the worker's verdict on this page's URL
+  let privateFieldsReported = false;
   const sent = new Set(); // sentence keys already shipped to the worker
+
+  // A password or card field marks a private page whatever its domain: login
+  // screens and checkouts on sites that are otherwise fine to scan.
+  function hasPrivateFields() {
+    return Boolean(document.querySelector('input[type="password"], input[autocomplete^="cc-"]'));
+  }
   const highlighted = new Set(); // claim ids already drawn
 
   function key(text) {
@@ -105,7 +114,15 @@
   }
 
   function collect() {
-    if (!autoCheck) return;
+    if (!autoCheck || !scanAllowed) return;
+    if (hasPrivateFields()) {
+      scanAllowed = false;
+      if (!privateFieldsReported) {
+        privateFieldsReported = true;
+        chrome.runtime.sendMessage({ type: MSG.PAGE_PRIVATE, reason: 'fields' }).catch(() => {});
+      }
+      return;
+    }
     const root = contentRoot();
     const batch = [];
     for (const para of visibleParagraphs(root)) {
@@ -279,7 +296,11 @@
     else if (msg.type === MSG.NAV_CLAIM) navigate(msg.direction);
     else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck;
-      if (autoCheck) collect();
+      if (msg.scanAllowed !== undefined) {
+        scanAllowed = msg.scanAllowed;
+        if (scanAllowed) privateFieldsReported = false;
+      }
+      if (autoCheck && scanAllowed) collect();
     }
   });
 
@@ -297,8 +318,15 @@
     sent.clear();
     highlighted.clear();
     currentId = null;
+    privateFieldsReported = false;
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
+      .catch(() => {});
+    // A new URL may fall under a different rule; ask again. Anything collected
+    // before the answer arrives is dropped by the worker if the page is private.
+    chrome.runtime
+      .sendMessage({ type: MSG.GET_STATE })
+      .then((res) => { scanAllowed = res?.scanAllowed !== false; })
       .catch(() => {});
     setTimeout(collect, 900); // let the new view render first
   }
@@ -324,7 +352,8 @@
     .sendMessage({ type: MSG.GET_STATE })
     .then((res) => {
       autoCheck = res?.autoCheck ?? true;
-      if (autoCheck) collect();
+      scanAllowed = res?.scanAllowed !== false;
+      if (autoCheck && scanAllowed) collect();
     })
     .catch(() => {}); // default (on) already applied
 })();
