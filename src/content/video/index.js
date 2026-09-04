@@ -14,9 +14,66 @@
     NAV_CLAIM: 'navClaim',
     NAV_STATE: 'navState',
     CAPTION_HINT: 'captionHint',
+    PAGE_LANGUAGE: 'pageLanguage',
   };
 
   let autoCheck = true;
+
+  // --- language ---------------------------------------------------------------
+  // The classifier reads English only, and a video's captions are often in a
+  // different language from the page around them, so document.documentElement.lang
+  // is the wrong signal here: on YouTube it is the language of the interface, not
+  // of what is being said. The captions themselves are the evidence.
+  //
+  // Judging needs a sample, so the first sentences are held rather than shipped,
+  // and released or dropped once there is enough to decide. If a video simply never
+  // produces enough caption text, the hold is released anyway: the bias is towards
+  // scanning, as it is for articles.
+  const LANG_HOLD_MS = 20000;
+  let english = null;          // null = not yet decided
+  let held = [];               // batches waiting on the verdict
+  let heldWords = 0;
+  let heldSince = 0;
+  let languageReported = false;
+
+  function releaseHeld() {
+    const batch = held.flat();
+    held = [];
+    heldWords = 0;
+    heldSince = 0;
+    if (batch.length) {
+      chrome.runtime.sendMessage({ type: MSG.SENTENCES, sentences: batch }).catch(() => {});
+    }
+  }
+
+  function dropHeld() {
+    held = [];
+    heldWords = 0;
+    heldSince = 0;
+  }
+
+  // Called with each new batch, and from the tick so a quiet video still resolves.
+  function decideLanguage(force = false) {
+    if (english !== null) return;
+    const text = held.flat().map((s) => s.text).join(' ');
+    const enough = heldWords >= FCLanguage.MIN_WORDS;
+    if (!enough && !force) return;
+
+    const verdict = enough ? FCLanguage.detect(null, text) : { english: true };
+    english = verdict.english;
+    if (english) {
+      releaseHeld();
+      return;
+    }
+    dropHeld();
+    if (!languageReported) {
+      languageReported = true;
+      chrome.runtime
+        .sendMessage({ type: MSG.PAGE_LANGUAGE, language: verdict.language })
+        .catch(() => {});
+    }
+  }
+
   let buffer = '';
   let bufferStart = 0;
   let lastCue = '';
@@ -69,9 +126,17 @@
       sent.add(k);
       batch.push({ id: `v${sent.size}_${Date.now().toString(36)}`, text: t, ts });
     }
-    if (batch.length) {
-      chrome.runtime.sendMessage({ type: MSG.SENTENCES, sentences: batch }).catch(() => {});
+    if (!batch.length) return;
+
+    if (english === false) return; // captions are not in a language we can read
+    if (english === null) {
+      held.push(batch);
+      heldWords += batch.reduce((n, s) => n + s.text.split(/\s+/).length, 0);
+      if (!heldSince) heldSince = Date.now();
+      decideLanguage();
+      return;
     }
+    chrome.runtime.sendMessage({ type: MSG.SENTENCES, sentences: batch }).catch(() => {});
   }
 
   // --- overlay --------------------------------------------------------------
@@ -265,6 +330,13 @@
       navigate(msg.direction);
     } else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck && msg.scanAllowed !== false;
+      // Reaching here after a language block means the user pressed the thumbs-up
+      // for this site. Their yes outranks our reading of the captions.
+      if (msg.scanAllowed !== false && languageReported) {
+        english = true;
+        languageReported = false;
+        releaseHeld();
+      }
       if (!autoCheck) overlay().classList.remove('visible');
       reportCaptionState();
     }
@@ -367,6 +439,9 @@
   // caption buffer and markers whenever the watch URL changes.
   let lastUrl = location.href;
   function onPageChanged() {
+    english = null;
+    languageReported = false;
+    dropHeld();
     buffer = '';
     lastCue = '';
     sent.clear();
@@ -405,6 +480,11 @@
     if (autoCheck) {
       readCues(); // fallback in case a mutation was coalesced away
       ingestTranscript(); // cheap when the count is unchanged
+    }
+    // A video with very few captions would otherwise hold its first sentences for
+    // ever waiting for a sample that never arrives.
+    if (english === null && heldSince && Date.now() - heldSince >= LANG_HOLD_MS) {
+      decideLanguage(true);
     }
     reportCaptionState();
   }, 1000);

@@ -130,6 +130,61 @@ test('a hash collision misses rather than serving the wrong answer', async () =>
   assert.equal(await c.get('real key'), null);
 });
 
+// A storage area where every operation takes a turn to complete, which is what
+// makes the read-modify-write of the index overlappable.
+function slowStorage(base) {
+  const tick = () => new Promise((r) => setTimeout(r, 1));
+  return {
+    data: base.data,
+    async get(k) { await tick(); return base.get(k); },
+    async set(o) { await tick(); return base.set(o); },
+    async remove(k) { await tick(); return base.remove(k); },
+  };
+}
+
+test('answers written at the same moment all survive in the index', async () => {
+  // Check sources fires search, fact-checks and scholar together, and all three
+  // land at once. Each index update is a read, a change and a write, so without
+  // ordering the last writer wins and the other two answers are orphaned.
+  const s = fakeStorage();
+  const c = createCache(slowStorage(s));
+  await Promise.all([
+    c.set('search|q', ['s']),
+    c.set('factcheck|q', ['f']),
+    c.set('scholar|q', ['a']),
+  ]);
+
+  assert.equal(await c.size(), 3, 'all three should be indexed');
+  assert.deepEqual(await c.get('search|q'), ['s']);
+  assert.deepEqual(await c.get('factcheck|q'), ['f']);
+  assert.deepEqual(await c.get('scholar|q'), ['a']);
+});
+
+test('concurrent writes past the cap still evict, leaving nothing stranded', async () => {
+  const s = fakeStorage();
+  const c = createCache(slowStorage(s), { max: 3 });
+  await Promise.all(['a', 'b', 'c', 'd', 'e'].map((k) => c.set(k, [k])));
+  const stored = [...s.data.keys()].filter((k) => k.startsWith(CACHE_PREFIX) && k !== INDEX_KEY);
+  assert.equal(await c.size(), 3);
+  assert.equal(stored.length, 3, `storage should hold only what the index knows about, found ${stored.length}`);
+});
+
+test('clearing removes entries the index lost track of', async () => {
+  const s = fakeStorage();
+  const c = createCache(s);
+  await c.set('kept', ['v']);
+  // An entry orphaned by an interrupted write: present in storage, absent from
+  // the index. Clearing must still mean cleared, because entries hold claim text.
+  s.data.set(`${CACHE_PREFIX}orphan`, { k: 'orphan', v: ['old'], exp: Date.now() + 1000 });
+  s.data.set('fc_settings', { autoCheck: true });
+
+  await c.clear();
+
+  const left = [...s.data.keys()].filter((k) => k.startsWith(CACHE_PREFIX));
+  assert.deepEqual(left, [], `nothing of the cache should remain, found ${left}`);
+  assert.ok(s.data.has('fc_settings'), 'settings must survive');
+});
+
 test('hashKey is deterministic and spreads similar strings apart', () => {
   assert.equal(hashKey('abc'), hashKey('abc'));
   assert.notEqual(hashKey('abc'), hashKey('abd'));

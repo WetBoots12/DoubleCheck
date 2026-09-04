@@ -138,6 +138,11 @@ function words in the text, which also catches a template left on the wrong loca
 Every threshold leans towards scanning, because a wrong "not English" disables the
 extension silently, which is the worse error. The user's thumbs-up overrides it.
 
+Video captions are judged the same way but from the captions themselves, never from
+the page's `lang`: on YouTube that attribute describes the interface, not what is
+being said. The first sentences are held until there is enough text to judge, then
+released or dropped, and released anyway if a sparse video never provides a sample.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of

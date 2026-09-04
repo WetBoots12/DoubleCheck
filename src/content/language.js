@@ -29,7 +29,7 @@
   const ENGLISH_MARKERS = new Set(('the of and to in a is that for it was on with as be by at this from '
     + 'or an are but not have has had they he she we you his her their its will would there been '
     + 'which who what when where how all more can said about than into over after also do does did '
-    + 'said says if then them these those our your out up no so some other new one two')
+    + 'says if then them these those our your out up no so some other new one two')
     .split(' '));
 
   const MIN_WORDS = 40;      // below this a sample proves nothing
@@ -76,8 +76,13 @@
 
     // Declared English, or nothing declared. Only a long and clearly un-English
     // sample overrides that, so the failure mode stays "scan anyway".
+    //
+    // The language is reported as null even when the page declared English: the
+    // text is what overruled the declaration, and the words say only "not English",
+    // never which language it is. Naming it 'en' here would put "this page looks
+    // like it is in English" in the banner as the reason for not reading it.
     if (count >= MIN_WORDS && share <= CLEAR_OTHER) {
-      return { english: false, language: declared || null, why: 'text' };
+      return { english: false, language: null, why: 'text' };
     }
 
     return { english: true, language: declared || null, why: declared ? 'declared' : 'unknown' };
