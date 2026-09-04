@@ -252,6 +252,34 @@
     }
   });
 
+  // --- caption observer -------------------------------------------------------
+  // At 1.5x or 2x playback a cue can appear and vanish between one-second polls,
+  // losing claims or fragmenting sentences. Observing the caption container reacts
+  // to each change as it happens; the poll stays as the fallback. The container
+  // only exists while captions are on, and YouTube rebuilds it on navigation, so
+  // attachment is re-checked every tick and re-done whenever it is found detached.
+
+  let cueObserver = null;
+  let observedContainer = null;
+
+  function attachCaptionObserver() {
+    const container = document.querySelector('.ytp-caption-window-container');
+    if (!container) return;
+    if (container === observedContainer && container.isConnected) return;
+    detachCaptionObserver();
+    cueObserver = new MutationObserver(() => {
+      if (autoCheck) readCues();
+    });
+    cueObserver.observe(container, { childList: true, subtree: true, characterData: true });
+    observedContainer = container;
+  }
+
+  function detachCaptionObserver() {
+    cueObserver?.disconnect();
+    cueObserver = null;
+    observedContainer = null;
+  }
+
   // YouTube navigates between videos without reloading the document, so reset the
   // caption buffer and markers whenever the watch URL changes.
   let lastUrl = location.href;
@@ -262,6 +290,7 @@
     markers.clear();
     currentId = null;
     lastHint = undefined;
+    detachCaptionObserver();
     renderMarkers();
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
@@ -275,7 +304,8 @@
       lastUrl = location.href;
       onPageChanged();
     }
-    if (autoCheck) readCues();
+    attachCaptionObserver();
+    if (autoCheck) readCues(); // fallback in case a mutation was coalesced away
     reportCaptionState();
   }, 1000);
 
