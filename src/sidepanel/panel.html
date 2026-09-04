@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>FactCheck</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0;
+        font: 13px/1.5 system-ui, -apple-system, sans-serif;
+        background: #faf9f7;
+        color: #1c1b19;
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: #16150f; color: #ece9e2; }
+        .claim { background: #1f1e17; border-color: #33312a; }
+        .result { border-color: #33312a; }
+        header { background: #1f1e17; border-color: #33312a; }
+      }
+      header {
+        position: sticky; top: 0;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 8px; padding: 10px 12px;
+        background: #fff; border-bottom: 1px solid #e5e2db;
+      }
+      h1 { font-size: 13px; margin: 0; letter-spacing: 0.01em; }
+      .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+      main { padding: 10px 12px 24px; }
+      .claim {
+        background: #fff; border: 1px solid #e5e2db; border-radius: 8px;
+        padding: 10px; margin-bottom: 10px;
+      }
+      .claim.fc-focused { outline: 2px solid #c8963e; }
+      .claim-text { font-weight: 500; cursor: pointer; }
+      .meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 11px; opacity: 0.7; }
+      .badge { padding: 1px 6px; border-radius: 99px; background: rgba(200,150,62,0.18); }
+      .badge.checked { background: rgba(61,122,90,0.18); }
+      .badge.error, .badge.noKey { background: rgba(154,154,154,0.2); }
+      .summary { margin-top: 8px; padding: 8px; border-radius: 6px; background: rgba(200,150,62,0.1); font-size: 12px; }
+      .result { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e2db; }
+      .result a { color: #2f6ea8; text-decoration: none; font-weight: 500; }
+      .result a:hover { text-decoration: underline; }
+      .result .src { font-size: 11px; opacity: 0.65; }
+      .result .snip { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+      .empty { opacity: 0.6; padding: 24px 4px; text-align: center; }
+      button.link { background: none; border: none; color: #2f6ea8; cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>FactCheck</h1>
+      <label class="toggle">
+        <input type="checkbox" id="autocheck" />
+        Auto-check
+      </label>
+    </header>
+    <main id="feed"><div class="empty">Nothing flagged yet on this page.</div></main>
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>
