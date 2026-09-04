@@ -31,6 +31,11 @@ scanned at all.
 
 Things to watch for on that page:
 
+- The sentence built from a link, a bold phrase and an emphasis must highlight as
+  one claim. It only does if matching spans multiple text nodes.
+- The page must yield claims at all. Its `<html>` class deliberately contains
+  "menu" and "nav", which once caused every paragraph on Wikipedia to be excluded.
+
 - Nothing from the nav, header, footer, aside, or the fake video menu should ever
   be flagged, even though several contain claim-shaped sentences with numbers.
 - The chatter sentences should score below the threshold while the factual ones

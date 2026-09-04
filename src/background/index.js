@@ -232,6 +232,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (tabId != null) resetTab(tabId);
       return false;
 
+    case MSG.UNLOCATED: {
+      const state = tabId != null && tabs.get(tabId);
+      if (state) {
+        for (const id of msg.ids || []) {
+          const claim = state.claims.get(id);
+          if (claim) claim.located = false;
+        }
+        pushPanel(tabId);
+      }
+      return false;
+    }
+
     case MSG.SENTENCES:
       if (tabId != null) handleSentences(tabId, msg.sentences || []);
       return false;

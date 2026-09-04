@@ -30,13 +30,13 @@
     {
       "matches": ["<all_urls>"],
       "exclude_matches": ["*://*.youtube.com/*", "*://youtu.be/*"],
-      "js": ["src/content/article/index.js"],
+      "js": ["src/content/textmatch.js", "src/content/article/index.js"],
       "css": ["src/content/highlight.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://*.youtube.com/*", "*://youtu.be/*"],
-      "js": ["src/content/video/index.js"],
+      "js": ["src/content/textmatch.js", "src/content/video/index.js"],
       "css": ["src/content/highlight.css"],
       "run_at": "document_idle"
     }

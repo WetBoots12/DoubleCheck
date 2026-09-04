@@ -7,6 +7,7 @@ export const MSG = {
   SENTENCES: 'sentences',           // { sentences: [{id, text, ts?}] }
   HIGHLIGHT_CLICKED: 'highlightClicked', // { claimId }
   GET_STATE: 'getState',            // content asks whether to scan at all
+  UNLOCATED: 'unlocated',           // { ids } -> claims with no highlight on the page
   PAGE_CHANGED: 'pageChanged',      // { url } -> same document, new page (SPA navigation)
 
   // background -> content script
