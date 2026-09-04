@@ -7,6 +7,7 @@
     SENTENCES: 'sentences',
     HIGHLIGHT_CLICKED: 'highlightClicked',
     GET_STATE: 'getState',
+    PAGE_CHANGED: 'pageChanged',
     SCAN_CONFIG: 'scanConfig',
     CLAIM_STATUS: 'claimStatus',
     FOCUS_SENTENCE: 'focusSentence',
@@ -121,13 +122,34 @@
     }
   });
 
+  // YouTube navigates between videos without reloading the document, so reset the
+  // caption buffer and markers whenever the watch URL changes.
+  let lastUrl = location.href;
+  function onPageChanged() {
+    buffer = '';
+    lastCue = '';
+    sent.clear();
+    markers.clear();
+    renderMarkers();
+    chrome.runtime
+      .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
+      .catch(() => {});
+  }
+
+  // Reading cues must not depend on the settings round trip succeeding; a sleeping
+  // service worker can reject it, which used to stop the video script permanently.
+  setInterval(() => {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      onPageChanged();
+    }
+    if (autoCheck) readCues();
+  }, 1000);
+
   chrome.runtime
     .sendMessage({ type: MSG.GET_STATE })
     .then((res) => {
       autoCheck = res?.autoCheck ?? true;
-      setInterval(() => {
-        if (autoCheck) readCues();
-      }, 1000);
     })
-    .catch(() => {});
+    .catch(() => {}); // default (on) already applied
 })();
