@@ -14,6 +14,8 @@ const fields = {
   privateSitesRule: el('privateSitesRule'),
   blockedDomains: el('blockedDomains'),
   allowedDomains: el('allowedDomains'),
+  trustedDomains: el('trustedDomains'),
+  distrustedDomains: el('distrustedDomains'),
   llmProvider: el('llmProvider'),
   factCheckProvider: el('factCheckProvider'),
   factCheckApiKey: el('factCheckApiKey'),
@@ -114,6 +116,8 @@ async function save() {
     privateSitesRule: fields.privateSitesRule.checked,
     blockedDomains: parseDomainList(fields.blockedDomains.value),
     allowedDomains: parseDomainList(fields.allowedDomains.value),
+    trustedDomains: parseDomainList(fields.trustedDomains.value),
+    distrustedDomains: parseDomainList(fields.distrustedDomains.value),
     llmProvider: fields.llmProvider.value,
     // Keep the key even while a keyless provider is selected, so switching back
     // later doesn't mean pasting it again.
@@ -153,6 +157,8 @@ async function save() {
   fields.privateSitesRule.checked = s.privateSitesRule !== false;
   fields.blockedDomains.value = (s.blockedDomains || []).join('\n');
   fields.allowedDomains.value = (s.allowedDomains || []).join('\n');
+  fields.trustedDomains.value = (s.trustedDomains || []).join('\n');
+  fields.distrustedDomains.value = (s.distrustedDomains || []).join('\n');
   // The comparison page is an extension page, so it can read the saved key itself.
   el('compareLink').href = chrome.runtime.getURL('tools/query-compare.html');
   el('compareLink').target = '_blank';

@@ -1,5 +1,6 @@
 import { MSG, STATUS, getSettings } from '../shared/messages.js';
 import { getLlmProvider } from '../providers/index.js';
+import { ratingTone } from '../shared/evidence.js';
 
 const feed = document.getElementById('feed');
 const toggle = document.getElementById('autocheck');
@@ -203,6 +204,7 @@ function render(claims) {
       el.appendChild(e);
     }
 
+    if (c.evidence) el.appendChild(renderEvidence(c));
     if (c.analysis) el.appendChild(renderAnalysis(c.analysis));
 
     if (c.error && c.status === STATUS.ERROR) {
@@ -224,6 +226,14 @@ function render(claims) {
       const src = document.createElement('div');
       src.className = 'src';
       src.textContent = r.source || '';
+      // The stance the AI assigned to this source, when it ran.
+      const stance = c.evidence?.rows?.find((row) => row.url === r.url)?.stance;
+      if (stance && stance !== 'unrelated') {
+        const st = document.createElement('span');
+        st.className = `chip stance-${stance}`;
+        st.textContent = stance;
+        src.appendChild(st);
+      }
       if (r.academic) {
         const chip = document.createElement('span');
         chip.className = 'chip academic';
@@ -287,19 +297,7 @@ function renderScholar(list) {
   return box;
 }
 
-// A published fact-check's own wording is the verdict. Ratings are free text and
-// vary by publisher ("False", "Pants on Fire", "Mostly true"), so they are shown
-// verbatim rather than remapped onto a scale this project invented; only the colour
-// hint is inferred, and anything unrecognised stays neutral.
-function ratingTone(rating) {
-  const r = (rating || '').toLowerCase();
-  // Negations first, so "not true" and "untrue" cannot fall through to the true branch.
-  if (/\b(false|untrue|not true|fake|incorrect|inaccurate|wrong|pants on fire|debunked|no evidence|misleading)\b/.test(r)) return 'false';
-  // Mixed before true: "Half True" is a mixed rating, and contains "true".
-  if (/\b(mixture|mixed|partly|half|unproven|outdated|context)\b/.test(r)) return 'mixed';
-  if (/\b(true|correct|accurate|confirmed)\b/.test(r)) return 'true';
-  return 'unknown';
-}
+// Rating colours: ratingTone lives in shared/evidence.js, where the thermometer uses it too.
 
 function renderFactChecks(list) {
   const box = document.createElement('div');
@@ -360,48 +358,21 @@ function renderAnalysis(a) {
   const box = document.createElement('div');
   box.className = 'analysis';
 
-  const view = VERDICT_VIEW[a.verdict] || VERDICT_VIEW.unclear;
-
-  const thermo = document.createElement('div');
-  thermo.className = `thermo tone-${view.tone}`;
-  const track = document.createElement('div');
-  track.className = 'thermo-track';
-  const marker = document.createElement('div');
-  marker.className = 'thermo-marker';
-  marker.style.left = `${view.position}%`;
-  track.appendChild(marker);
-  thermo.appendChild(track);
-
-  const scale = document.createElement('div');
-  scale.className = 'thermo-scale';
-  scale.innerHTML = '<span>refuted</span><span>mixed</span><span>supported</span>';
-  thermo.appendChild(scale);
-
-  const verdictLine = document.createElement('div');
-  verdictLine.className = 'verdict';
-  verdictLine.textContent = view.label;
-  if (a.confidence != null) {
-    const conf = document.createElement('span');
-    conf.className = 'confidence';
-    conf.textContent = `AI confidence ${Math.round(a.confidence * 100)}%`;
-    verdictLine.appendChild(conf);
-  }
-  box.appendChild(verdictLine);
-  box.appendChild(thermo);
-
   if (a.summary) {
-    const s = document.createElement('div');
-    s.className = 'summary';
-    s.textContent = a.summary;
-    box.appendChild(s);
+    const sm = document.createElement('div');
+    sm.className = 'summary';
+    sm.textContent = a.summary;
+    box.appendChild(sm);
   }
 
   for (const [label, value] of [['Sources agree', a.agreement], ['Unsettled', a.dispute]]) {
     if (!value) continue;
     const row = document.createElement('div');
     row.className = 'facet';
-    row.innerHTML = `<span class="facet-label">${label}</span> `;
-    row.appendChild(document.createTextNode(value));
+    const l = document.createElement('span');
+    l.className = 'facet-label';
+    l.textContent = label;
+    row.append(l, document.createTextNode(` ${value}`));
     box.appendChild(row);
   }
 
@@ -418,10 +389,62 @@ function renderAnalysis(a) {
 
     const caveat = document.createElement('div');
     caveat.className = 'caveat';
-    caveat.textContent = 'Lean is the AI model’s rough estimate, not an authoritative rating.';
+    caveat.textContent = 'Lean is the AI model\u2019s rough estimate, not an authoritative rating.';
     box.appendChild(caveat);
   }
 
+  return box;
+}
+
+// The thermometer. Its position comes from evidence.js: a published fact-check
+// when one exists, else the AI's per-source stances weighted by relevance and
+// source tier. With neither there is no position to show, and the meter reads
+// evidence strength instead: how much credible, plainly worded coverage the claim
+// has, which is not the same thing as whether it is true. Every input is listed
+// beneath it, so the reading is explainable rather than a bare number.
+function renderEvidence(c) {
+  const e = c.evidence;
+  const box = document.createElement('div');
+  box.className = 'analysis';
+  const hasPosition = e.position != null;
+  const view = VERDICT_VIEW[e.verdict] || VERDICT_VIEW.unclear;
+
+  const verdictLine = document.createElement('div');
+  verdictLine.className = 'verdict';
+  verdictLine.textContent = hasPosition ? view.label : 'Evidence gathered, no position judged';
+  const strength = document.createElement('span');
+  strength.className = 'confidence';
+  strength.textContent = `Evidence strength ${Math.round(e.quality * 100)}%`;
+  verdictLine.appendChild(strength);
+  box.appendChild(verdictLine);
+
+  const thermo = document.createElement('div');
+  thermo.className = `thermo tone-${hasPosition ? view.tone : 'quality'}`;
+  const track = document.createElement('div');
+  track.className = 'thermo-track';
+  const marker = document.createElement('div');
+  marker.className = 'thermo-marker';
+  marker.style.left = `${hasPosition ? e.position : Math.round(e.quality * 100)}%`;
+  track.appendChild(marker);
+  thermo.appendChild(track);
+  const scale = document.createElement('div');
+  scale.className = 'thermo-scale';
+  for (const label of hasPosition ? ['refuted', 'mixed', 'supported'] : ['weak evidence', '', 'strong evidence']) {
+    const span = document.createElement('span');
+    span.textContent = label;
+    scale.appendChild(span);
+  }
+  thermo.appendChild(scale);
+  box.appendChild(thermo);
+
+  const explain = document.createElement('ul');
+  explain.className = 'explain';
+  for (const line of e.lines) {
+    const li = document.createElement('li');
+    li.textContent = line;
+    explain.appendChild(li);
+  }
+  box.appendChild(explain);
   return box;
 }
 

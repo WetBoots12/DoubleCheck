@@ -22,10 +22,16 @@ Specifically:
   returned for the wording of a sentence. They may be irrelevant, outdated, wrong,
   or contradicted by better sources the search never surfaced.
 - **AI summaries can be confidently wrong.** Language models misread sources,
-  overstate agreement, and invent detail. The verdict, the confidence figure and
-  the thermometer are all the model's opinion of a handful of search snippets,
-  not an adjudication. Treat a high-confidence verdict with the same skepticism
-  as a low-confidence one.
+  overstate agreement, and invent detail. The summary is the model's reading of a
+  handful of search snippets, not an adjudication.
+- **The thermometer is an evidence score, not a truth score.** Its position comes
+  from a published fact-check when one exists, otherwise from the stance the AI
+  assigned to each source, weighted by how closely the source matches the claim
+  and by a short, visible tier list of source types. "Evidence strength" measures
+  how much credible, plainly worded coverage a claim has, which is not the same
+  as whether it is true. Everything that went into the reading is listed under
+  it. The tier list is this project's own, editable in settings, and is not a
+  media-ratings service.
 - **Outlet lean estimates are guesses.** They come from the AI model you chose,
   not from any media-ratings organization, and this project has no affiliation
   with AllSides, Ad Fontes Media, Media Bias/Fact Check, or any similar service.

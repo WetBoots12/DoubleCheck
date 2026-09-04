@@ -142,6 +142,29 @@
       </section>
 
       <section>
+        <h2>Sources</h2>
+        <div class="field">
+          <div class="hint" style="margin-top: 0">
+            The thermometer weighs each source by a short built-in tier list: wire
+            services, public broadcasters, government and academic sites and
+            fact-checkers count most, major outlets a little less, encyclopedias and
+            unrated sites less again, and blogs and social posts least. That list is
+            this project's own and is not a media-ratings service. Override it here.
+          </div>
+        </div>
+        <div class="field">
+          <label for="trustedDomains">Sources I trust</label>
+          <textarea id="trustedDomains" spellcheck="false" placeholder="one per line, e.g. localnews.example"></textarea>
+          <div class="hint">Counted at full weight, whatever the built-in list says.</div>
+        </div>
+        <div class="field">
+          <label for="distrustedDomains">Sources I consider weak</label>
+          <textarea id="distrustedDomains" spellcheck="false" placeholder="one per line"></textarea>
+          <div class="hint">Counted at the lowest weight. If a site is in both lists, this one wins.</div>
+        </div>
+      </section>
+
+      <section>
         <h2>Search (required)</h2>
         <div class="field">
           <label for="searchProvider">Provider</label>

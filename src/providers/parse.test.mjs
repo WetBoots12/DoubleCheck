@@ -68,3 +68,23 @@ test('a long perspective list is capped', () => {
   const a = parseAnalysis(JSON.stringify({ verdict: 'mixed', perspectives: many }));
   assert.equal(a.perspectives.length, 8);
 });
+
+// --- per-source stances, which replaced the model's self-rated confidence ---------
+
+test('stances are keyed by the 1-based source index the prompt uses', () => {
+  const a = parseAnalysis(JSON.stringify({
+    verdict: 'mixed',
+    sources: [{ index: 1, stance: 'supports' }, { index: 3, stance: 'contradicts' }, { index: 2, stance: 'unrelated' }],
+  }));
+  assert.deepEqual(a.stances, { 1: 'supports', 2: 'unrelated', 3: 'contradicts' });
+});
+
+test('unknown stance values, bad indexes and non-array sources are dropped', () => {
+  const a = parseAnalysis(JSON.stringify({
+    verdict: 'mixed',
+    sources: [{ index: 1, stance: 'maybe' }, { index: 0, stance: 'supports' }, { index: 'x', stance: 'supports' }, { index: 2, stance: 'supports' }],
+  }));
+  assert.deepEqual(a.stances, { 2: 'supports' });
+  assert.deepEqual(parseAnalysis(JSON.stringify({ verdict: 'mixed', sources: 'nope' })).stances, {});
+  assert.deepEqual(parseAnalysis('plain prose').stances, {});
+});
