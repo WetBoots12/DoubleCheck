@@ -8,13 +8,69 @@ const counter = document.getElementById('counter');
 const prevBtn = document.getElementById('prev');
 const nextBtn = document.getElementById('next');
 const banner = document.getElementById('banner');
+const siteRow = document.getElementById('site');
+const siteName = document.getElementById('siteName');
+const siteAllow = document.getElementById('siteAllow');
+const siteBlock = document.getElementById('siteBlock');
 
 // The video script explains an idle state that has a cause the viewer can fix.
 const CAPTION_HINTS = {
   off: 'Turn on YouTube subtitles (the CC button) so claims in this video can be detected.',
   none: 'No captions on this video. If it has a transcript, open it (…more, then Show transcript) and it will be read.',
 };
+// The banner has two sources: the page's privacy status, which wins when the page
+// is blocked, and the video script's caption state. Both belong to one tab and are
+// dropped the moment the panel switches to another.
 let bannerTabId = null;
+let pageStatus = null;
+let captionMsg = null;
+
+const PRIVATE_REASONS = {
+  user: (d) => `Not scanning ${d}: you turned it off. Press \u{1F44D} to allow it.`,
+  builtin: (d) => `Not scanning ${d}: it looks like a private site (banking, health, email, accounts). Press \u{1F44D} to scan it anyway.`,
+  local: () => 'Not scanning: this is a local or private network address.',
+  fields: () => 'Not scanning this page: it has a password or card field.',
+  unsupported: () => '',
+};
+
+function renderBanner() {
+  let text = '';
+  if (pageStatus?.blocked) text = (PRIVATE_REASONS[pageStatus.reason] || PRIVATE_REASONS.builtin)(pageStatus.domain);
+  else if (captionMsg) text = captionHintText(captionMsg) || '';
+  banner.hidden = !text;
+  banner.textContent = text;
+}
+
+function renderPageStatus(msg) {
+  pageStatus = msg;
+  bannerTabId = msg.tabId;
+  const usable = msg.domain && msg.reason !== 'unsupported' && msg.reason !== 'local';
+  siteRow.hidden = !usable;
+  if (usable) {
+    siteName.textContent = msg.domain;
+    siteName.title = msg.blocked ? 'Not being scanned' : 'Being scanned';
+    siteAllow.classList.toggle('active', msg.rule === 'allow');
+    siteBlock.classList.toggle('active', msg.rule === 'block');
+  }
+  renderBanner();
+}
+
+function clearTabBanners() {
+  pageStatus = null;
+  captionMsg = null;
+  bannerTabId = null;
+  siteRow.hidden = true;
+  renderBanner();
+}
+
+for (const [btn, action] of [[siteAllow, 'allow'], [siteBlock, 'block']]) {
+  btn.addEventListener('click', () => {
+    if (!pageStatus?.domain) return;
+    chrome.runtime
+      .sendMessage({ type: MSG.SITE_RULE, domain: pageStatus.domain, action })
+      .catch(() => {});
+  });
+}
 
 // "reading" carries a live count, so that a video which is being read but has
 // produced nothing above the threshold does not look like one that is not read.
@@ -29,10 +85,9 @@ function captionHintText(msg) {
 }
 
 function renderCaptionHint(msg) {
-  const text = captionHintText(msg);
-  banner.hidden = !text;
-  banner.textContent = text || '';
-  bannerTabId = text ? msg.tabId : null;
+  captionMsg = captionHintText(msg) ? msg : null;
+  if (captionMsg) bannerTabId = msg.tabId;
+  renderBanner();
 }
 
 const STATUS_LABEL = {
@@ -364,10 +419,11 @@ document.addEventListener('keydown', (e) => {
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === MSG.PANEL_UPDATE) {
-    // A banner belongs to one video tab; switching to any other tab clears it.
-    if (bannerTabId != null && msg.tabId !== bannerTabId) renderCaptionHint({ hint: null });
+    // Banners and the site row belong to one tab; switching clears them.
+    if (bannerTabId != null && msg.tabId !== bannerTabId) clearTabBanners();
     render(msg.claims || []);
   } else if (msg.type === MSG.CAPTION_HINT) renderCaptionHint(msg);
+  else if (msg.type === MSG.PAGE_STATUS) renderPageStatus(msg);
   else if (msg.type === MSG.NAV_STATE) renderNavState(msg);
   else if (msg.type === MSG.PANEL_FOCUS) focusClaim(msg.claimId);
   else if (msg.type === MSG.LLM_REQUEST) runInPageLlm(msg);
@@ -397,4 +453,5 @@ chrome.storage.onChanged.addListener(async () => {
   toggle.checked = settings.autoCheck;
   const res = await chrome.runtime.sendMessage({ type: MSG.PANEL_READY }).catch(() => null);
   render(res?.claims || []);
+  if (res?.page) renderPageStatus({ ...res.page, tabId: res.tabId });
 })();

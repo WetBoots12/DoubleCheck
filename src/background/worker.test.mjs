@@ -152,6 +152,41 @@ test('a click on the wrong menu item or a tiny selection is ignored', async () =
   assert.equal((await send({ type: 'panelReady' }, undefined)).claims.length, before);
 });
 
+test('GET_STATE reports the page as scannable for an ordinary site', async () => {
+  const res = await send({ type: 'getState' });
+  assert.equal(res.scanAllowed, true);
+});
+
+test('sentences from a never-scan domain are dropped by the worker itself', async () => {
+  await chrome.storage.local.set({ fc_settings: { blockedDomains: ['example.com'] } });
+  const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
+  await send({
+    type: 'sentences',
+    sentences: [{ id: 'p1', text: 'The bridge cost 40 million dollars more than planned, the auditor said.' }],
+  });
+  await settle();
+  assert.equal((await send({ type: 'panelReady' }, undefined)).claims.length, before);
+
+  const state = await send({ type: 'getState' });
+  assert.equal(state.scanAllowed, false);
+  assert.equal(state.reason, 'user');
+  await chrome.storage.local.set({ fc_settings: {} });
+});
+
+test('a thumbs-up rule lets a built-in-blocked site scan, and PANEL_READY reports the rule', async () => {
+  chrome.tabs.get = async (id) => ({ id, url: 'https://secure.chase.com/dashboard' });
+  chrome.tabs.query = async () => [{ id: ACTIVE_TAB, url: 'https://secure.chase.com/dashboard' }];
+  assert.equal((await send({ type: 'getState' })).scanAllowed, false);
+
+  await send({ type: 'siteRule', domain: 'secure.chase.com', action: 'allow' }, undefined);
+  assert.equal((await send({ type: 'getState' })).scanAllowed, true);
+  assert.equal((await send({ type: 'panelReady' }, undefined)).page.rule, 'allow');
+
+  await chrome.storage.local.set({ fc_settings: {} });
+  chrome.tabs.get = async (id) => ({ id, url: 'https://www.example.com/article' });
+  chrome.tabs.query = async () => [{ id: ACTIVE_TAB, url: 'https://www.example.com/article' }];
+});
+
 test('re-sending the same sentences does not duplicate claims', async () => {
   const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
   await send({

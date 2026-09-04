@@ -50,6 +50,11 @@
       }
       h2 { font-size: 14px; margin: 0 0 14px; letter-spacing: 0.01em; color: var(--fg); }
       label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 5px; color: var(--fg); }
+      textarea {
+        width: 100%; box-sizing: border-box; min-height: 88px; padding: 8px 10px; font: inherit;
+        border: 1px solid var(--input-border); border-radius: 6px;
+        background: var(--input-bg); color: var(--fg); resize: vertical;
+      }
       input[type="text"], input[type="password"], select {
         width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit;
         border: 1px solid var(--input-border); border-radius: 6px;
@@ -106,6 +111,33 @@
             <span class="hint">fewer claims</span>
           </div>
           <div class="hint">How confident the classifier must be before a sentence gets flagged.</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Privacy</h2>
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" id="privateSitesRule" />
+            Skip pages that look private
+          </label>
+          <div class="hint">
+            Banks, brokerages and payment apps, health portals, email and messaging,
+            government accounts, password managers, cloud documents, login and checkout
+            pages, and local network addresses. Any page with a password or card field is
+            skipped whatever its address. The list cannot be complete; use the buttons in
+            the side panel, or the lists below, to correct it for a site.
+          </div>
+        </div>
+        <div class="field">
+          <label for="blockedDomains">Never scan these sites</label>
+          <textarea id="blockedDomains" spellcheck="false" placeholder="one per line, e.g. intranet.mycompany.com"></textarea>
+          <div class="hint">Always wins. Subdomains are included, so a bare domain covers the whole site.</div>
+        </div>
+        <div class="field">
+          <label for="allowedDomains">Always scan these sites</label>
+          <textarea id="allowedDomains" spellcheck="false" placeholder="one per line, e.g. news.healthsystem.org"></textarea>
+          <div class="hint">Overrides the built-in rules for a site they catch by mistake.</div>
         </div>
       </section>
 

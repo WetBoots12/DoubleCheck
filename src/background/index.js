@@ -19,6 +19,7 @@ import {
   ProviderError,
 } from '../providers/index.js';
 import { tabStore } from './tabstate.js';
+import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
 import { createQueue } from './queue.js';
 
 const queue = createQueue(3);
@@ -49,7 +50,30 @@ async function resetTab(tabId) {
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   updateBadge(tabId);
   pushPanel(tabId);
+  scanPolicy(tabId).then((policy) => pushPageStatus(tabId, policy));
 });
+
+// --- privacy ------------------------------------------------------------------
+// Whether a tab may be scanned at all: the user's lists, then the built-in rules.
+// Consulted when a content script asks, and again when sentences arrive, so a
+// content script that misjudged still cannot get a private page classified.
+
+const NO_TAB = { blocked: true, reason: 'unsupported', domain: '', rule: null };
+
+async function scanPolicy(tabId) {
+  if (tabId == null) return NO_TAB;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return evaluateUrl(tab?.url || '', await getSettings());
+  } catch {
+    return NO_TAB;
+  }
+}
+
+async function pushPageStatus(tabId, policy) {
+  if ((await activeTabId()) !== tabId) return;
+  chrome.runtime.sendMessage({ type: MSG.PAGE_STATUS, tabId, ...policy }).catch(() => {});
+}
 
 async function activeTabId() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -88,6 +112,7 @@ function pushHighlights(tabId, claims) {
 async function handleSentences(tabId, sentences) {
   const settings = await getSettings();
   if (!settings.autoCheck) return;
+  if ((await scanPolicy(tabId)).blocked) return; // second line of defence
 
   const state = await tabStore.get(tabId);
   const fresh = sentences.filter((s) => {
@@ -322,7 +347,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   switch (msg.type) {
     case MSG.GET_STATE:
-      getSettings().then((s) => sendResponse({ autoCheck: s.autoCheck }));
+      (async () => {
+        const [settings, policy] = await Promise.all([getSettings(), scanPolicy(tabId)]);
+        sendResponse({ autoCheck: settings.autoCheck, scanAllowed: !policy.blocked, reason: policy.reason });
+        if (tabId != null) pushPageStatus(tabId, policy);
+      })();
+      return true;
+
+    case MSG.PAGE_PRIVATE:
+      // The page itself has a password or card field; say so, whatever the domain.
+      if (tabId != null) {
+        scanPolicy(tabId).then((policy) =>
+          pushPageStatus(tabId, { ...policy, blocked: true, reason: msg.reason || 'fields' }),
+        );
+      }
+      return false;
+
+    case MSG.SITE_RULE:
+      (async () => {
+        const settings = await getSettings();
+        await saveSettings(applySiteRule(settings, msg.domain, msg.action));
+        const id = await activeTabId();
+        if (id == null) return sendResponse({ ok: false });
+        const policy = await scanPolicy(id);
+        chrome.tabs
+          .sendMessage(id, { type: MSG.SCAN_CONFIG, autoCheck: settings.autoCheck, scanAllowed: !policy.blocked })
+          .catch(() => {});
+        if (policy.blocked) {
+          // A site just turned off must not keep showing what was found on it.
+          queue.drop(id);
+          await tabStore.clear(id);
+          updateBadge(id);
+        }
+        await pushPanel(id);
+        pushPageStatus(id, policy);
+        sendResponse({ ok: true });
+      })();
       return true;
 
     case MSG.PAGE_CHANGED:
@@ -354,15 +414,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case MSG.PANEL_READY:
       activeTabId().then(async (id) => {
         const state = id == null ? null : await tabStore.peek(id);
-        sendResponse({ tabId: id, claims: [...(state?.claims.values() || [])] });
+        sendResponse({
+          tabId: id,
+          claims: [...(state?.claims.values() || [])],
+          page: id == null ? null : await scanPolicy(id),
+        });
       });
       return true;
 
     case MSG.SET_AUTOCHECK:
-      saveSettings({ autoCheck: msg.autoCheck }).then(() => {
-        sendToActiveTab({ type: MSG.SCAN_CONFIG, autoCheck: msg.autoCheck });
+      (async () => {
+        await saveSettings({ autoCheck: msg.autoCheck });
+        const id = await activeTabId();
+        const policy = await scanPolicy(id);
+        sendToActiveTab({ type: MSG.SCAN_CONFIG, autoCheck: msg.autoCheck, scanAllowed: !policy.blocked });
         sendResponse({ ok: true });
-      });
+      })();
       return true;
 
     case MSG.LLM_RESULT:
