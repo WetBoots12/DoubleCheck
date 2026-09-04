@@ -23,6 +23,7 @@ import {
 } from '../providers/index.js';
 import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { publishedDateFromHtml } from '../shared/dates.js';
+import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore } from './tabstate.js';
 import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
@@ -704,12 +705,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const state = id == null ? null : await tabStore.peek(id);
         const claim = state?.claims.get(msg.claimId);
         if (!claim) return;
-        // Not the sentence: a query. Pasting a whole sentence into a search box
-        // matches pages that share its shape rather than its facts, so the figure
-        // and the names go in quotation marks and the rest is trimmed to the words
-        // that pin the topic. See providers/index.js.
-        const text = browserQuery(claim.text) || claim.text;
-        Promise.resolve(chrome.search?.query({ text, disposition: 'NEW_TAB' })).catch(() => {});
+        // Not the sentence: a query, shaped for the engine that will read it.
+        // Engines differ enough that one shape does not suit them all, and the
+        // differences are recorded with their evidence in shared/engines.js.
+        const settings = await getSettings();
+        const engine = settings.browserSearchEngine || 'default';
+        const text = browserQuery(claim.text, engineStyle(engine)) || claim.text;
+
+        // A named engine is opened by address. The browser's own default cannot be
+        // read by an extension, so that one goes through chrome.search instead,
+        // which is the only way to honour a setting this code cannot see.
+        const url = searchUrl(engine, text);
+        if (url) chrome.tabs.create({ url }).catch(() => {});
+        else Promise.resolve(chrome.search?.query({ text, disposition: 'NEW_TAB' })).catch(() => {});
       });
       return false;
 

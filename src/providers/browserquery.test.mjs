@@ -10,7 +10,8 @@ test('the figure is quoted, because that is what the claim turns on', () => {
 });
 
 test('names are quoted so an engine matches them as names', () => {
-  const q = browserQuery('Unemployment fell to 4.2 percent last quarter, according to the Labor Department.');
+  // Two phrases is what Google and Bing take; see shared/engines.js for who gets what.
+  const q = browserQuery('Unemployment fell to 4.2 percent last quarter, according to the Labor Department.', { maxPhrases: 2 });
   assert.ok(q.includes('"4.2 percent"'), q);
   assert.ok(q.includes('"Labor Department"'), q);
   assert.ok(q.includes('unemployment'), q);
@@ -67,6 +68,6 @@ test('a name joined by a small word is kept whole', () => {
 });
 
 test('the same phrase is never repeated in one query', () => {
-  const q = browserQuery('New York City said New York City spending rose 12 percent.');
+  const q = browserQuery('New York City said New York City spending rose 12 percent.', { maxPhrases: 2 });
   assert.equal(q.split('"New York City"').length - 1, 1, q);
 });

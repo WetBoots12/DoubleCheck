@@ -218,6 +218,23 @@ is only rescued on positive evidence.
 Measured live before and after: Fox went from 0 blocks to 54 of article prose, while
 the BBC, the Associated Press, NPR and Wikipedia were unchanged.
 
+### 3.6i Search engines
+
+`src/shared/engines.js`. The Search in browser button hands a claim to an engine the
+user already uses, and engines do not read a query the same way, so the query is
+shaped per engine rather than one shape going everywhere.
+
+Google and Bing, and Yahoo which is Bing, take two quoted phrases. DuckDuckGo and
+Brave both describe their own operators as unreliable or experimental, and measured
+against a live search the same claim returned 2 results with two quoted phrases and
+5 with one, so they get one. Answer engines such as Perplexity are asked a question
+in ordinary words, following their own guidance to write full questions rather than
+keyword queries. An unnamed browser default gets the conservative shape that every
+engine handles.
+
+A named engine is opened by address; the browser's own default goes through
+`chrome.search`, which is the only way to honour a setting an extension cannot read.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of
