@@ -18,7 +18,12 @@ function fmtTime(t) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Whether an AI provider is configured decides if the AI buttons appear at all.
+let llmEnabled = false;
+let lastClaims = [];
+
 function render(claims) {
+  lastClaims = claims;
   feed.innerHTML = '';
   if (!claims.length) {
     feed.innerHTML = '<div class="empty">Nothing flagged yet on this page.</div>';
@@ -46,18 +51,39 @@ function render(claims) {
     if (c.score != null) meta.innerHTML += `<span>score ${c.score}</span>`;
     el.appendChild(meta);
 
-    // Search calls cost the user quota, so nothing is fetched until they ask.
-    if (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR) {
-      const check = document.createElement('button');
-      check.className = 'check';
-      check.textContent = c.status === STATUS.ERROR ? 'Try again' : 'Check sources';
-      check.addEventListener('click', () => {
-        check.disabled = true;
-        check.textContent = 'Checking…';
-        chrome.runtime.sendMessage({ type: MSG.CHECK_CLAIM, claimId: c.id }).catch(() => {});
+    // Search and AI calls both cost the user something, so each is its own button
+    // and nothing runs until they ask.
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+
+    function addButton(label, busyLabel, withAi, primary) {
+      const b = document.createElement('button');
+      b.className = primary ? 'check' : 'check secondary';
+      b.textContent = label;
+      b.addEventListener('click', () => {
+        for (const other of actions.querySelectorAll('button')) other.disabled = true;
+        b.textContent = busyLabel;
+        chrome.runtime
+          .sendMessage({ type: MSG.CHECK_CLAIM, claimId: c.id, withAi })
+          .catch(() => {});
       });
-      el.appendChild(check);
+      actions.appendChild(b);
     }
+
+    if (c.summarizing) {
+      const note = document.createElement('div');
+      note.className = 'muted-note';
+      note.textContent = 'Asking the AI…';
+      actions.appendChild(note);
+    } else if (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR) {
+      addButton(c.status === STATUS.ERROR ? 'Try again' : 'Check sources', 'Checking…', false, true);
+      if (llmEnabled) addButton('Check with AI', 'Checking…', true, false);
+    } else if (c.status === STATUS.CHECKED && llmEnabled && !c.summary) {
+      // Sources are already paid for; summarizing them costs no further search call.
+      addButton('Summarize with AI', 'Asking the AI…', true, false);
+    }
+
+    if (actions.childElementCount) el.appendChild(actions);
 
     if (c.status === STATUS.NO_KEY) {
       const p = document.createElement('div');
@@ -147,8 +173,22 @@ toggle.addEventListener('change', () => {
     .catch(() => {});
 });
 
+// Changing the AI provider in settings should show or hide the AI buttons without
+// needing the panel reopened.
+chrome.storage.onChanged.addListener(async () => {
+  const s = await getSettings();
+  const next = s.llmProvider !== 'none';
+  toggle.checked = s.autoCheck;
+  if (next !== llmEnabled) {
+    llmEnabled = next;
+    render(lastClaims);
+  }
+});
+
 (async () => {
-  toggle.checked = (await getSettings()).autoCheck;
+  const settings = await getSettings();
+  llmEnabled = settings.llmProvider !== 'none';
+  toggle.checked = settings.autoCheck;
   const res = await chrome.runtime.sendMessage({ type: MSG.PANEL_READY }).catch(() => null);
   render(res?.claims || []);
 })();

@@ -101,13 +101,21 @@ async function handleSentences(tabId, sentences) {
   // from the side panel, so a text-heavy page cannot burn through their quota.
 }
 
-async function requestCheck(claimId) {
+// withAi false: fetch sources only. withAi true: also summarize them. If sources are
+// already fetched, summarizing costs no further search call.
+async function requestCheck(claimId, withAi) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id == null) return;
   const claim = tabs.get(tab.id)?.claims.get(claimId);
-  if (!claim || claim.status === STATUS.PENDING) return;
+  if (!claim || claim.status === STATUS.PENDING || claim.summarizing) return;
 
   const settings = await getSettings();
+
+  if (withAi && claim.results?.length) {
+    summarize(tab.id, claim, settings);
+    return;
+  }
+
   if (!settings.searchApiKey) {
     claim.status = STATUS.NO_KEY;
     pushPanel(tab.id);
@@ -118,7 +126,46 @@ async function requestCheck(claimId) {
   claim.error = undefined;
   pushPanel(tab.id);
   pushHighlights(tab.id, [claim]);
-  enqueue(() => checkClaim(tab.id, claimId, settings));
+  enqueue(() => checkClaim(tab.id, claimId, settings, withAi));
+}
+
+async function summarize(tabId, claim, settings) {
+  const llm = getLlmProvider(settings.llmProvider);
+  if (llm.id === 'none' || !claim.results?.length) return;
+
+  claim.summarizing = true;
+  claim.error = undefined;
+  pushPanel(tabId);
+
+  if (llm.runsInPage) {
+    // The browser's built-in model only exists in a document context, so the side
+    // panel runs it and returns the summary via LLM_RESULT. No panel open means no
+    // summary, which is fine since summaries are only ever read there.
+    chrome.runtime
+      .sendMessage({
+        type: MSG.LLM_REQUEST,
+        claimId: claim.id,
+        claim: claim.text,
+        results: claim.results,
+      })
+      .catch(() => {
+        claim.summarizing = false;
+        pushPanel(tabId);
+      });
+    return;
+  }
+
+  try {
+    claim.summary = await llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
+      url: settings.localLlmUrl,
+      model: settings.localLlmModel,
+    });
+  } catch (err) {
+    claim.summary = '';
+    claim.error = `Summary unavailable: ${err.message}`;
+  }
+  claim.summarizing = false;
+  pushPanel(tabId);
 }
 
 function enqueue(job) {
@@ -137,7 +184,7 @@ function drain() {
   }
 }
 
-async function checkClaim(tabId, claimId, settings) {
+async function checkClaim(tabId, claimId, settings, withAi = false) {
   const state = tabs.get(tabId);
   const claim = state?.claims.get(claimId);
   if (!claim) return;
@@ -147,32 +194,7 @@ async function checkClaim(tabId, claimId, settings) {
     claim.results = await search.search(claim.text, settings.searchApiKey);
     claim.status = STATUS.CHECKED;
 
-    const llm = getLlmProvider(settings.llmProvider);
-    if (llm.id !== 'none' && claim.results.length) {
-      if (llm.runsInPage) {
-        // The browser's built-in model only exists in a document context, so the side
-        // panel runs it and returns the summary via LLM_RESULT. No panel open means no
-        // summary, which is fine since summaries are only ever read there.
-        chrome.runtime
-          .sendMessage({
-            type: MSG.LLM_REQUEST,
-            claimId,
-            claim: claim.text,
-            results: claim.results,
-          })
-          .catch(() => {});
-      } else if (await llm.isAvailable()) {
-        try {
-          claim.summary = await llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
-            url: settings.localLlmUrl,
-            model: settings.localLlmModel,
-          });
-        } catch (err) {
-          claim.summary = '';
-          claim.error = `Summary unavailable: ${err.message}`;
-        }
-      }
-    }
+    if (withAi) await summarize(tabId, claim, settings);
   } catch (err) {
     claim.status = err instanceof ProviderError && err.kind === 'noKey' ? STATUS.NO_KEY : STATUS.ERROR;
     claim.error = err.message;
@@ -231,6 +253,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
         const claim = tab?.id != null && tabs.get(tab.id)?.claims.get(msg.claimId);
         if (!claim) return;
+        claim.summarizing = false;
         if (msg.summary) claim.summary = msg.summary;
         if (msg.error) claim.error = `Summary unavailable: ${msg.error}`;
         pushPanel(tab.id);
@@ -238,7 +261,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case MSG.CHECK_CLAIM:
-      requestCheck(msg.claimId);
+      requestCheck(msg.claimId, Boolean(msg.withAi));
       return false;
 
     case MSG.FOCUS_CLAIM:
