@@ -386,6 +386,15 @@ const openai = {
 // `LanguageModel`; availability() reports unavailable / downloadable / downloading /
 // available. It needs a document context, so `runsInPage` tells the background worker
 // to hand this off to the side panel rather than calling it itself.
+// Chrome logs a warning, and may decline to attest output safety, when a Prompt
+// API call does not declare its languages. The extension only handles English,
+// so both availability() and create() declare it. Accepted codes at the time of
+// writing: en, ja, es, de, fr.
+const BUILTIN_LANGUAGE_OPTS = {
+  expectedInputs: [{ type: 'text', languages: ['en'] }],
+  expectedOutputs: [{ type: 'text', languages: ['en'] }],
+};
+
 const builtin = {
   id: 'builtin',
   label: "Chrome built-in AI — Gemini Nano (no key needed)",
@@ -393,7 +402,7 @@ const builtin = {
   async isAvailable() {
     try {
       if (typeof LanguageModel === 'undefined') return false;
-      const a = await LanguageModel.availability();
+      const a = await LanguageModel.availability(BUILTIN_LANGUAGE_OPTS);
       return Boolean(a) && a !== 'unavailable';
     } catch {
       return false;
@@ -406,7 +415,7 @@ const builtin = {
     let session;
     try {
       // A 'downloadable' model downloads on first create(); this can take a while.
-      session = await LanguageModel.create();
+      session = await LanguageModel.create(BUILTIN_LANGUAGE_OPTS);
       const out = await session.prompt(crossReferencePrompt(claim, results));
       return parseAnalysis(out);
     } catch (err) {
