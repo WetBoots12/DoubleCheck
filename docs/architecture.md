@@ -161,6 +161,21 @@ the Open Graph URL and any wire credit line in the opening paragraph, and all of
 those are excluded from search along with the domain in the address bar. A portal's
 copy of a wire story and the wire's own copy are one source, not two.
 
+### 3.6e Dates and figures
+
+`src/shared/dates.js` and `src/shared/numbers.js`, both feeding the evidence score.
+
+Dates: a claim is about a year it names or about the present, and a source is
+weighed against that. A page cannot report on a year it predates, and a claim about
+now is weakly served by a page years old. Undated sources are never penalised.
+
+Figures: lexical overlap only ever notices agreement, so a source saying 2.1 percent
+where the claim says 8.2 percent looked highly relevant and said nothing. Quantities
+are now pulled from both, paired by unit and by what they are quantities of, and
+disagreements are reported. This is stated as a disagreement between two texts, not
+as a verdict: the source may be about another period or another country, or may be
+wrong itself.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of
