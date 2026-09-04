@@ -60,6 +60,15 @@ decides what is worth checking, and never asserts a verdict. Verdicts in this
 extension come from search results and the optional AI step, which see evidence
 the classifier never does. Do not present its scores as truth ratings.
 
+## Published fact-checks
+
+The optional fact-check lookup calls Google's Fact Check Tools API with the user's
+own key, under Google's API Terms of Service. Results are ClaimReview records
+published by independent fact-checking organisations. Each is displayed with its
+publisher's name, its own wording of the rating, and a link to the original
+article, so credit goes to the organisation that did the work and the reader can
+go read it. Ratings are never remapped onto a scale invented here.
+
 ## Other services
 
 The extension calls search and AI providers using **the user's own API keys**,

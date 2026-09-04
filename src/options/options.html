@@ -127,6 +127,29 @@
       </section>
 
       <section>
+        <h2>Published fact-checks (optional)</h2>
+        <div class="field">
+          <label for="factCheckProvider">Provider</label>
+          <select id="factCheckProvider"></select>
+          <div class="hint">
+            Looks for verdicts already published by fact-checking organisations such as
+            Snopes, PolitiFact and Full Fact, and shows them with the search results
+            when you press "Check sources".
+          </div>
+        </div>
+        <div class="field" id="factCheckKeyField">
+          <label for="factCheckApiKey">API key</label>
+          <input type="password" id="factCheckApiKey" autocomplete="off" spellcheck="false" />
+          <div class="err" id="factCheckErr"></div>
+          <div class="hint">
+            Free from Google Cloud: enable the Fact Check Tools API and create an API
+            key. Most claims have no published fact-check, so expect this to be empty
+            more often than not.
+          </div>
+        </div>
+      </section>
+
+      <section>
         <h2>AI summary (optional)</h2>
         <div class="field">
           <label for="llmProvider">Provider</label>

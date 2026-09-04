@@ -48,6 +48,8 @@ export const DEFAULT_SETTINGS = {
   threshold: 0.7,
   searchProvider: 'serpapi',
   searchApiKey: '',
+  factCheckProvider: 'google',
+  factCheckApiKey: '',
   llmProvider: 'none',
   llmApiKey: '',
   localLlmUrl: 'http://localhost:11434/v1',

@@ -1,5 +1,5 @@
 import { getSettings, saveSettings, MSG } from '../shared/messages.js';
-import { SEARCH_PROVIDERS, LLM_PROVIDERS } from '../providers/index.js';
+import { SEARCH_PROVIDERS, LLM_PROVIDERS, FACTCHECK_PROVIDERS } from '../providers/index.js';
 
 const el = (id) => document.getElementById(id);
 const fields = {
@@ -9,6 +9,9 @@ const fields = {
   searchProvider: el('searchProvider'),
   searchApiKey: el('searchApiKey'),
   llmProvider: el('llmProvider'),
+  factCheckProvider: el('factCheckProvider'),
+  factCheckApiKey: el('factCheckApiKey'),
+  factCheckKeyField: el('factCheckKeyField'),
   llmApiKey: el('llmApiKey'),
   llmKeyField: el('llmKeyField'),
   localFields: el('localFields'),
@@ -35,6 +38,7 @@ function syncLlmKeyVisibility() {
   fields.llmKeyField.style.display = KEYLESS_LLM.has(id) ? 'none' : '';
   fields.localFields.style.display = id === 'local' ? '' : 'none';
   fields.builtinNote.style.display = id === 'builtin' ? '' : 'none';
+  fields.factCheckKeyField.style.display = fields.factCheckProvider.value === 'none' ? 'none' : '';
 }
 
 function showError(id, message) {
@@ -81,6 +85,8 @@ async function save() {
     autoCheck,
     threshold: Number(fields.threshold.value),
     searchProvider: fields.searchProvider.value,
+    factCheckProvider: fields.factCheckProvider.value,
+    factCheckApiKey: fields.factCheckApiKey.value.trim(),
     searchApiKey: fields.searchApiKey.value.trim(),
     llmProvider: fields.llmProvider.value,
     // Keep the key even while a keyless provider is selected, so switching back
@@ -99,6 +105,7 @@ async function save() {
 
 (async () => {
   fill(fields.searchProvider, Object.values(SEARCH_PROVIDERS));
+  fill(fields.factCheckProvider, Object.values(FACTCHECK_PROVIDERS));
 
   // Hide the built-in AI option on browsers that don't actually expose it.
   const llmOptions = [];
@@ -114,6 +121,8 @@ async function save() {
   fields.thresholdVal.textContent = Number(s.threshold).toFixed(2);
   fields.searchProvider.value = s.searchProvider;
   fields.searchApiKey.value = s.searchApiKey;
+  fields.factCheckProvider.value = s.factCheckProvider;
+  fields.factCheckApiKey.value = s.factCheckApiKey;
   fields.llmProvider.value = llmOptions.some((p) => p.id === s.llmProvider) ? s.llmProvider : 'none';
   fields.llmApiKey.value = s.llmApiKey;
   fields.localLlmUrl.value = s.localLlmUrl;
@@ -124,5 +133,6 @@ async function save() {
     fields.thresholdVal.textContent = Number(fields.threshold.value).toFixed(2);
   });
   fields.llmProvider.addEventListener('change', syncLlmKeyVisibility);
+  fields.factCheckProvider.addEventListener('change', syncLlmKeyVisibility);
   el('save').addEventListener('click', save);
 })();

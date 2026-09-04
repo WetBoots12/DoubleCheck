@@ -22,6 +22,9 @@
         --lean-left: rgba(66, 120, 190, 0.18);
         --lean-center: rgba(150, 150, 150, 0.18);
         --lean-right: rgba(190, 80, 70, 0.18);
+        --rating-false: rgba(180, 70, 45, 0.22);
+        --rating-true: rgba(61, 122, 90, 0.22);
+        --rating-mixed: rgba(200, 150, 62, 0.25);
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -40,6 +43,9 @@
           --lean-left: rgba(110, 160, 220, 0.22);
           --lean-center: rgba(180, 180, 180, 0.2);
           --lean-right: rgba(220, 120, 110, 0.22);
+          --rating-false: rgba(212, 105, 79, 0.3);
+          --rating-true: rgba(106, 168, 138, 0.3);
+          --rating-mixed: rgba(216, 171, 85, 0.3);
         }
       }
       body {
@@ -136,6 +142,23 @@
       .chip.lean-center { background: var(--lean-center); }
       .chip.lean-unclear { background: var(--flat-soft); }
       .caveat { font-size: 10px; color: var(--muted); margin-top: 4px; font-style: italic; }
+      .factchecks {
+        margin-top: 10px; padding: 8px 10px; border-radius: 6px;
+        background: var(--ok-soft); border: 1px solid var(--border);
+      }
+      .fc-head { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+      .factcheck { margin-bottom: 8px; }
+      .factcheck:last-child { margin-bottom: 0; }
+      .factcheck a { color: var(--link); text-decoration: none; font-weight: 500; }
+      .factcheck a:hover { text-decoration: underline; }
+      .rating {
+        display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 99px;
+        font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+      }
+      .rating.tone-false { background: var(--rating-false); }
+      .rating.tone-true { background: var(--rating-true); }
+      .rating.tone-mixed { background: var(--rating-mixed); }
+      .rating.tone-unknown { background: var(--flat-soft); }
       .disclaimer {
         padding: 10px 12px 16px; font-size: 11px; line-height: 1.45;
         color: var(--muted); border-top: 1px solid var(--border);
