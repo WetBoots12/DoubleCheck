@@ -1,0 +1,115 @@
+# FactCheck Sidebar
+
+A Chromium extension that flags check-worthy claims on pages and in YouTube
+captions as you read and watch, then helps you cross-reference them against
+search results in a side panel.
+
+---
+
+## Disclaimer — read this first
+
+**Nothing this extension shows you is a statement of fact.** It is a research
+aid, not an authority. Its purpose is to help you cross-check what you read and
+watch for yourself.
+
+Specifically:
+
+- **Flagging a sentence says nothing about whether it is true.** The classifier
+  only estimates whether a sentence looks like the kind of claim worth checking.
+  A flagged claim is not a suspect claim, and an unflagged one is not a verified
+  one. Plenty of false statements will never be flagged.
+- **Search results are not verification.** They are links that a search engine
+  returned for the wording of a sentence. They may be irrelevant, outdated, wrong,
+  or contradicted by better sources the search never surfaced.
+- **AI summaries can be confidently wrong.** Language models misread sources,
+  overstate agreement, and invent detail. The verdict, the confidence figure and
+  the thermometer are all the model's opinion of a handful of search snippets,
+  not an adjudication. Treat a high-confidence verdict with the same skepticism
+  as a low-confidence one.
+- **Outlet lean estimates are guesses.** They come from the AI model you chose,
+  not from any media-ratings organization, and this project has no affiliation
+  with AllSides, Ad Fontes Media, Media Bias/Fact Check, or any similar service.
+- **Read the actual sources.** The links in the panel are the point. The summary
+  above them is a shortcut that can be wrong, and no amount of interface polish
+  changes that.
+
+**No liability is accepted.** This software is provided as is, without warranty
+of any kind, express or implied. The author accepts no liability for what you
+find using it, for what you conclude from it, for decisions you make on the basis
+of it, or for any damages arising from its use. You are responsible for verifying
+anything that matters to you, and for your own use of the third-party search and
+AI services you configure it to call.
+
+If you are redistributing this or relying on it in any professional capacity, get
+your own legal advice. The paragraph above is a plain-language statement of
+intent, not a lawyer-drafted licence.
+
+---
+
+## What it does
+
+1. Text from the page, or captions from a YouTube video, is split into sentences.
+2. A trained classifier scores each sentence for check-worthiness, entirely on
+   your machine. Nothing is sent anywhere at this stage.
+3. Sentences above the threshold are highlighted on the page and listed in the
+   side panel.
+4. **Only when you press a button** does it call a search API, and optionally an
+   AI model, to cross-reference that claim. Nothing is spent automatically.
+
+That last point is deliberate. A page dense with claims could otherwise burn
+through an API quota in seconds.
+
+## Installing
+
+No build step. Load it unpacked:
+
+1. Open `chrome://extensions` (Brave and Edge work too).
+2. Turn on **Developer mode**.
+3. Click **Load unpacked** and choose this folder.
+
+Then open the extension's options page and add a search API key. SerpAPI and
+Brave Search are supported. Without a key, claims are still flagged and
+highlighted, but no sources are fetched.
+
+AI summaries are optional and off by default. You can use your own Anthropic or
+OpenAI key, Chrome's built-in on-device model where available, or a local model
+served by Ollama or LM Studio. Brave's Leo assistant exposes no extension API and
+cannot be used; the local model option covers Brave.
+
+## Using it
+
+| Action | What happens |
+|---|---|
+| Extension icon | Opens the side panel; the badge counts flagged claims |
+| **Check sources** | Spends one search call for that claim |
+| **Check with AI** | Searches, then summarizes the results |
+| **Summarize with AI** | Summarizes sources already fetched, no extra search |
+| Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |
+| Auto-check toggle | Stops all scanning |
+
+## Privacy
+
+There is no server. Your API keys are stored on your device with
+`chrome.storage.local` and are sent only to the provider you selected. Page text
+leaves your browser only when you press a button that calls one of those
+providers. The classifier runs locally, so ordinary browsing text is never
+transmitted.
+
+## Development
+
+```bash
+npm test
+```
+
+- [`docs/architecture.md`](docs/architecture.md) — design and components
+- [`docs/testing.md`](docs/testing.md) — automated coverage and manual passes
+- [`docs/training-data.md`](docs/training-data.md) — data sources and threshold tuning
+- [`classifier/README.md`](classifier/README.md) — the model and how to retrain it
+- [`ATTRIBUTION.md`](ATTRIBUTION.md) — required credit for the ClaimBuster dataset
+
+## Credits
+
+The classifier is trained on the ClaimBuster dataset from the IDIR Lab at the
+University of Texas at Arlington, used under CC BY 4.0. Attribution is a licence
+condition; see [`ATTRIBUTION.md`](ATTRIBUTION.md) for the citations that must
+travel with this project and with any model derived from it.
