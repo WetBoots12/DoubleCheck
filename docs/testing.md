@@ -62,6 +62,16 @@ clears them. `tools/youtube-caption-probe.js` reports what the content script se
 without needing the extension loaded, which isolates caption reading from the rest
 of the pipeline. Live streams are untested and may need their own handling.
 
+Two further video checks. With captions switched off, a hint should appear both
+in the on-page overlay and as a banner at the top of the panel, and both should
+clear the moment captions are turned on; on a video that has no caption track at
+all, the hint should say so instead. That second case rests on the state and
+visibility of the player's subtitles button, which is a best-effort heuristic, so
+confirm it on a real captionless video rather than trusting it. Then play a
+captioned video at 2x: claims should still arrive as whole sentences. The
+caption container is observed for changes, with the one-second poll as fallback,
+because at that speed a cue can appear and vanish between polls.
+
 **Quota discipline.** This is the one worth being careful about, since mistakes here
 cost real money. Confirm that loading a page dense with claims fires zero search
 calls, that "Check sources" fires exactly one, that "Summarize with AI" fires none,
