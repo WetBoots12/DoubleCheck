@@ -269,6 +269,18 @@ end to end.
 - Restricted pages (chrome:// pages, PDFs without a content script, etc.):
   extension icon shows a disabled state, no scanning attempted.
 
+## 5a. Reading a page again
+
+`rescanTab` is the single definition of "read this page from nothing", used by the
+Rescan button and by the thumbs-up alike. Both sides remember what they have judged,
+the content script so it does not ship a sentence twice and the worker so it does
+not score it twice, and both memories have to be emptied together.
+
+Anything less produced a bug worth remembering: allowing a site that had been
+refused told the page to collect, but every sentence on it was already marked as
+seen from the attempt before the rule changed, so nothing was ever shipped and the
+thumbs-up appeared to do nothing at all.
+
 ## 5b. What is never scanned
 
 One function, `scanPolicy`, decides whether anything may happen for a tab, and every

@@ -277,13 +277,32 @@ test('a thumbs-up rule lets a built-in-blocked site scan, and PANEL_READY report
   chrome.tabs.query = async () => [{ id: ACTIVE_TAB, url: 'https://secure.chase.com/dashboard' }];
   assert.equal((await send({ type: 'getState' })).scanAllowed, false);
 
+  sent.tabs.length = 0;
   await send({ type: 'siteRule', domain: 'secure.chase.com', action: 'allow' }, undefined);
+  await settle();
   assert.equal((await send({ type: 'getState' })).scanAllowed, true);
   assert.equal((await send({ type: 'panelReady' }, undefined)).page.rule, 'allow');
+
+  // Turning a site on has to read it from scratch. Telling the page to collect is
+  // not enough: everything on it may already be marked as seen from before the rule
+  // changed, and then nothing new is ever shipped and the thumbs-up looks broken.
+  assert.ok(sent.tabs.some((m) => m.msg.type === 'rescan'),
+    'allowing a site should have asked the page to read itself again');
 
   await chrome.storage.local.set({ fc_settings: {} });
   chrome.tabs.get = async (id) => ({ id, url: 'https://www.example.com/article' });
   chrome.tabs.query = async () => [{ id: ACTIVE_TAB, url: 'https://www.example.com/article' }];
+
+  // The rescan emptied the tab; put it back for the tests that follow.
+  await send({
+    type: 'sentences',
+    sentences: [
+      { id: 's1', text: 'Unemployment fell to 4.2 percent last quarter, according to the Labor Department.' },
+      { id: 's2', text: 'The company reported record revenue of 5 billion dollars in 2023.' },
+    ],
+  });
+  await settle();
+  assert.ok((await send({ type: 'panelReady' }, undefined)).claims.length >= 1);
 });
 
 test('Search in browser opens the claim in the default engine via chrome.search', async () => {

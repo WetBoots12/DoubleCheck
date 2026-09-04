@@ -92,6 +92,22 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.url) resetTab(tabId);
 });
 
+// Read the page again from nothing.
+//
+// Both sides remember what they have already judged: the content script so it does
+// not ship a sentence twice, and the worker so it does not score it twice. That is
+// right while reading and wrong whenever the answer would now be different, so both
+// memories are emptied together. Anything less produces the failure this fixed:
+// pressing the thumbs-up on a site that had been refused appeared to do nothing,
+// because every sentence on the page was already marked as seen.
+async function rescanTab(tabId) {
+  if (tabId == null) return false;
+  await resetTab(tabId);
+  publishers.delete(tabId);
+  chrome.tabs.sendMessage(tabId, { type: MSG.RESCAN }).catch(() => {});
+  return true;
+}
+
 async function resetTab(tabId) {
   queue.drop(tabId);
   publishers.delete(tabId);
@@ -553,16 +569,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // does not ship the same sentence twice, and the worker so it does not score
       // it twice. A changed threshold therefore does nothing to a page already on
       // screen until both of those are emptied, which is what this does.
-      activeTabId().then(async (id) => {
-        if (id == null) {
-          sendResponse({ ok: false });
-          return;
-        }
-        await resetTab(id); // claims, badge and panel
-        publishers.delete(id);
-        chrome.tabs.sendMessage(id, { type: MSG.RESCAN }).catch(() => {});
-        sendResponse({ ok: true });
-      });
+      activeTabId().then(async (id) => sendResponse({ ok: await rescanTab(id) }));
       return true;
 
     case MSG.OPEN_TRANSCRIPT:
@@ -602,6 +609,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           queue.drop(id);
           await tabStore.clear(id);
           updateBadge(id);
+        } else {
+          // A site just turned on has to be read from scratch. Telling the page to
+          // collect is not enough on its own: everything on it may already be
+          // marked as seen from before the rule changed, in which case nothing new
+          // would ever be shipped and the thumbs-up would look broken.
+          await rescanTab(id);
         }
         await pushPanel(id);
         pushPageStatus(id, policy);
