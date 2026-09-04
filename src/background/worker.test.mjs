@@ -288,6 +288,19 @@ test('clearing the cache empties it, and the next check pays for a call again', 
   assert.equal(searchCalls.length, before + 1, 'after clearing, the provider should be called again');
 });
 
+test('the panel can ask the video script to open the transcript', async () => {
+  // The caption track cannot be fetched: the URL is in the watch page, but the
+  // endpoint answers 200 with an empty body without a token the player mints.
+  // Opening the transcript YouTube already offers is the route that works, and
+  // only a content script can touch YouTube's own controls.
+  sent.tabs.length = 0;
+  await send({ type: 'openTranscript' }, undefined);
+  await settle();
+  const forwarded = sent.tabs.find((m) => m.msg.type === 'openTranscript');
+  assert.ok(forwarded, 'the request never reached the tab');
+  assert.equal(forwarded.tabId, ACTIVE_TAB);
+});
+
 test('re-sending the same sentences does not duplicate claims', async () => {
   const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
   await send({

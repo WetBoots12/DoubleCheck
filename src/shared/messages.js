@@ -12,6 +12,7 @@ export const MSG = {
   PAGE_PRIVATE: 'pagePrivate',      // { reason: 'fields' } -> page has a password or card field
   PAGE_LANGUAGE: 'pageLanguage',    // { language } -> the page is not in English, so it was not scanned
   PAGE_SOURCES: 'pageSources',      // { domains } -> publishers behind this page, e.g. the wire it came from
+  OPEN_TRANSCRIPT: 'openTranscript', // {} -> ask the video script to open YouTube's transcript panel
   PAGE_CHANGED: 'pageChanged',      // { url } -> same document, new page (SPA navigation)
 
   // background -> content script

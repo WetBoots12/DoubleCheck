@@ -15,6 +15,7 @@
     NAV_STATE: 'navState',
     CAPTION_HINT: 'captionHint',
     PAGE_LANGUAGE: 'pageLanguage',
+    OPEN_TRANSCRIPT: 'openTranscript',
   };
 
   let autoCheck = true;
@@ -200,8 +201,8 @@
 
   // Why nothing is being detected, when that has a cause the viewer can fix.
   const HINT_TEXT = {
-    off: 'Turn on subtitles (CC) to detect claims in this video.',
-    none: 'No captions on this video. If it has a transcript, open it (…more, then Show transcript).',
+    off: 'Turn on subtitles (CC), or press "Open the transcript" in the side panel.',
+    none: 'No captions playing. Press "Open the transcript" in the side panel to read this video.',
   };
   let currentHint = null;
 
@@ -328,6 +329,8 @@
       seekTo(msg.claimId);
     } else if (msg.type === MSG.NAV_CLAIM) {
       navigate(msg.direction);
+    } else if (msg.type === MSG.OPEN_TRANSCRIPT) {
+      openTranscript();
     } else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck && msg.scanAllowed !== false;
       // Reaching here after a language block means the user pressed the thumbs-up
@@ -341,6 +344,56 @@
       reportCaptionState();
     }
   });
+
+  // Opening YouTube's own transcript, on request.
+  //
+  // Reading a video whose captions are off would ideally mean fetching the caption
+  // track directly. The track URL is in the watch page and can be read from it, but
+  // the endpoint it points at answers 200 with an empty body without a token the
+  // player mints, so that route does not work. Tested, not assumed.
+  //
+  // What does work is the transcript YouTube already offers, which this script
+  // reads whenever it is open. So rather than asking the viewer to find it under
+  // "…more", the panel offers a button and this opens it for them. It is their own
+  // page and their own click, one step further along.
+  const TRANSCRIPT_BUTTONS = [
+    'ytd-video-description-transcript-section-renderer button',
+    'button[aria-label*="transcript" i]',
+    'ytd-menu-service-item-renderer[aria-label*="transcript" i]',
+  ];
+  const EXPANDERS = ['tp-yt-paper-button#expand', '#description-inline-expander #expand'];
+
+  function clickFirst(selectors) {
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        el.click();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function openTranscript() {
+    if (document.querySelector('ytd-transcript-segment-renderer')) {
+      ingestTranscript(true); // already open: just read it again
+      return;
+    }
+    if (clickFirst(TRANSCRIPT_BUTTONS)) {
+      setTimeout(() => ingestTranscript(true), 900);
+      return;
+    }
+    // The control lives inside the collapsed description on most layouts.
+    clickFirst(EXPANDERS);
+    setTimeout(() => {
+      clickFirst(TRANSCRIPT_BUTTONS);
+      setTimeout(() => {
+        attachTranscriptObserver();
+        ingestTranscript(true);
+        reportCaptionState();
+      }, 900);
+    }, 400);
+  }
 
   // --- transcript panel -------------------------------------------------------
   // When the viewer opens YouTube's transcript, its segments are already in the
