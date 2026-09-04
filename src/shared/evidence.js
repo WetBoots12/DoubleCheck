@@ -16,6 +16,8 @@
 // for the panel, so the reading is explainable rather than opaque. Pure: no DOM,
 // no network, no chrome.*.
 
+import { temporalFit, isMismatch } from './dates.js';
+
 const STOPWORDS = new Set(('a an the and or but if then than that this these those of in on at to for with '
   + 'from by as is are was were be been being it its he she they we you i his her their our your not '
   + 'no do does did has have had will would could should may might can said says according also more most '
@@ -125,10 +127,14 @@ function plural(n, word) {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
-// sources: [{ url, title, snippet, excerpt?, academic? }]; stances: { [index]: 'supports' | 'contradicts' | 'unrelated' }
+// A source out of step with the claim's period still counts, but for less. It is
+// not wrong, it is answering about a different time, and the panel says so.
+const TEMPORAL_PENALTY = 0.5;
+
+// sources: [{ url, title, snippet, excerpt?, date?, academic? }]; stances: { [index]: 'supports' | 'contradicts' | 'unrelated' }
 // (index is 1-based, as the prompt numbers them); factChecks: [{ publisher, rating }];
 // tiers: { trusted, distrusted }.
-export function scoreEvidence(claim, sources = [], { stances = null, factChecks = [], tiers = {} } = {}) {
+export function scoreEvidence(claim, sources = [], { stances = null, factChecks = [], tiers = {}, now = null } = {}) {
   const rows = sources.map((s, i) => {
     // The excerpt read from the page when there is one, the search snippet when
     // there is not. A snippet is 150 characters and often cuts off the very number
@@ -138,8 +144,23 @@ export function scoreEvidence(claim, sources = [], { stances = null, factChecks 
     const tier = sourceTier(s, tiers);
     const v = verbiage(text);
     const stance = stances ? (stances[i + 1] || stances[String(i + 1)] || null) : null;
-    const weight = TIER_WEIGHT[tier] * (1 - 0.5 * v.penalty) * rel;
-    return { index: i + 1, url: s.url, tier, relevance: rel, verbiage: v, stance, weight, relevant: rel >= RELEVANT };
+    // "Crime is at an all-time low" was true of some year, and a search will
+    // happily return the year it was true of. A page cannot report on a year it
+    // predates, and a page from long ago is weak evidence about the present.
+    const time = temporalFit(claim, s.date, now ? { now } : {});
+    const timePenalty = isMismatch(time.status) ? TEMPORAL_PENALTY : 1;
+    const weight = TIER_WEIGHT[tier] * (1 - 0.5 * v.penalty) * rel * timePenalty;
+    return {
+      index: i + 1,
+      url: s.url,
+      tier,
+      relevance: rel,
+      verbiage: v,
+      stance,
+      time,
+      weight,
+      relevant: rel >= RELEVANT,
+    };
   });
 
   const relevant = rows.filter((r) => r.relevant);
@@ -157,6 +178,11 @@ export function scoreEvidence(claim, sources = [], { stances = null, factChecks 
   for (const r of relevant) tierCounts[r.tier] = (tierCounts[r.tier] || 0) + 1;
   if (relevant.length) {
     lines.push('sources: ' + Object.entries(tierCounts).map(([t, n]) => `${n} ${TIER_LABEL[t]}`).join(', '));
+  }
+
+  const dated = relevant.filter((r) => isMismatch(r.time.status));
+  if (dated.length) {
+    lines.push(`${plural(dated.length, 'source')} out of step with the claim's date: ${dated[0].time.note}`);
   }
 
   const hedged = relevant.filter((r) => r.verbiage.hedged).length;

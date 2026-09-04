@@ -21,6 +21,7 @@ import {
   ProviderError,
 } from '../providers/index.js';
 import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
+import { publishedDateFromHtml } from '../shared/dates.js';
 import { tabStore } from './tabstate.js';
 import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
@@ -314,12 +315,19 @@ async function readSources(claim, results, settings) {
   await Promise.all(results.slice(0, READ_TOP_N).map(async (r) => {
     if (!r?.url) return;
     try {
-      // The excerpt is cached, not the page: it is small, and it is what is used.
-      const excerpt = await remember(settings, 'excerpt', [r.url, claim.text], async () => {
+      // The excerpt and the date are cached, not the page: they are small, and
+      // they are what gets used. The date the publisher put on the page beats a
+      // search provider's guess at it, so it wins where both exist.
+      const read = await remember(settings, 'read', [r.url, claim.text], async () => {
         const html = await fetchPageHtml(r.url);
-        return html ? relevantExcerpt(claim.text, extractParagraphs(html)) : '';
+        if (!html) return { excerpt: '', date: '' };
+        return {
+          excerpt: relevantExcerpt(claim.text, extractParagraphs(html)),
+          date: publishedDateFromHtml(html),
+        };
       });
-      if (excerpt) r.excerpt = excerpt;
+      if (read?.excerpt) r.excerpt = read.excerpt;
+      if (read?.date) r.date = read.date;
     } catch {
       // Unreadable page: the snippet stands.
     }
