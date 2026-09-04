@@ -117,6 +117,18 @@ LLM). It also:
   restarts (this is the correct persistent store for this — plain HTTP cache
   is not durable and isn't the right tool here).
 
+### 3.6b Provider response cache
+
+`src/shared/cache.js`. A time-limited LRU over `chrome.storage.local`, holding the
+answers from the only calls that cost money or quota: search, published fact-checks,
+OpenAlex and the AI summary. Keyed on everything that would change the answer, so a
+different provider, query, mode or model is a different entry. Default limits: a
+24-hour life and 200 entries.
+
+It never changes *when* a call happens, only what a repeat click costs. Failures are
+not stored, so a rate-limited provider can be retried at once. Entries include claim
+text, so the options page carries a switch and a clear button.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of

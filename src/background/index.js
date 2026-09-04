@@ -22,6 +22,18 @@ import {
 import { tabStore } from './tabstate.js';
 import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
+import { createCache, cacheKey } from '../shared/cache.js';
+
+// Provider answers are remembered for a day on the user's own machine, so reading a
+// second article about the same event, or re-opening a page, does not spend another
+// search call or another paid AI call on a question already answered. Nothing about
+// when a call happens changes: a check still runs only when the user clicks.
+const cache = createCache(chrome.storage.local);
+
+async function remember(settings, kind, parts, fn) {
+  if (!settings.cacheResults) return fn();
+  return cache.wrap(cacheKey(kind, parts), fn);
+}
 
 // The thermometer's number: measured relevance, verbiage and source tier, plus the
 // AI's per-source stances when it ran and any published fact-check. Recomputed
@@ -233,11 +245,18 @@ async function summarize(tabId, claim, settings) {
   }
 
   try {
-    claim.analysis = await llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
-      url: settings.localLlmUrl,
-      // The local server has its own model field; the hosted APIs share one override.
-      model: llm.id === 'local' ? settings.localLlmModel : settings.llmModel || undefined,
-    });
+    // Keyed on the sources as well as the claim, so a summary is only reused when
+    // the model was given the same evidence to read.
+    const model = llm.id === 'local' ? settings.localLlmModel : settings.llmModel || undefined;
+    claim.analysis = await remember(
+      settings,
+      'llm',
+      [llm.id, model || '', claim.text, (claim.results || []).map((r) => r.url)],
+      () => llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
+        url: settings.localLlmUrl,
+        model,
+      }),
+    );
   } catch (err) {
     claim.analysis = null;
     claim.error = `Summary unavailable: ${err.message}`;
@@ -276,15 +295,18 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     // the search results, so each is caught apart.
     const academic = Boolean(settings.academicMode);
     const [results, factChecks, scholar] = await Promise.all([
-      search.search(query, settings.searchApiKey, { excludeDomain, academic }),
+      remember(settings, 'search', [search.id, query, excludeDomain, academic], () =>
+        search.search(query, settings.searchApiKey, { excludeDomain, academic })),
       settings.factCheckApiKey
-        ? factCheck.lookup(claim.text, settings.factCheckApiKey).catch((err) => {
+        ? remember(settings, 'factcheck', [factCheck.id, claim.text], () =>
+            factCheck.lookup(claim.text, settings.factCheckApiKey)).catch((err) => {
             claim.factCheckError = err.message;
             return [];
           })
         : Promise.resolve([]),
       academic
-        ? getScholarProvider('openalex').lookup(claim.text).catch((err) => {
+        ? remember(settings, 'scholar', ['openalex', claim.text], () =>
+            getScholarProvider('openalex').lookup(claim.text)).catch((err) => {
             claim.scholarError = err.message;
             return [];
           })
@@ -481,6 +503,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         pushPanel(id);
       });
       return false;
+
+    case MSG.CLEAR_CACHE:
+      cache.clear().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+      return true;
 
     case MSG.BROWSER_SEARCH:
       // The browser's own default engine, whichever the user set: native, keyless,
