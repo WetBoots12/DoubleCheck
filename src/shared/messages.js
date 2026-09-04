@@ -28,6 +28,7 @@ export const MSG = {
   PANEL_READY: 'panelReady',        // { } -> reply with current tab's claims
   SET_AUTOCHECK: 'setAutoCheck',    // { autoCheck }
   FOCUS_CLAIM: 'focusClaim',        // { claimId } -> forward to content script
+  CLEAR_CACHE: 'clearCache',        // {} -> empty the remembered provider answers
   CHECK_CLAIM: 'checkClaim',        // { claimId } -> user asked to spend a search call
   BROWSER_SEARCH: 'browserSearch',  // { claimId } -> open the claim in the browser's default search engine
   SITE_RULE: 'siteRule',            // { domain, action: 'allow' | 'block' } -> thumbs up / down
@@ -60,6 +61,7 @@ export const DEFAULT_SETTINGS = {
   allowedDomains: [],     // the user's always-scan list; overrides the built-in rules
   trustedDomains: [],     // sources the user rates highly; see shared/evidence.js
   distrustedDomains: [],  // sources the user rates weak
+  cacheResults: true,     // remember search, fact-check and AI answers for a day; see shared/cache.js
   factCheckProvider: 'google',
   factCheckApiKey: '',
   llmProvider: 'none',

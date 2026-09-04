@@ -12,11 +12,15 @@ function fakeStorageArea() {
   const data = new Map();
   return {
     async get(key) {
-      if (key === null) return Object.fromEntries(data);
-      return data.has(key) ? { [key]: structuredClone(data.get(key)) } : {};
+      if (key === null || key === undefined) return Object.fromEntries(data);
+      const out = {};
+      for (const k of (Array.isArray(key) ? key : [key])) {
+        if (data.has(k)) out[k] = structuredClone(data.get(k));
+      }
+      return out;
     },
     async set(obj) { for (const [k, v] of Object.entries(obj)) data.set(k, structuredClone(v)); },
-    async remove(key) { data.delete(key); },
+    async remove(key) { for (const k of (Array.isArray(key) ? key : [key])) data.delete(k); },
     _data: data,
   };
 }
@@ -57,9 +61,19 @@ globalThis.chrome = {
 
 // The classifier fetches its model through chrome.runtime.getURL; serve it from disk
 // so the real trained model is what scores the sentences.
+const searchCalls = [];
 globalThis.fetch = async (url) => {
   if (String(url).endsWith('classifier/model/model.json')) {
     return { ok: true, json: async () => JSON.parse(readFileSync('classifier/model/model.json', 'utf8')) };
+  }
+  // The default provider, Wikipedia. Counted so the cache can be shown to work.
+  if (String(url).includes('wikipedia.org')) {
+    searchCalls.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ pages: [{ key: 'Unemployment', title: 'Unemployment', description: 'Economic condition' }] }),
+    };
   }
   throw new Error(`unexpected fetch ${url}`);
 };
@@ -197,6 +211,44 @@ test('Search in browser opens the claim in the default engine via chrome.search'
   assert.ok(call, 'chrome.search.query was not called');
   assert.equal(call.text, target.text);
   assert.equal(call.disposition, 'NEW_TAB');
+});
+
+test('a check spends one search call, and checking the same claim again spends none', async () => {
+  const claims = (await send({ type: 'panelReady' }, undefined)).claims;
+  const target = claims.find((c) => c.text.includes('Unemployment'));
+  assert.ok(target, 'expected the unemployment claim to be flagged');
+
+  searchCalls.length = 0;
+  await send({ type: 'checkClaim', claimId: target.id }, undefined);
+  await settle();
+  assert.equal(searchCalls.length, 1, 'the first check should reach the provider');
+  const checked = (await send({ type: 'panelReady' }, undefined)).claims.find((c) => c.id === target.id);
+  assert.equal(checked.status, 'checked');
+  assert.ok(checked.results.length >= 1);
+
+  // A fresh page carrying the same sentence: same question, so no second call.
+  await send({ type: 'pageChanged' });
+  await send({ type: 'sentences', sentences: [{ id: 's1', text: target.text }] });
+  await settle();
+  await send({ type: 'checkClaim', claimId: 's1' }, undefined);
+  await settle();
+  assert.equal(searchCalls.length, 1, 'the remembered answer should have been reused');
+  const again = (await send({ type: 'panelReady' }, undefined)).claims.find((c) => c.id === 's1');
+  assert.equal(again.status, 'checked');
+  assert.deepEqual(again.results, checked.results, 'the reused answer must match the original');
+});
+
+test('clearing the cache empties it, and the next check pays for a call again', async () => {
+  const res = await send({ type: 'clearCache' }, undefined);
+  assert.deepEqual(res, { ok: true });
+
+  const before = searchCalls.length;
+  await send({ type: 'pageChanged' });
+  await send({ type: 'sentences', sentences: [{ id: 's9', text: 'Unemployment fell to 4.2 percent last quarter, according to the Labor Department.' }] });
+  await settle();
+  await send({ type: 'checkClaim', claimId: 's9' }, undefined);
+  await settle();
+  assert.equal(searchCalls.length, before + 1, 'after clearing, the provider should be called again');
 });
 
 test('re-sending the same sentences does not duplicate claims', async () => {

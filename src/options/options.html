@@ -64,6 +64,14 @@
       .field { margin-bottom: 16px; }
       .field:last-child { margin-bottom: 0; }
       .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+      button.ghost {
+        background: none;
+        border: 1px solid var(--input-border);
+        color: var(--fg);
+        padding: 4px 10px;
+        font-size: 12px;
+        margin-top: 6px;
+      }
       .row { display: flex; align-items: center; gap: 10px; }
       .row input[type="range"] { flex: 1; }
       .switch { display: flex; align-items: center; gap: 8px; font-weight: 500; }
@@ -209,6 +217,23 @@
             that needs no key, for peer-reviewed articles when you press "Check
             sources", shown in their own section with journal, year and citations. The
             claim is sent to OpenAlex only when you press that button.
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Remembered answers</h2>
+        <div class="field">
+          <label class="row">
+            <input type="checkbox" id="cacheResults" />
+            <span>Remember search and AI answers for a day</span>
+          </label>
+          <div class="hint">
+            The same claim checked twice, or two articles about the same event, then
+            costs one call instead of two. Answers are kept on this machine only, in
+            the browser's own storage, and include the text of the claims you checked.
+            <button type="button" id="clearCache" class="ghost">Clear remembered answers</button>
+            <span id="cacheStatus" class="hint"></span>
           </div>
         </div>
       </section>

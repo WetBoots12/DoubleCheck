@@ -11,6 +11,7 @@ const fields = {
   searchApiKey: el('searchApiKey'),
   searchKeyField: el('searchKeyField'),
   distillQueries: el('distillQueries'),
+  cacheResults: el('cacheResults'),
   academicMode: el('academicMode'),
   privateSitesRule: el('privateSitesRule'),
   blockedDomains: el('blockedDomains'),
@@ -115,6 +116,7 @@ async function save() {
     factCheckApiKey: fields.factCheckApiKey.value.trim(),
     searchApiKey: fields.searchApiKey.value.trim(),
     distillQueries: fields.distillQueries.checked,
+    cacheResults: fields.cacheResults.checked,
     academicMode: fields.academicMode.checked,
     privateSitesRule: fields.privateSitesRule.checked,
     blockedDomains: parseDomainList(fields.blockedDomains.value),
@@ -156,6 +158,7 @@ async function save() {
   fields.searchProvider.value = s.searchProvider;
   fields.searchApiKey.value = s.searchApiKey;
   fields.distillQueries.checked = Boolean(s.distillQueries);
+  fields.cacheResults.checked = s.cacheResults !== false;
   fields.academicMode.checked = Boolean(s.academicMode);
   fields.privateSitesRule.checked = s.privateSitesRule !== false;
   fields.blockedDomains.value = (s.blockedDomains || []).join('\n');
@@ -180,5 +183,12 @@ async function save() {
   fields.llmProvider.addEventListener('change', syncLlmKeyVisibility);
   fields.factCheckProvider.addEventListener('change', syncLlmKeyVisibility);
   fields.searchProvider.addEventListener('change', syncLlmKeyVisibility);
+  // Emptying the store is the worker's job: it owns the cache and its keys.
+  el('clearCache').addEventListener('click', async () => {
+    const status = el('cacheStatus');
+    const res = await chrome.runtime.sendMessage({ type: MSG.CLEAR_CACHE }).catch(() => null);
+    status.textContent = res?.ok ? 'Cleared.' : 'Could not clear; try again.';
+    setTimeout(() => { status.textContent = ''; }, 2500);
+  });
   el('save').addEventListener('click', save);
 })();

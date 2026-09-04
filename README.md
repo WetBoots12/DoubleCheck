@@ -65,6 +65,10 @@ intent, not a lawyer-drafted licence.
 That last point is deliberate. A page dense with claims could otherwise burn
 through an API quota in seconds.
 
+Answers are also remembered for a day, on your machine only, so checking the same
+claim twice, or reading a second article about the same event, costs one call
+instead of two. The options page can switch that off and empty what is stored.
+
 ## Installing
 
 No build step. Load it unpacked:
