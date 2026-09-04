@@ -492,6 +492,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       return false;
 
+    case MSG.RESCAN:
+      // Settings only take effect on sentences the extension has not already
+      // judged. Both sides remember what they have seen: the content script so it
+      // does not ship the same sentence twice, and the worker so it does not score
+      // it twice. A changed threshold therefore does nothing to a page already on
+      // screen until both of those are emptied, which is what this does.
+      activeTabId().then(async (id) => {
+        if (id == null) {
+          sendResponse({ ok: false });
+          return;
+        }
+        await resetTab(id); // claims, badge and panel
+        publishers.delete(id);
+        chrome.tabs.sendMessage(id, { type: MSG.RESCAN }).catch(() => {});
+        sendResponse({ ok: true });
+      });
+      return true;
+
     case MSG.OPEN_TRANSCRIPT:
       // The panel asks; the video script does it, because only a content script can
       // touch YouTube's own controls.

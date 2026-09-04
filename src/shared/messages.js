@@ -13,6 +13,7 @@ export const MSG = {
   PAGE_LANGUAGE: 'pageLanguage',    // { language } -> the page is not in English, so it was not scanned
   PAGE_SOURCES: 'pageSources',      // { domains } -> publishers behind this page, e.g. the wire it came from
   OPEN_TRANSCRIPT: 'openTranscript', // {} -> ask the video script to open YouTube's transcript panel
+  RESCAN: 'rescan',                 // {} -> throw away this page's claims and read it again
   PAGE_CHANGED: 'pageChanged',      // { url } -> same document, new page (SPA navigation)
 
   // background -> content script

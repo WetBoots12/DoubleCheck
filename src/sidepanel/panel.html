@@ -199,6 +199,16 @@
       button.check:hover:not(:disabled) { filter: brightness(1.1); }
       button.check:disabled { opacity: 0.6; cursor: default; }
       button.link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
+      button.icon {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--fg);
+        border-radius: 5px;
+        padding: 3px 8px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button.icon:disabled { opacity: 0.55; cursor: default; }
     </style>
   </head>
   <body>
@@ -208,6 +218,9 @@
         <input type="checkbox" id="autocheck" />
         Auto-check
       </label>
+      <button id="rescan" class="icon" title="Read this page again with the current settings">
+        Rescan
+      </button>
     </header>
     <div class="findbar" id="findbar" hidden>
       <button id="prev" title="Previous claim (Alt+Shift+P)" aria-label="Previous claim">&#9650;</button>

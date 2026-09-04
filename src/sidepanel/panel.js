@@ -572,6 +572,22 @@ chrome.runtime.onMessage.addListener((msg) => {
   else if (msg.type === MSG.LLM_REQUEST) runInPageLlm(msg);
 });
 
+// Settings apply to sentences the extension has not judged yet, so changing the
+// threshold does nothing to the page already on screen. This throws away what both
+// sides remember about this tab and reads the page again.
+const rescanBtn = document.getElementById('rescan');
+rescanBtn?.addEventListener('click', async () => {
+  rescanBtn.disabled = true;
+  const label = rescanBtn.textContent;
+  rescanBtn.textContent = 'Rescanning…';
+  feed.replaceChildren();
+  await chrome.runtime.sendMessage({ type: MSG.RESCAN }).catch(() => {});
+  setTimeout(() => {
+    rescanBtn.disabled = false;
+    rescanBtn.textContent = label;
+  }, 1200);
+});
+
 toggle.addEventListener('change', () => {
   chrome.runtime
     .sendMessage({ type: MSG.SET_AUTOCHECK, autoCheck: toggle.checked })

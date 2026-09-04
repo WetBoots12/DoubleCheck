@@ -112,6 +112,7 @@ cannot be used; the local model option covers Brave.
 | **Open the transcript** | On YouTube with subtitles off, opens the video's transcript so it can be read |
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |
+| **Rescan** | Reads the page again with the current settings, after you change the threshold or a provider |
 | Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |
 | Right-click selected text, **Fact-check selected text** | Adds the selection as a claim, bypassing the classifier |
 | Auto-check toggle | Stops all scanning |
