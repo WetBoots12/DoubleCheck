@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>FactCheck stress page</title>
+    <style>
+      body { font: 15px/1.6 Georgia, serif; max-width: 46em; margin: 0 auto; padding: 24px; }
+      header, nav, footer, aside { background: #eee; padding: 8px; margin: 8px 0; }
+      .controls { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ccc; }
+      button { font: inherit; padding: 6px 10px; margin-right: 6px; }
+      #log { font: 12px monospace; color: #555; }
+      .player, .video-menu { background: #222; color: #ccc; padding: 6px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <button id="add">Add 50 paragraphs</button>
+      <button id="flood">Flood: 20 mutations/sec for 10s</button>
+      <button id="spa">Fake SPA navigation</button>
+      <button id="swap">Replace all content</button>
+      <span id="log"></span>
+    </div>
+
+    <!-- Chrome that must never be scanned. -->
+    <nav>Home World Business Markets Opinion — unemployment fell 4.2% in 2024 navigation bait</nav>
+    <header>Breaking: this header sentence mentions 30 percent and should be ignored entirely.</header>
+    <aside>Sidebar promo claiming the study proved costs rose by 12 million dollars last year.</aside>
+    <div class="player">
+      <div class="video-menu">ArialCourierGeorgiaImpactLucida ConsoleTahomaTimes New RomanTrebuchet MSVerdana</div>
+      <div class="video-menu">Auto480p1080p720p576p540p480p360p288p180p</div>
+    </div>
+
+    <main id="main">
+      <h1>Stress fixture for the FactCheck extension</h1>
+      <p>
+        This page exists to push the content script, the classifier, and the badge
+        counter harder than a normal article does. Use the buttons above.
+      </p>
+    </main>
+
+    <footer>Footer text asserting that 60 percent of readers never scroll this far.</footer>
+
+    <script>
+      const main = document.getElementById('main');
+      const log = document.getElementById('log');
+      let added = 0;
+
+      // Claim-shaped sentences, so the classifier has plenty to flag.
+      const SUBJECTS = ['The agency', 'The company', 'The study', 'Officials', 'The report', 'The minister'];
+      const VERBS = ['said', 'reported', 'announced', 'confirmed', 'estimated', 'claimed'];
+      const FACTS = [
+        'unemployment fell to 4.2 percent in 2024',
+        'costs rose by more than 30 percent nationwide',
+        'the program served 1.2 million people last year',
+        'emissions dropped to their lowest level since 1990',
+        'the measure passed with 62 percent support',
+        'spending increased by 15 billion dollars over the decade',
+      ];
+      // Non-claims, to check the classifier is not simply flagging everything.
+      const CHATTER = [
+        'Thanks so much for reading, and let us know what you think in the comments below.',
+        'I think this is probably the best approach for most people, in my opinion anyway.',
+        'What do you make of all this, and where should we go from here as a country?',
+        'Subscribe to the newsletter to get these updates delivered every single morning.',
+      ];
+
+      const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+      function sentence(i) {
+        if (i % 4 === 3) return pick(CHATTER);
+        return `${pick(SUBJECTS)} ${pick(VERBS)} that ${pick(FACTS)}, according to figures published this week (item ${i}).`;
+      }
+
+      // Half in <p>, half in a div with a data-testid, mirroring how Reuters and
+      // similar sites actually mark up article bodies.
+      function paragraph(i) {
+        const el = document.createElement(i % 2 ? 'div' : 'p');
+        if (i % 2) el.setAttribute('data-testid', `paragraph-${i}`);
+        el.textContent = `${sentence(i)} ${sentence(i + 1000)}`;
+        return el;
+      }
+
+      function addBatch(n) {
+        for (let i = 0; i < n; i++) main.appendChild(paragraph(added++));
+        log.textContent = `${added} paragraphs added`;
+      }
+
+      document.getElementById('add').onclick = () => addBatch(50);
+
+      document.getElementById('flood').onclick = () => {
+        let ticks = 0;
+        log.textContent = 'flooding…';
+        const t = setInterval(() => {
+          addBatch(2);
+          if (++ticks >= 200) {
+            clearInterval(t);
+            log.textContent = `flood done, ${added} paragraphs total`;
+          }
+        }, 50);
+      };
+
+      document.getElementById('spa').onclick = () => {
+        history.pushState({}, '', `/fake-article-${Date.now()}`);
+        main.innerHTML = '<h1>Fake SPA navigation</h1>';
+        added = 0;
+        addBatch(30);
+        log.textContent = 'pushState + content swap';
+      };
+
+      document.getElementById('swap').onclick = () => {
+        main.innerHTML = '<h1>Content replaced</h1>';
+        added = 0;
+        addBatch(40);
+        log.textContent = 'content replaced in place';
+      };
+
+      addBatch(30);
+    </script>
+  </body>
+</html>
