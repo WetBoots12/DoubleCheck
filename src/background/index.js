@@ -14,6 +14,7 @@ import {
   getSearchProvider,
   getLlmProvider,
   getFactCheckProvider,
+  getScholarProvider,
   originDomain,
   searchQuery,
   ProviderError,
@@ -247,13 +248,21 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     // Verbatim by default. Distillation is an opt-in until it has been measured.
     const query = settings.distillQueries ? searchQuery(claim.text) : claim.text;
 
-    // Published fact-checks come back with the search results, from the same button.
-    // A failure to find any must not lose the search results, so it is caught apart.
-    const [results, factChecks] = await Promise.all([
-      search.search(query, settings.searchApiKey, { excludeDomain }),
+    // Published fact-checks and, in academic mode, peer-reviewed work come back with
+    // the search results, from the same button. A failure in either must not lose
+    // the search results, so each is caught apart.
+    const academic = Boolean(settings.academicMode);
+    const [results, factChecks, scholar] = await Promise.all([
+      search.search(query, settings.searchApiKey, { excludeDomain, academic }),
       settings.factCheckApiKey
         ? factCheck.lookup(claim.text, settings.factCheckApiKey).catch((err) => {
             claim.factCheckError = err.message;
+            return [];
+          })
+        : Promise.resolve([]),
+      academic
+        ? getScholarProvider('openalex').lookup(claim.text).catch((err) => {
+            claim.scholarError = err.message;
             return [];
           })
         : Promise.resolve([]),
@@ -261,6 +270,7 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
 
     claim.results = results;
     claim.factChecks = factChecks;
+    claim.scholar = scholar;
     claim.status = STATUS.CHECKED;
     await tabStore.save(tabId);
 

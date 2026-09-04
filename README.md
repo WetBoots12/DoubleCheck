@@ -77,6 +77,11 @@ organisations such as Snopes, PolitiFact and Full Fact, shown with the search
 results when you press Check sources. Most claims have no published fact-check, so
 expect it to be empty more often than not.
 
+**Academic mode**, off by default, biases web searches toward journal, university
+and science-agency sources and asks OpenAlex, a free scholarly index that needs no
+key, for peer-reviewed articles on each claim you check. The claim is sent to
+OpenAlex only when you press Check sources.
+
 AI summaries are optional and off by default. You can use your own Anthropic or
 OpenAI key, Chrome's built-in on-device model where available, or a local model
 served by Ollama or LM Studio. Brave's Leo assistant exposes no extension API and

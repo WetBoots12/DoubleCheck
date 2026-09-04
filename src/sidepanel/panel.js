@@ -193,6 +193,16 @@ function render(claims) {
     // the raw results, because a human verdict outranks both.
     if (c.factChecks?.length) el.appendChild(renderFactChecks(c.factChecks));
 
+    // Peer-reviewed work, when academic mode asked for it. Placed above the web
+    // results because a journal article outranks a news snippet for this purpose.
+    if (c.scholar?.length) el.appendChild(renderScholar(c.scholar));
+    else if (c.scholarError) {
+      const e = document.createElement('div');
+      e.className = 'muted-note';
+      e.textContent = `Peer-reviewed lookup failed: ${c.scholarError}`;
+      el.appendChild(e);
+    }
+
     if (c.analysis) el.appendChild(renderAnalysis(c.analysis));
 
     if (c.error && c.status === STATUS.ERROR) {
@@ -214,6 +224,12 @@ function render(claims) {
       const src = document.createElement('div');
       src.className = 'src';
       src.textContent = r.source || '';
+      if (r.academic) {
+        const chip = document.createElement('span');
+        chip.className = 'chip academic';
+        chip.textContent = 'academic';
+        src.appendChild(chip);
+      }
       row.appendChild(src);
       if (r.snippet) {
         const sn = document.createElement('div');
@@ -226,6 +242,49 @@ function render(claims) {
 
     feed.appendChild(el);
   }
+}
+
+function renderScholar(list) {
+  const box = document.createElement('div');
+  box.className = 'scholar';
+
+  const head = document.createElement('div');
+  head.className = 'fc-head';
+  head.textContent = list.length === 1 ? 'Peer-reviewed source (OpenAlex)' : `Peer-reviewed sources (OpenAlex, ${list.length})`;
+  box.appendChild(head);
+
+  for (const w of list) {
+    const row = document.createElement('div');
+    row.className = 'factcheck';
+
+    const a = document.createElement('a');
+    a.href = w.url;
+    a.target = '_blank';
+    a.rel = 'noreferrer';
+    a.textContent = w.title;
+    row.appendChild(a);
+
+    const by = document.createElement('div');
+    by.className = 'src';
+    const bits = [w.venue, w.year, w.citations ? `${w.citations} citation${w.citations === 1 ? '' : 's'}` : ''].filter(Boolean);
+    by.textContent = bits.join(' · ');
+    if (w.openAccess) {
+      const chip = document.createElement('span');
+      chip.className = 'chip academic';
+      chip.textContent = 'open access';
+      by.appendChild(chip);
+    }
+    row.appendChild(by);
+
+    if (w.authors?.length) {
+      const au = document.createElement('div');
+      au.className = 'snip';
+      au.textContent = w.authors.join(', ') + (w.authors.length >= 3 ? ' et al.' : '');
+      row.appendChild(au);
+    }
+    box.appendChild(row);
+  }
+  return box;
 }
 
 // A published fact-check's own wording is the verdict. Ratings are free text and

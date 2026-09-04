@@ -10,6 +10,7 @@ const fields = {
   searchProvider: el('searchProvider'),
   searchApiKey: el('searchApiKey'),
   distillQueries: el('distillQueries'),
+  academicMode: el('academicMode'),
   privateSitesRule: el('privateSitesRule'),
   blockedDomains: el('blockedDomains'),
   allowedDomains: el('allowedDomains'),
@@ -109,6 +110,7 @@ async function save() {
     factCheckApiKey: fields.factCheckApiKey.value.trim(),
     searchApiKey: fields.searchApiKey.value.trim(),
     distillQueries: fields.distillQueries.checked,
+    academicMode: fields.academicMode.checked,
     privateSitesRule: fields.privateSitesRule.checked,
     blockedDomains: parseDomainList(fields.blockedDomains.value),
     allowedDomains: parseDomainList(fields.allowedDomains.value),
@@ -147,6 +149,7 @@ async function save() {
   fields.searchProvider.value = s.searchProvider;
   fields.searchApiKey.value = s.searchApiKey;
   fields.distillQueries.checked = Boolean(s.distillQueries);
+  fields.academicMode.checked = Boolean(s.academicMode);
   fields.privateSitesRule.checked = s.privateSitesRule !== false;
   fields.blockedDomains.value = (s.blockedDomains || []).join('\n');
   fields.allowedDomains.value = (s.allowedDomains || []).join('\n');
