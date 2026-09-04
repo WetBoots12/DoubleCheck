@@ -1,6 +1,6 @@
 import { MSG, STATUS, getSettings } from '../shared/messages.js';
 import { panelTextSize } from '../shared/appearance.js';
-import { getLlmProvider } from '../providers/index.js';
+import { getLlmProvider, getSearchProvider } from '../providers/index.js';
 import { ratingTone } from '../shared/evidence.js';
 
 const feed = document.getElementById('feed');
@@ -142,6 +142,13 @@ function fmtTime(t) {
 
 // Whether an AI provider is configured decides if the AI buttons appear at all.
 let llmEnabled = false;
+// True once a provider that needs a key has one. Until then the panel's own search
+// is the keyless fallback, and the button order says so.
+let searchKeyed = false;
+
+function keyedSearch(settings) {
+  return Boolean(getSearchProvider(settings.searchProvider)?.requiresKey && settings.searchApiKey);
+}
 let lastClaims = [];
 
 function render(claims) {
@@ -204,30 +211,40 @@ function render(claims) {
       note.textContent = 'Asking the AI…';
       actions.appendChild(note);
     } else if (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR) {
-      addButton(c.status === STATUS.ERROR ? 'Try again' : 'Check sources', 'Checking…', false, true);
+      // Without a web-search key the panel's own lookup is Wikipedia, which is good
+      // for background on a person, a place or a term and poor on this week's news.
+      // Saying "Check sources" for that promises more than it delivers, so it is
+      // named for what it does and the browser search leads instead.
+      const label = c.status === STATUS.ERROR
+        ? 'Try again'
+        : (searchKeyed ? 'Check sources' : 'Add background');
+      addButton(label, 'Checking…', false, searchKeyed);
       if (llmEnabled) addButton('Check with AI', 'Checking…', true, false);
     } else if (c.status === STATUS.CHECKED && llmEnabled && !c.analysis) {
       // Sources are already paid for; summarizing them costs no further search call.
       addButton('Summarize with AI', 'Asking the AI…', true, false);
     }
 
-    // Native and keyless: opens the claim in the browser's own default search
-    // engine, in a new tab. On every claim, whatever the provider state.
+    // The browser's own search engine, with the claim turned into a query rather
+    // than pasted in whole. Present on every claim; which button leads depends on
+    // whether a web-search key exists, since without one this is the route that
+    // actually reaches the open web.
     const browse = document.createElement('button');
-    browse.className = 'check secondary';
+    browse.className = searchKeyed ? 'check secondary' : 'check';
     browse.textContent = 'Search in browser';
     browse.title = 'Open this claim in your default search engine, in a new tab';
     browse.addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: MSG.BROWSER_SEARCH, claimId: c.id }).catch(() => {});
     });
-    actions.appendChild(browse);
+    if (searchKeyed) actions.appendChild(browse);
+    else actions.insertBefore(browse, actions.firstChild);
 
     if (actions.childElementCount) el.appendChild(actions);
 
     if (c.status === STATUS.NO_KEY) {
       const p = document.createElement('div');
       p.className = 'summary';
-      p.textContent = 'This search provider needs an API key. Add one, or switch to Wikipedia, which needs none. ';
+      p.textContent = 'This search provider needs an API key. Add one in settings, or use "Search in browser", which needs none. ';
       const b = document.createElement('button');
       b.className = 'link';
       b.textContent = 'Open settings';
@@ -612,9 +629,11 @@ chrome.storage.onChanged.addListener(async () => {
   const s = await getSettings();
   applyPanelSize(s);
   const next = s.llmProvider !== 'none';
+  const keyed = keyedSearch(s);
   toggle.checked = s.autoCheck;
-  if (next !== llmEnabled) {
+  if (next !== llmEnabled || keyed !== searchKeyed) {
     llmEnabled = next;
+    searchKeyed = keyed;
     render(lastClaims);
   }
 });
@@ -623,6 +642,7 @@ chrome.storage.onChanged.addListener(async () => {
   const settings = await getSettings();
   applyPanelSize(settings);
   llmEnabled = settings.llmProvider !== 'none';
+  searchKeyed = keyedSearch(settings);
   toggle.checked = settings.autoCheck;
   const res = await chrome.runtime.sendMessage({ type: MSG.PANEL_READY }).catch(() => null);
   render(res?.claims || []);

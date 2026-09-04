@@ -111,8 +111,9 @@ cannot be used; the local model option covers Brave.
 | Action | What happens |
 |---|---|
 | Extension icon | Opens the side panel; the badge counts flagged claims |
-| **Check sources** | Spends one search call, reads the top results' pages, and looks for published fact-checks |
-| **Search in browser** | Opens the claim in your default search engine, in a new tab. No key needed |
+| **Search in browser** | Opens a search for the claim in your default search engine, in a new tab. The claim is turned into a query, with the figure and the names quoted, rather than pasted in whole. No key needed, and it leads until you add one |
+| **Add background** | Without a search key: looks the claim up in Wikipedia and shows any published fact-check. Context, not coverage |
+| **Check sources** | With a search key: real web results in the panel, with dates, tiers and the full evidence reading. One search call per press |
 | **Open the transcript** | On YouTube with subtitles off, opens the video's transcript so it can be read |
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |

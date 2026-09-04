@@ -312,8 +312,20 @@ test('Search in browser opens the claim in the default engine via chrome.search'
   await settle();
   const call = sent.search.at(-1);
   assert.ok(call, 'chrome.search.query was not called');
-  assert.equal(call.text, target.text);
   assert.equal(call.disposition, 'NEW_TAB');
+
+  // A query, not the sentence. Pasting a whole sentence into a search box matches
+  // pages that share its shape rather than its facts.
+  assert.notEqual(call.text, target.text, 'the raw sentence should not be handed over');
+  assert.ok(call.text.length < target.text.length, call.text);
+  assert.ok(/"/.test(call.text), `the figure or the name should be quoted: ${call.text}`);
+  // Whatever it selects has to come from the claim itself.
+  // Decimals stay whole ("4.2"), sentence-ending full stops do not come along.
+  const words = (t) => t.toLowerCase().match(/[a-z0-9]+(?:\.[a-z0-9]+)*/g) || [];
+  const claimWords = new Set(words(target.text));
+  for (const w of words(call.text)) {
+    assert.ok(claimWords.has(w), `${w} is not in the claim: ${call.text}`);
+  }
 });
 
 test('a check spends one search call, and checking the same claim again spends none', async () => {
