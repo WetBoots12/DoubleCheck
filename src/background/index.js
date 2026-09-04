@@ -492,6 +492,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       return false;
 
+    case MSG.OPEN_TRANSCRIPT:
+      // The panel asks; the video script does it, because only a content script can
+      // touch YouTube's own controls.
+      activeTabId().then((id) => {
+        if (id == null) return;
+        chrome.tabs.sendMessage(id, { type: MSG.OPEN_TRANSCRIPT }).catch(() => {});
+      });
+      return false;
+
     case MSG.PAGE_SOURCES:
       if (tabId != null) {
         const domains = Array.isArray(msg.domains) ? msg.domains.filter(Boolean).slice(0, 5) : [];

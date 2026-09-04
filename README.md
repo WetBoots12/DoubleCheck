@@ -109,6 +109,7 @@ cannot be used; the local model option covers Brave.
 | Extension icon | Opens the side panel; the badge counts flagged claims |
 | **Check sources** | Spends one search call, reads the top results' pages, and looks for published fact-checks |
 | **Search in browser** | Opens the claim in your default search engine, in a new tab. No key needed |
+| **Open the transcript** | On YouTube with subtitles off, opens the video's transcript so it can be read |
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |
 | Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |

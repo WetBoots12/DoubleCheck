@@ -16,9 +16,15 @@ const siteBlock = document.getElementById('siteBlock');
 
 // The video script explains an idle state that has a cause the viewer can fix.
 const CAPTION_HINTS = {
-  off: 'Turn on YouTube subtitles (the CC button) so claims in this video can be detected.',
-  none: 'No captions on this video. If it has a transcript, open it (…more, then Show transcript) and it will be read.',
+  off: 'Subtitles are off for this video. Turn on the CC button, or open the transcript and it will be read.',
+  none: 'No captions are playing. If this video has a transcript, it can be opened and read.',
 };
+
+// The caption track behind a video cannot simply be fetched: the URL is in the page,
+// but the endpoint answers with an empty body without a token the player mints. The
+// transcript YouTube already offers is the route that works, so the panel opens it
+// rather than asking the viewer to hunt for it under "…more".
+const TRANSCRIPT_HINTS = new Set(['off', 'none']);
 // The banner has two sources: the page's privacy status, which wins when the page
 // is blocked, and the video script's caption state. Both belong to one tab and are
 // dropped the moment the panel switches to another.
@@ -55,6 +61,19 @@ function renderBanner() {
   else if (captionMsg) text = captionHintText(captionMsg) || '';
   banner.hidden = !text;
   banner.textContent = text;
+
+  if (!banner.hidden && !pageStatus?.blocked && TRANSCRIPT_HINTS.has(captionMsg?.hint)) {
+    const open = document.createElement('button');
+    open.className = 'check secondary';
+    open.id = 'openTranscript';
+    open.textContent = 'Open the transcript';
+    open.addEventListener('click', () => {
+      open.disabled = true;
+      open.textContent = 'Opening…';
+      chrome.runtime.sendMessage({ type: MSG.OPEN_TRANSCRIPT }).catch(() => {});
+    });
+    banner.appendChild(open);
+  }
 }
 
 function renderPageStatus(msg) {

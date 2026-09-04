@@ -176,6 +176,19 @@ disagreements are reported. This is stated as a disagreement between two texts, 
 as a verdict: the source may be about another period or another country, or may be
 wrong itself.
 
+### 3.6f Video without captions showing
+
+Reading a video whose subtitles are off would ideally mean fetching its caption
+track. The track URL is in the watch page and a content script can read it there,
+so the obstacle is not the isolated world. The obstacle is the endpoint: it answers
+200 with an empty body without a token the player mints, in every format tried.
+That was tested against a live video, not assumed, and it is why this is not built.
+
+What works is the transcript YouTube already offers, which the video script reads
+whenever it is open. The side panel offers a button that opens it, so the viewer
+does not have to find it under "…more". It is their page and their click, one step
+further along, and no request goes anywhere YouTube did not send it.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of
