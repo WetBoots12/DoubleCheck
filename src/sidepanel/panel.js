@@ -57,7 +57,7 @@ function render(claims) {
   lastClaims = claims;
   feed.innerHTML = '';
   if (!claims.length) {
-    feed.innerHTML = '<div class="empty">Nothing flagged yet on this page.</div>';
+    feed.innerHTML = '<div class="empty">Nothing flagged yet on this page.<br>Select any text and right-click to check it.</div>';
     return;
   }
 
@@ -85,6 +85,7 @@ function render(claims) {
     // was never drawn, e.g. when the page rewrote the text after it was scanned.
     if (c.located === false) meta.innerHTML += '<span title="This sentence could not be located in the page text, so it has no highlight to jump to.">not on page</span>';
     if (c.score != null) meta.innerHTML += `<span>score ${c.score}</span>`;
+    if (c.userAdded) meta.innerHTML += '<span title="You added this by right-clicking selected text.">added by you</span>';
     el.appendChild(meta);
 
     // Search and AI calls both cost the user something, so each is its own button

@@ -91,6 +91,7 @@ cannot be used; the local model option covers Brave.
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |
 | Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |
+| Right-click selected text, **Fact-check selected text** | Adds the selection as a claim, bypassing the classifier |
 | Auto-check toggle | Stops all scanning |
 
 ## Privacy

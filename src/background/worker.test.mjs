@@ -23,11 +23,17 @@ function fakeStorageArea() {
 
 const sent = { runtime: [], tabs: [], badge: [] };
 let messageListener = null;
+let menuClickListener = null;
 const ACTIVE_TAB = 1;
 
 globalThis.chrome = {
   storage: { session: fakeStorageArea(), local: fakeStorageArea() },
+  contextMenus: {
+    create: (_opts, cb) => { cb?.(); },
+    onClicked: { addListener: (fn) => { menuClickListener = fn; } },
+  },
   runtime: {
+    onInstalled: { addListener: (fn) => { fn(); } },
     onMessage: { addListener: (fn) => { messageListener = fn; } },
     sendMessage: async (msg) => { sent.runtime.push(msg); },
     getURL: (p) => `chrome-extension://fake/${p}`,
@@ -44,7 +50,7 @@ globalThis.chrome = {
     setBadgeText: async (o) => { sent.badge.push(o); },
     setBadgeBackgroundColor: async () => {},
   },
-  sidePanel: { setPanelBehavior: async () => {} },
+  sidePanel: { setPanelBehavior: async () => {}, open: async () => {} },
   commands: { onCommand: { addListener() {} } },
 };
 
@@ -112,6 +118,38 @@ test('PANEL_READY returns the persisted claims for the active tab', async () => 
   const res = await send({ type: 'panelReady' }, undefined);
   assert.equal(res.tabId, ACTIVE_TAB);
   assert.ok(res.claims.length >= 2);
+});
+
+test('a context-menu click adds the selection as a user claim, bypassing the threshold', async () => {
+  const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
+  const selection = 'Thanks so much for reading, and let us know what you think in the comments below.';
+  // That sentence scored below the threshold earlier in this file; the user overrides that.
+  menuClickListener({ menuItemId: 'fc-check-selection', selectionText: selection }, { id: ACTIVE_TAB });
+  await settle();
+
+  const claims = (await send({ type: 'panelReady' }, undefined)).claims;
+  assert.equal(claims.length, before + 1);
+  const added = claims.find((c) => c.userAdded);
+  assert.ok(added, 'no userAdded claim found');
+  assert.equal(added.text, selection);
+  assert.equal(added.score, null);
+  assert.ok(sent.tabs.some((m) => m.msg.type === 'claimStatus' && m.msg.claims.some((c) => c.id === added.id)),
+    'the page was not asked to highlight the added claim');
+});
+
+test('clicking the menu on text that is already a claim does not duplicate it', async () => {
+  const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
+  menuClickListener({ menuItemId: 'fc-check-selection', selectionText: 'Thanks so much for reading, and let us know what you think in the comments below.' }, { id: ACTIVE_TAB });
+  await settle();
+  assert.equal((await send({ type: 'panelReady' }, undefined)).claims.length, before);
+});
+
+test('a click on the wrong menu item or a tiny selection is ignored', async () => {
+  const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
+  menuClickListener({ menuItemId: 'something-else', selectionText: 'A long enough selection of text.' }, { id: ACTIVE_TAB });
+  menuClickListener({ menuItemId: 'fc-check-selection', selectionText: 'tiny' }, { id: ACTIVE_TAB });
+  await settle();
+  assert.equal((await send({ type: 'panelReady' }, undefined)).claims.length, before);
 });
 
 test('re-sending the same sentences does not duplicate claims', async () => {
