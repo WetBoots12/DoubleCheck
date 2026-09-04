@@ -88,12 +88,9 @@
     return out;
   }
 
+  // Shared with the video script; see src/content/segment.js.
   function segment(text) {
-    return text
-      .replace(/\s+/g, ' ')
-      .split(/(?<=[.!?])\s+(?=[A-Z"'(])/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 30);
+    return FCSegment.splitSentences(text, 30);
   }
 
   function collect() {
