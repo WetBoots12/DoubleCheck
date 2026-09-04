@@ -36,16 +36,39 @@
     return bestLen > 500 ? best : document.body;
   }
 
-  const SKIP = /^(nav|header|footer|aside|script|style|noscript|button|form|figcaption)$/i;
+  // Many news sites (Reuters among them) put article paragraphs in divs with a
+  // data-testid rather than in <p>, so matching only <p> missed the entire body.
+  // Instead, take any block-level element that has no block-level child — the leaf
+  // blocks that actually hold prose.
+  const BLOCK = 'p, li, blockquote, h1, h2, h3, div, section, article, [data-testid]';
+
+  // Chrome, player chrome, and dialogs produce long strings that look like text but
+  // are controls ("Auto480p1080p720p", font pickers, menus).
+  const EXCLUDE = [
+    'nav', 'header', 'footer', 'aside', 'form',
+    '[role="menu"]', '[role="menubar"]', '[role="dialog"]',
+    '[class*="player"]', '[class*="Player"]',
+    '[class*="video"]', '[class*="Video"]',
+    '[class*="menu"]', '[class*="Menu"]',
+    '[class*="nav"]', '[class*="Nav"]',
+    '[aria-hidden="true"]',
+  ].join(', ');
 
   function visibleParagraphs(root) {
     const out = [];
-    for (const p of root.querySelectorAll('p, li, blockquote, h1, h2, h3')) {
-      if (p.closest('nav, header, footer, aside')) continue;
-      if (SKIP.test(p.tagName)) continue;
-      if (p.closest('.fc-highlight')) continue;
-      const text = p.innerText?.trim();
-      if (text && text.length > 40) out.push(text);
+    const seen = new Set();
+    for (const el of root.querySelectorAll(BLOCK)) {
+      if (el.closest(EXCLUDE)) continue;
+      if (el.closest('.fc-highlight')) continue;
+      if (el.querySelector(BLOCK)) continue; // not a leaf block
+      if (!el.offsetParent && el.tagName !== 'BODY') continue; // not rendered
+      const text = el.innerText?.trim();
+      if (!text || text.length <= 40) continue;
+      if (text.split(/\s+/).length < 8) continue; // control labels, not prose
+      const k = text.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(text);
     }
     return out;
   }
