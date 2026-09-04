@@ -53,6 +53,7 @@ export const DEFAULT_SETTINGS = {
   searchProvider: 'serpapi',
   searchApiKey: '',
   distillQueries: false, // shorten long claims before web search; see tools/query-compare.html
+  academicMode: false,   // bias web search toward scholarly sources and ask OpenAlex for peer-reviewed work
   privateSitesRule: true, // built-in never-scan rules for banks, health, mail, accounts, local addresses
   blockedDomains: [],     // the user's never-scan list; always wins
   allowedDomains: [],     // the user's always-scan list; overrides the built-in rules

@@ -66,6 +66,53 @@ function withExclusion(query, domain) {
 const FETCH_COUNT = 10;
 const SHOW_COUNT = 5;
 
+// --- Academic mode ----------------------------------------------------------
+// A general search engine does not know what peer review is. Academic mode does
+// two things to the web search: it appends terms that pull scholarly pages up the
+// ranking, and it lists results from journal, university and science-agency
+// domains first. Peer-reviewed work proper comes from a scholarly index instead;
+// see the OpenAlex provider below.
+
+export const ACADEMIC_DOMAINS = [
+  // publishers and journals
+  'nature.com', 'science.org', 'sciencedirect.com', 'springer.com', 'wiley.com',
+  'jstor.org', 'plos.org', 'cell.com', 'thelancet.com', 'nejm.org', 'bmj.com',
+  'jamanetwork.com', 'frontiersin.org', 'mdpi.com', 'tandfonline.com', 'sagepub.com',
+  'cambridge.org', 'oup.com', 'pnas.org', 'acs.org', 'ieee.org', 'acm.org',
+  // indexes, preprints, repositories
+  'doi.org', 'arxiv.org', 'biorxiv.org', 'medrxiv.org', 'ssrn.com', 'osf.io',
+  'pubmed.ncbi.nlm.nih.gov', 'ncbi.nlm.nih.gov', 'europepmc.org', 'semanticscholar.org',
+  'openalex.org', 'researchgate.net', 'scholar.google.com',
+  // science agencies and statistical bodies
+  'nih.gov', 'cdc.gov', 'who.int', 'nasa.gov', 'noaa.gov', 'usgs.gov', 'nsf.gov',
+  'census.gov', 'bls.gov', 'fda.gov', 'epa.gov', 'ons.gov.uk', 'ec.europa.eu',
+];
+
+export function isAcademicSource(url) {
+  const host = originDomain(url);
+  if (!host) return false;
+  if (ACADEMIC_DOMAINS.some((d) => isSameSite(url, d))) return true;
+  // University domains: .edu, and the .ac.<country> convention.
+  return /\.edu$/.test(host) || /\.ac\.[a-z]{2,3}$/.test(host);
+}
+
+export function academicQuery(query) {
+  return `${query} study OR journal OR "peer-reviewed"`;
+}
+
+// Academic results first, each group keeping the engine's own order.
+export function rankAcademic(results) {
+  const scholarly = results.filter((r) => r.academic);
+  const rest = results.filter((r) => !r.academic);
+  return [...scholarly, ...rest];
+}
+
+function shapeResults(mapped, opts) {
+  const flagged = mapped.map((r) => ({ ...r, academic: isAcademicSource(r.url) }));
+  const kept = excludeOrigin(flagged, opts.excludeDomain);
+  return (opts.academic ? rankAcademic(kept) : kept).slice(0, SHOW_COUNT);
+}
+
 // --- Search providers -------------------------------------------------------
 
 const serpapi = {
@@ -73,7 +120,7 @@ const serpapi = {
   label: 'SerpAPI (Google results)',
   async search(query, apiKey, opts = {}) {
     if (!apiKey) throw new ProviderError('noKey', 'No search API key configured');
-    const q = withExclusion(query, opts.excludeDomain);
+    const q = withExclusion(opts.academic ? academicQuery(query) : query, opts.excludeDomain);
     const url = `https://serpapi.com/search.json?engine=google&num=${FETCH_COUNT}&q=${encodeURIComponent(q)}&api_key=${encodeURIComponent(apiKey)}`;
     const data = await fetchJson(url);
     const mapped = (data.organic_results || []).map((r) => ({
@@ -82,7 +129,7 @@ const serpapi = {
       source: r.source || domainOf(r.link || ''),
       snippet: r.snippet,
     }));
-    return excludeOrigin(mapped, opts.excludeDomain).slice(0, SHOW_COUNT);
+    return shapeResults(mapped, opts);
   },
 };
 
@@ -93,7 +140,7 @@ const brave = {
   // is sent as a best effort and the client-side filter does the real work.
   async search(query, apiKey, opts = {}) {
     if (!apiKey) throw new ProviderError('noKey', 'No search API key configured');
-    const q = withExclusion(query, opts.excludeDomain);
+    const q = withExclusion(opts.academic ? academicQuery(query) : query, opts.excludeDomain);
     const url = `https://api.search.brave.com/res/v1/web/search?count=${FETCH_COUNT}&q=${encodeURIComponent(q)}`;
     const data = await fetchJson(url, {
       headers: { Accept: 'application/json', 'X-Subscription-Token': apiKey },
@@ -104,7 +151,7 @@ const brave = {
       source: domainOf(r.url || ''),
       snippet: r.description,
     }));
-    return excludeOrigin(mapped, opts.excludeDomain).slice(0, SHOW_COUNT);
+    return shapeResults(mapped, opts);
   },
 };
 
@@ -234,6 +281,54 @@ export const FACTCHECK_PROVIDERS = { none: noFactCheck, google: googleFactCheck 
 
 export function getFactCheckProvider(id) {
   return FACTCHECK_PROVIDERS[id] || noFactCheck;
+}
+
+// --- Scholarly providers ----------------------------------------------------
+// Peer-reviewed work from a scholarly index rather than a guess by a search
+// engine. OpenAlex is free and keyless. Field paths below were confirmed against
+// a live response, not recalled. The claim is sent only when the user presses
+// Check sources with academic mode on.
+
+export function mapOpenAlex(data, limit = 5) {
+  const results = Array.isArray(data?.results) ? data.results : [];
+  return results.slice(0, limit).map((w) => ({
+    title: w.display_name || 'Untitled',
+    url: w.doi || w.id || '',
+    doi: w.doi || '',
+    venue: w.primary_location?.source?.display_name || '',
+    year: w.publication_year ?? null,
+    citations: w.cited_by_count ?? 0,
+    openAccess: Boolean(w.open_access?.is_oa),
+    authors: (w.authorships || []).slice(0, 3).map((a) => a.author?.display_name).filter(Boolean),
+  }));
+}
+
+const noScholar = {
+  id: 'none',
+  label: 'None',
+  async lookup() {
+    return [];
+  },
+};
+
+const openalex = {
+  id: 'openalex',
+  label: 'OpenAlex (free, no key)',
+  async lookup(sentence) {
+    // A scholarly index searches titles and abstracts; a whole news sentence
+    // matches poorly, so the distinctive words go instead.
+    const query = keywordQuery(sentence) || sentence;
+    if (!query.trim()) return [];
+    const select = 'id,display_name,doi,publication_year,cited_by_count,open_access,primary_location,authorships';
+    const url = `https://api.openalex.org/works?search=${encodeURIComponent(query)}&filter=type:article&per-page=5&select=${select}`;
+    return mapOpenAlex(await fetchJson(url));
+  },
+};
+
+export const SCHOLAR_PROVIDERS = { none: noScholar, openalex };
+
+export function getScholarProvider(id) {
+  return SCHOLAR_PROVIDERS[id] || noScholar;
 }
 
 // --- LLM providers ----------------------------------------------------------
