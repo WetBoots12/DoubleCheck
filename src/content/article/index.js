@@ -100,10 +100,22 @@
   // these substrings — Wikipedia's <html> carries "vector-feature-main-menu-pinned",
   // whose "menu" matched and excluded every paragraph on the page. Only consider
   // ancestors below the content root, and never the document's own root elements.
+  // Measured once per scan: the exclusion rules are relative to how much of the
+  // article a region holds, and asking every ancestor for its own text length would
+  // walk the same subtrees hundreds of times.
+  let rootChars = 0;
+
   function inExcludedRegion(el, root) {
     for (let node = el; node && node !== root; node = node.parentElement) {
       if (node === document.body || node === document.documentElement) break;
-      if (node.matches(EXCLUDE)) return true;
+      // A class name is weak evidence. Fox News wraps stories in
+      // <article class="article-wrap has-video">, and "has-video" matched the player
+      // rule, so every paragraph of every story with a video in it was discarded.
+      // A region holding most of the article is the article, whatever it calls
+      // itself; only a small region is really furniture. See content/regions.js.
+      if (node.matches(EXCLUDE) && FCRegions.isSideRegion(node.innerText?.length, rootChars)) {
+        return true;
+      }
     }
     return false;
   }
@@ -111,6 +123,7 @@
   function visibleParagraphs(root) {
     const out = [];
     const seen = new Set();
+    rootChars = root.innerText?.length || 0;
     for (const el of root.querySelectorAll(BLOCK)) {
       if (inExcludedRegion(el, root)) continue;
       if (el.closest('.fc-highlight')) continue;
