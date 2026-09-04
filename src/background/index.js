@@ -14,6 +14,7 @@ import {
   getSearchProvider,
   getLlmProvider,
   getFactCheckProvider,
+  originDomain,
   ProviderError,
 } from '../providers/index.js';
 import { tabStore } from './tabstate.js';
@@ -196,6 +197,17 @@ async function summarize(tabId, claim, settings) {
   pushPanel(tabId);
 }
 
+// The page being read must not be offered as its own corroboration, so its domain
+// is excluded from the search. Empty when the tab cannot be read.
+async function tabOrigin(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return originDomain(tab?.url || '');
+  } catch {
+    return '';
+  }
+}
+
 async function checkClaim(tabId, claimId, settings, withAi = false) {
   const state = await tabStore.peek(tabId);
   const claim = state?.claims.get(claimId);
@@ -204,11 +216,12 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
   try {
     const search = getSearchProvider(settings.searchProvider);
     const factCheck = getFactCheckProvider(settings.factCheckProvider);
+    const excludeDomain = await tabOrigin(tabId);
 
     // Published fact-checks come back with the search results, from the same button.
     // A failure to find any must not lose the search results, so it is caught apart.
     const [results, factChecks] = await Promise.all([
-      search.search(claim.text, settings.searchApiKey),
+      search.search(claim.text, settings.searchApiKey, { excludeDomain }),
       settings.factCheckApiKey
         ? factCheck.lookup(claim.text, settings.factCheckApiKey).catch((err) => {
             claim.factCheckError = err.message;
