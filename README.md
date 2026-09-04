@@ -107,7 +107,7 @@ cannot be used; the local model option covers Brave.
 | Action | What happens |
 |---|---|
 | Extension icon | Opens the side panel; the badge counts flagged claims |
-| **Check sources** | Spends one search call, and looks for published fact-checks |
+| **Check sources** | Spends one search call, reads the top results' pages, and looks for published fact-checks |
 | **Search in browser** | Opens the claim in your default search engine, in a new tab. No key needed |
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |

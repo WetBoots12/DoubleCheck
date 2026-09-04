@@ -125,12 +125,15 @@ function plural(n, word) {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
-// sources: [{ url, title, snippet, academic? }]; stances: { [index]: 'supports' | 'contradicts' | 'unrelated' }
+// sources: [{ url, title, snippet, excerpt?, academic? }]; stances: { [index]: 'supports' | 'contradicts' | 'unrelated' }
 // (index is 1-based, as the prompt numbers them); factChecks: [{ publisher, rating }];
 // tiers: { trusted, distrusted }.
 export function scoreEvidence(claim, sources = [], { stances = null, factChecks = [], tiers = {} } = {}) {
   const rows = sources.map((s, i) => {
-    const text = `${s.title || ''} ${s.snippet || ''}`;
+    // The excerpt read from the page when there is one, the search snippet when
+    // there is not. A snippet is 150 characters and often cuts off the very number
+    // the claim turns on, which used to read as "this source says nothing".
+    const text = `${s.title || ''} ${s.excerpt || s.snippet || ''}`;
     const rel = relevance(claim, text);
     const tier = sourceTier(s, tiers);
     const v = verbiage(text);

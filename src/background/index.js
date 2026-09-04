@@ -17,8 +17,10 @@ import {
   getScholarProvider,
   originDomain,
   searchQuery,
+  fetchPageHtml,
   ProviderError,
 } from '../providers/index.js';
+import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { tabStore } from './tabstate.js';
 import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
@@ -67,6 +69,7 @@ tabStore.recoverStale().catch(() => {});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   queue.drop(tabId);
+  publishers.delete(tabId);
   tabStore.clear(tabId).catch(() => {});
 });
 
@@ -78,6 +81,7 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 
 async function resetTab(tabId) {
   queue.drop(tabId);
+  publishers.delete(tabId);
   await tabStore.clear(tabId);
   updateBadge(tabId);
   pushPanel(tabId);
@@ -285,6 +289,43 @@ async function tabOrigin(tabId) {
   }
 }
 
+// Everything that would be the article quoting itself: the domain in the address
+// bar, plus whoever actually wrote it. A portal's copy of a wire story and the
+// wire's own copy are one source, not two, and the content script reports the
+// second from the page's canonical link, Open Graph URL and credit line.
+const publishers = new Map(); // tabId -> domains
+
+async function excludedDomains(tabId) {
+  const origin = await tabOrigin(tabId);
+  const extra = publishers.get(tabId) || [];
+  return [...new Set([origin, ...extra].filter(Boolean))];
+}
+
+// A search snippet is 150 characters, usually cut mid-sentence, and often missing
+// the number or the date the claim turns on. Reading the page itself gives the
+// evidence score and the model the paragraphs that actually bear on the claim.
+//
+// Only the top results, only on a check the user asked for, and never at the cost
+// of the results themselves: a page that will not load leaves its snippet in place.
+const READ_TOP_N = 2;
+
+async function readSources(claim, results, settings) {
+  if (!settings.readSources) return;
+  await Promise.all(results.slice(0, READ_TOP_N).map(async (r) => {
+    if (!r?.url) return;
+    try {
+      // The excerpt is cached, not the page: it is small, and it is what is used.
+      const excerpt = await remember(settings, 'excerpt', [r.url, claim.text], async () => {
+        const html = await fetchPageHtml(r.url);
+        return html ? relevantExcerpt(claim.text, extractParagraphs(html)) : '';
+      });
+      if (excerpt) r.excerpt = excerpt;
+    } catch {
+      // Unreadable page: the snippet stands.
+    }
+  }));
+}
+
 async function checkClaim(tabId, claimId, settings, withAi = false) {
   const state = await tabStore.peek(tabId);
   const claim = state?.claims.get(claimId);
@@ -293,7 +334,7 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
   try {
     const search = getSearchProvider(settings.searchProvider);
     const factCheck = getFactCheckProvider(settings.factCheckProvider);
-    const excludeDomain = await tabOrigin(tabId);
+    const excludeDomain = await excludedDomains(tabId);
     // Verbatim by default. Distillation is an opt-in until it has been measured.
     const query = settings.distillQueries ? searchQuery(claim.text) : claim.text;
 
@@ -302,7 +343,7 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     // the search results, so each is caught apart.
     const academic = Boolean(settings.academicMode);
     const [results, factChecks, scholar] = await Promise.all([
-      remember(settings, 'search', [search.id, query, excludeDomain, academic], () =>
+      remember(settings, 'search', [search.id, query, excludeDomain.join(','), academic], () =>
         search.search(query, settings.searchApiKey, { excludeDomain, academic })),
       settings.factCheckApiKey
         ? remember(settings, 'factcheck', [factCheck.id, claim.text], () =>
@@ -319,6 +360,8 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
           })
         : Promise.resolve([]),
     ]);
+
+    await readSources(claim, results, settings);
 
     claim.results = results;
     claim.factChecks = factChecks;
@@ -438,6 +481,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             language: msg.language || null,
           }),
         );
+      }
+      return false;
+
+    case MSG.PAGE_SOURCES:
+      if (tabId != null) {
+        const domains = Array.isArray(msg.domains) ? msg.domains.filter(Boolean).slice(0, 5) : [];
+        if (domains.length) publishers.set(tabId, domains);
+        else publishers.delete(tabId);
       }
       return false;
 

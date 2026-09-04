@@ -11,6 +11,7 @@ export const MSG = {
   CAPTION_HINT: 'captionHint',      // { hint: 'off' | 'none' | null } -> panel banner, video pages only
   PAGE_PRIVATE: 'pagePrivate',      // { reason: 'fields' } -> page has a password or card field
   PAGE_LANGUAGE: 'pageLanguage',    // { language } -> the page is not in English, so it was not scanned
+  PAGE_SOURCES: 'pageSources',      // { domains } -> publishers behind this page, e.g. the wire it came from
   PAGE_CHANGED: 'pageChanged',      // { url } -> same document, new page (SPA navigation)
 
   // background -> content script
@@ -62,6 +63,7 @@ export const DEFAULT_SETTINGS = {
   allowedDomains: [],     // the user's always-scan list; overrides the built-in rules
   trustedDomains: [],     // sources the user rates highly; see shared/evidence.js
   distrustedDomains: [],  // sources the user rates weak
+  readSources: true,      // read the top results' own pages, not just their snippets
   cacheResults: true,     // remember search, fact-check and AI answers for a day; see shared/cache.js
   factCheckProvider: 'google',
   factCheckApiKey: '',
