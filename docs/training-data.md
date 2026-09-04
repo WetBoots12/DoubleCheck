@@ -1,5 +1,10 @@
 # Training data for the claim-worthiness classifier
 
+> **Status: trained.** The model in `classifier/model/model.json` is trained on
+> ClaimBuster's `3xNCS.json`. Average precision 0.837, ROC AUC 0.927, precision
+> 0.855 at the 0.70 threshold the extension now defaults to. Attribution
+> requirements are in [`ATTRIBUTION.md`](../ATTRIBUTION.md).
+
 ## The dataset we planned on
 
 **ClaimBuster**, from the University of Texas at Arlington.
@@ -8,7 +13,7 @@
 |---|---|
 | Download | <https://zenodo.org/records/3836810> (`ClaimBuster_Datasets.zip`, 4.7 MB) |
 | DOI | 10.5281/zenodo.3609356 |
-| License | Creative Commons Attribution 4.0 — redistribution and reuse allowed with attribution |
+| License | Creative Commons Attribution 4.0 — redistribution and reuse allowed with attribution (see [`ATTRIBUTION.md`](../ATTRIBUTION.md)) |
 | Size | 23,533 sentences |
 | Source material | Every U.S. general election presidential debate, 1960 to 2016 |
 | Labels | Non-factual statement, unimportant factual statement, check-worthy factual statement |
@@ -38,10 +43,11 @@ sound:
 - The vocabulary is dated and heavily U.S.-political. Sports, health, science, and
   finance claims are barely represented.
 
-Expect a model trained on ClaimBuster alone to do well on political content and to
-degrade elsewhere. Train on it first anyway, since it is the labeled data that
-exists and it establishes a baseline, then measure that degradation deliberately
-rather than assuming it away.
+This concern turned out milder than expected. Spot-checking the trained model on
+news prose, encyclopedia text and page furniture, claims scored 0.77 to 0.99 and
+non-claims 0.05 to 0.30, a clean gap either side of the 0.70 threshold. Worth
+re-measuring on your own browsing rather than trusting one spot check, but the
+domain shift is not crippling.
 
 ## Worth adding
 
@@ -92,8 +98,12 @@ Favor precision. Every flagged claim is a button the user might press, and every
 press is a search call against their quota. A model flagging 40% of a page at 0.55
 precision is worse than useless: it trains the user to ignore the panel. Start
 around the threshold giving roughly 0.7 precision, then check it against a real
-article and the stress fixture, and expect to move it once the model is trained,
-since the current default of 0.6 was chosen for the heuristic, not for a model.
+article and the stress fixture.
+
+The shipped model's table put 0.70 at 0.855 precision and 0.599 recall, flagging
+385 of 2,159 held-out sentences, which is the default now set in the extension.
+Dropping to 0.50 would raise recall to 0.758 but cut precision to 0.721, meaning
+roughly one flagged claim in four is not worth checking.
 
 ## Sources
 

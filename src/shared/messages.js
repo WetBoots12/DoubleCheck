@@ -45,7 +45,7 @@ export const SETTINGS_KEY = 'fc_settings';
 
 export const DEFAULT_SETTINGS = {
   autoCheck: true,
-  threshold: 0.6,
+  threshold: 0.7,
   searchProvider: 'serpapi',
   searchApiKey: '',
   llmProvider: 'none',
