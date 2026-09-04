@@ -43,8 +43,9 @@
     if (!buffer) bufferStart = now();
     buffer = `${buffer} ${text}`.replace(/\s+/g, ' ').trim();
 
-    // Flush complete sentences out of the rolling buffer.
-    const parts = buffer.split(/(?<=[.!?])\s+/);
+    // Flush complete sentences out of the rolling buffer. Uses the same segmenter
+    // as the article script, so honorifics and abbreviations do not split cues.
+    const parts = FCSegment.splitSentences(buffer);
     if (parts.length > 1) {
       const complete = parts.slice(0, -1);
       buffer = parts[parts.length - 1];
