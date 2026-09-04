@@ -179,9 +179,11 @@ function render(claims) {
 // hint is inferred, and anything unrecognised stays neutral.
 function ratingTone(rating) {
   const r = (rating || '').toLowerCase();
-  if (/(false|fake|incorrect|pants on fire|debunked|no evidence|misleading)/.test(r)) return 'false';
-  if (/(true|correct|accurate|confirmed)/.test(r)) return 'true';
-  if (/(mixture|mixed|partly|half|unproven|outdated|context)/.test(r)) return 'mixed';
+  // Negations first, so "not true" and "untrue" cannot fall through to the true branch.
+  if (/\b(false|untrue|not true|fake|incorrect|inaccurate|wrong|pants on fire|debunked|no evidence|misleading)\b/.test(r)) return 'false';
+  // Mixed before true: "Half True" is a mixed rating, and contains "true".
+  if (/\b(mixture|mixed|partly|half|unproven|outdated|context)\b/.test(r)) return 'mixed';
+  if (/\b(true|correct|accurate|confirmed)\b/.test(r)) return 'true';
   return 'unknown';
 }
 
