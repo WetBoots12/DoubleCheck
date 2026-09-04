@@ -132,6 +132,21 @@
           <input type="password" id="llmApiKey" autocomplete="off" spellcheck="false" />
           <div class="err" id="llmErr"></div>
         </div>
+        <div class="field" id="localFields">
+          <label for="localLlmUrl">Local endpoint</label>
+          <input type="text" id="localLlmUrl" spellcheck="false" placeholder="http://localhost:11434/v1" />
+          <div class="hint">
+            Any OpenAI-compatible server on your machine, such as Ollama or LM Studio.
+            Nothing leaves your computer, and no key is needed.
+          </div>
+          <label for="localLlmModel" style="margin-top: 12px">Model name</label>
+          <input type="text" id="localLlmModel" spellcheck="false" placeholder="llama3.1" />
+        </div>
+        <div class="hint" id="builtinNote" style="display: none">
+          Chrome downloads this model the first time it is used, so the first summary
+          may take a while. Brave has no equivalent extension API for its Leo
+          assistant, so choose the local model option there instead.
+        </div>
       </section>
 
       <footer>

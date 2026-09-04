@@ -1,4 +1,5 @@
-import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
+import { MSG, STATUS, getSettings } from '../shared/messages.js';
+import { getLlmProvider } from '../providers/index.js';
 
 const feed = document.getElementById('feed');
 const toggle = document.getElementById('autocheck');
@@ -118,9 +119,26 @@ function focusClaim(claimId) {
   setTimeout(() => el.classList.remove('fc-focused'), 1600);
 }
 
+// The service worker cannot reach the browser's built-in model, so it delegates
+// the call here, where a document context exists.
+async function runInPageLlm(msg) {
+  const settings = await getSettings();
+  const llm = getLlmProvider(settings.llmProvider);
+  if (!llm.runsInPage) return;
+  try {
+    const summary = await llm.crossReference(msg.claim, msg.results, settings.llmApiKey);
+    chrome.runtime.sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, summary }).catch(() => {});
+  } catch (err) {
+    chrome.runtime
+      .sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, error: err.message })
+      .catch(() => {});
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === MSG.PANEL_UPDATE) render(msg.claims || []);
   else if (msg.type === MSG.PANEL_FOCUS) focusClaim(msg.claimId);
+  else if (msg.type === MSG.LLM_REQUEST) runInPageLlm(msg);
 });
 
 toggle.addEventListener('change', () => {
