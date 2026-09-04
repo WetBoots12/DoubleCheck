@@ -74,30 +74,69 @@
   }
 
   // --- overlay --------------------------------------------------------------
+  // Rendered inside a closed shadow root, so host-page CSS cannot restyle it and
+  // the page cannot reach into it. Attached inside the player rather than to
+  // document.body, because in fullscreen everything outside the fullscreen element
+  // is hidden. YouTube rebuilds the player on in-page navigation, so the host is
+  // re-attached whenever it is found detached.
+
+  const OVERLAY_CSS = `
+    :host { all: initial; }
+    .box {
+      position: absolute; right: 16px; bottom: 64px; z-index: 2147483000;
+      max-width: 320px; font: 12px/1.4 system-ui, sans-serif;
+      background: rgba(20, 20, 20, 0.92); color: #f2f2f2;
+      border-radius: 8px; padding: 8px 10px; display: none;
+    }
+    .box.visible { display: block; }
+    .marker { padding: 4px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; }
+    .marker:first-child { border-top: none; }
+    .time { color: #c8963e; margin-right: 6px; }
+  `;
+
+  let overlayHost = null;
+  let overlayBox = null;
 
   function overlay() {
-    let el = document.getElementById('fc-video-overlay');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'fc-video-overlay';
-      document.body.appendChild(el);
+    if (overlayHost?.isConnected) return overlayBox;
+
+    if (!overlayHost) {
+      overlayHost = document.createElement('div');
+      overlayHost.id = 'fc-video-overlay-host';
+      const root = overlayHost.attachShadow({ mode: 'closed' });
+      const style = document.createElement('style');
+      style.textContent = OVERLAY_CSS;
+      overlayBox = document.createElement('div');
+      overlayBox.className = 'box';
+      root.append(style, overlayBox);
     }
-    return el;
+
+    const player = document.getElementById('movie_player');
+    if (player) {
+      player.appendChild(overlayHost);
+      overlayBox.style.position = 'absolute';
+      overlayBox.style.bottom = '64px'; // clear of the control bar
+    } else {
+      document.body.appendChild(overlayHost);
+      overlayBox.style.position = 'fixed';
+      overlayBox.style.bottom = '16px';
+    }
+    return overlayBox;
   }
 
   function renderMarkers() {
     const el = overlay();
     if (!markers.size) {
-      el.classList.remove('fc-visible');
+      el.classList.remove('visible');
       return;
     }
-    el.classList.add('fc-visible');
+    el.classList.add('visible');
     el.innerHTML = '';
     const recent = [...markers.entries()].slice(-4);
     for (const [id, m] of recent) {
       const row = document.createElement('div');
-      row.className = 'fc-marker';
-      row.innerHTML = `<span class="fc-time">${fmt(m.ts)}</span>`;
+      row.className = 'marker';
+      row.innerHTML = `<span class="time">${fmt(m.ts)}</span>`;
       row.appendChild(document.createTextNode(m.text.slice(0, 90) + (m.text.length > 90 ? '…' : '')));
       row.addEventListener('click', () => {
         const v = video();
@@ -166,7 +205,7 @@
       navigate(msg.direction);
     } else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck;
-      if (!autoCheck) overlay().classList.remove('fc-visible');
+      if (!autoCheck) overlay().classList.remove('visible');
     }
   });
 
