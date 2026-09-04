@@ -25,25 +25,5 @@
   scroll-margin: 40vh;
 }
 
-/* Video mode: claim markers pinned near the player. */
-#fc-video-overlay {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 2147483000;
-  max-width: 320px;
-  font: 12px/1.4 system-ui, sans-serif;
-  background: rgba(20, 20, 20, 0.92);
-  color: #f2f2f2;
-  border-radius: 8px;
-  padding: 8px 10px;
-  display: none;
-}
-#fc-video-overlay.fc-visible { display: block; }
-#fc-video-overlay .fc-marker {
-  padding: 4px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  cursor: pointer;
-}
-#fc-video-overlay .fc-marker:first-child { border-top: none; }
-#fc-video-overlay .fc-time { color: #c8963e; margin-right: 6px; }
+/* The video overlay's styles live inside its shadow root in
+   src/content/video/index.js, where host-page CSS cannot reach them. */
