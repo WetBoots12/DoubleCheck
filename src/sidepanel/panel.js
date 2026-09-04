@@ -4,6 +4,7 @@ const feed = document.getElementById('feed');
 const toggle = document.getElementById('autocheck');
 
 const STATUS_LABEL = {
+  [STATUS.UNCHECKED]: 'flagged',
   [STATUS.PENDING]: 'checking…',
   [STATUS.CHECKED]: 'sources found',
   [STATUS.ERROR]: 'check failed',
@@ -43,6 +44,19 @@ function render(claims) {
     if (c.ts != null) meta.innerHTML += `<span>${fmtTime(c.ts)}</span>`;
     if (c.score != null) meta.innerHTML += `<span>score ${c.score}</span>`;
     el.appendChild(meta);
+
+    // Search calls cost the user quota, so nothing is fetched until they ask.
+    if (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR) {
+      const check = document.createElement('button');
+      check.className = 'check';
+      check.textContent = c.status === STATUS.ERROR ? 'Try again' : 'Check sources';
+      check.addEventListener('click', () => {
+        check.disabled = true;
+        check.textContent = 'Checking…';
+        chrome.runtime.sendMessage({ type: MSG.CHECK_CLAIM, claimId: c.id }).catch(() => {});
+      });
+      el.appendChild(check);
+    }
 
     if (c.status === STATUS.NO_KEY) {
       const p = document.createElement('div');

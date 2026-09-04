@@ -76,7 +76,9 @@ async function save() {
     searchProvider: fields.searchProvider.value,
     searchApiKey: fields.searchApiKey.value.trim(),
     llmProvider: fields.llmProvider.value,
-    llmApiKey: KEYLESS_LLM.has(fields.llmProvider.value) ? '' : fields.llmApiKey.value.trim(),
+    // Keep the key even while a keyless provider is selected, so switching back
+    // later doesn't mean pasting it again.
+    llmApiKey: fields.llmApiKey.value.trim(),
   });
 
   // Let the active tab's content script react without needing a reload.
