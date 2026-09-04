@@ -8,6 +8,7 @@ export const MSG = {
   HIGHLIGHT_CLICKED: 'highlightClicked', // { claimId }
   GET_STATE: 'getState',            // content asks whether to scan at all
   UNLOCATED: 'unlocated',           // { ids } -> claims with no highlight on the page
+  CAPTION_HINT: 'captionHint',      // { hint: 'off' | 'none' | null } -> panel banner, video pages only
   PAGE_CHANGED: 'pageChanged',      // { url } -> same document, new page (SPA navigation)
 
   // background -> content script

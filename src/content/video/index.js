@@ -13,6 +13,7 @@
     FOCUS_SENTENCE: 'focusSentence',
     NAV_CLAIM: 'navClaim',
     NAV_STATE: 'navState',
+    CAPTION_HINT: 'captionHint',
   };
 
   let autoCheck = true;
@@ -92,6 +93,7 @@
     .marker { padding: 4px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; }
     .marker:first-child { border-top: none; }
     .time { color: #c8963e; margin-right: 6px; }
+    .hint { color: #c8963e; padding: 2px 0 6px; }
   `;
 
   let overlayHost = null;
@@ -124,14 +126,28 @@
     return overlayBox;
   }
 
+  // Why nothing is being detected, when that has a cause the viewer can fix.
+  const HINT_TEXT = {
+    off: 'Turn on subtitles (CC) to detect claims in this video.',
+    none: 'This video has no captions, so no claims can be detected.',
+  };
+  let currentHint = null;
+
   function renderMarkers() {
     const el = overlay();
-    if (!markers.size) {
+    const hintText = HINT_TEXT[currentHint];
+    if (!markers.size && !hintText) {
       el.classList.remove('visible');
       return;
     }
     el.classList.add('visible');
     el.innerHTML = '';
+    if (hintText) {
+      const h = document.createElement('div');
+      h.className = 'hint';
+      h.textContent = hintText;
+      el.appendChild(h);
+    }
     const recent = [...markers.entries()].slice(-4);
     for (const [id, m] of recent) {
       const row = document.createElement('div');
@@ -191,6 +207,32 @@
     seekTo(list[next][0]);
   }
 
+  // --- caption availability ---------------------------------------------------
+  // With captions off, .ytp-caption-segment never appears and this script sits
+  // idle, which looks like a fault. Say why instead, on the page and in the panel.
+  // Reported only when the state changes, so the panel is not messaged every tick.
+  // Playback is deliberately not required: a banner that vanished on every pause
+  // and returned on every resume would be more distracting than helpful.
+
+  function captionState() {
+    if (!location.pathname.startsWith('/watch') || !video()) return null;
+    const btn = document.querySelector('.ytp-subtitles-button');
+    // No usable button means there is no caption track to turn on.
+    if (!btn || btn.getAttribute('aria-disabled') === 'true' || !btn.offsetParent) return 'none';
+    return btn.getAttribute('aria-pressed') === 'false' ? 'off' : null;
+  }
+
+  let lastHint; // undefined until first reported, so the first tick clears any stale banner
+
+  function reportCaptionState() {
+    const state = autoCheck ? captionState() : null;
+    if (state === lastHint) return;
+    lastHint = state;
+    currentHint = state;
+    renderMarkers();
+    chrome.runtime.sendMessage({ type: MSG.CAPTION_HINT, hint: state }).catch(() => {});
+  }
+
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === MSG.CLAIM_STATUS) {
       for (const c of msg.claims) {
@@ -206,6 +248,7 @@
     } else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck;
       if (!autoCheck) overlay().classList.remove('visible');
+      reportCaptionState();
     }
   });
 
@@ -218,6 +261,7 @@
     sent.clear();
     markers.clear();
     currentId = null;
+    lastHint = undefined;
     renderMarkers();
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
@@ -232,6 +276,7 @@
       onPageChanged();
     }
     if (autoCheck) readCues();
+    reportCaptionState();
   }, 1000);
 
   chrome.runtime
