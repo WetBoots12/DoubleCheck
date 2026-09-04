@@ -16,6 +16,12 @@
         --accent-soft: rgba(200, 150, 62, 0.16);
         --ok-soft: rgba(61, 122, 90, 0.18);
         --flat-soft: rgba(154, 154, 154, 0.2);
+        --cold: #b4462d;
+        --warm: #c8963e;
+        --hot: #3d7a5a;
+        --lean-left: rgba(66, 120, 190, 0.18);
+        --lean-center: rgba(150, 150, 150, 0.18);
+        --lean-right: rgba(190, 80, 70, 0.18);
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -28,6 +34,12 @@
           --accent-soft: rgba(200, 150, 62, 0.22);
           --ok-soft: rgba(127, 183, 154, 0.22);
           --flat-soft: rgba(200, 200, 200, 0.16);
+          --cold: #d4694f;
+          --warm: #d8ab55;
+          --hot: #6aa88a;
+          --lean-left: rgba(110, 160, 220, 0.22);
+          --lean-center: rgba(180, 180, 180, 0.2);
+          --lean-right: rgba(220, 120, 110, 0.22);
         }
       }
       body {
@@ -75,6 +87,38 @@
         border: 1px solid var(--border); background: var(--accent-soft); color: var(--fg);
       }
       button.check.secondary { background: transparent; }
+
+      /* Truth thermometer: how far the sources go toward supporting the claim. */
+      .analysis { margin-top: 10px; }
+      .verdict { font-weight: 600; font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
+      .confidence { font-weight: 400; color: var(--muted); }
+      .thermo { margin: 6px 0 8px; }
+      .thermo-track {
+        position: relative; height: 8px; border-radius: 99px;
+        background: linear-gradient(to right, var(--cold), var(--warm), var(--hot));
+      }
+      .thermo.tone-flat .thermo-track { background: var(--flat-soft); }
+      .thermo-marker {
+        position: absolute; top: -3px; width: 4px; height: 14px; border-radius: 2px;
+        background: var(--fg); transform: translateX(-2px);
+        box-shadow: 0 0 0 2px var(--card);
+      }
+      .thermo-scale {
+        display: flex; justify-content: space-between;
+        font-size: 10px; color: var(--muted); margin-top: 3px;
+      }
+      .facet { font-size: 12px; margin-top: 6px; }
+      .facet-label { font-weight: 600; color: var(--muted); }
+      .spread { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+      .chip {
+        font-size: 10px; padding: 2px 6px; border-radius: 99px;
+        border: 1px solid var(--border); color: var(--fg);
+      }
+      .chip.lean-left { background: var(--lean-left); }
+      .chip.lean-right { background: var(--lean-right); }
+      .chip.lean-center { background: var(--lean-center); }
+      .chip.lean-unclear { background: var(--flat-soft); }
+      .caveat { font-size: 10px; color: var(--muted); margin-top: 4px; font-style: italic; }
       button.check:hover:not(:disabled) { filter: brightness(1.1); }
       button.check:disabled { opacity: 0.6; cursor: default; }
       button.link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }

@@ -4,6 +4,6 @@
   "private": true,
   "description": "Chromium extension that flags check-worthy claims and cross-references them with search results.",
   "scripts": {
-    "test": "node --test classifier/inference/scorer.test.mjs"
+    "test": "node --test classifier/inference/scorer.test.mjs src/providers/parse.test.mjs"
   }
 }
