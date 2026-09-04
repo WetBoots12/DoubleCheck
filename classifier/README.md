@@ -17,24 +17,52 @@ TensorFlow.js or ONNX and tens of megabytes of weights. If the metrics turn out
 to be too weak, a heavier model can replace it behind the same
 `scoreClaimWorthiness()` interface without touching the rest of the extension.
 
-Until a model is trained, the extension falls back to a hand-written heuristic
-scorer. That fallback is why flagging currently over-fires on pages dense with
-numbers and proper nouns.
+A trained model ships in `model/model.json` (1.2 MB, 20,000 terms). The
+hand-written heuristic scorer remains as the fallback for when the model fails to
+load.
 
-## Getting data
+## Trained model, current numbers
 
-The task is "check-worthiness detection." The dataset built for exactly this is
-**ClaimBuster**, from the University of Texas at Arlington: sentences drawn from
-U.S. presidential debates, each labeled by human raters as a check-worthy factual
-sentence (CFS), an unimportant factual sentence (UFS), or a non-factual sentence
-(NFS). It is released for research use, and its two files are `crowdsourced.csv`
-and `groundtruth.csv`.
+Trained on ClaimBuster's `3xNCS.json`, the stricter binary split the dataset
+authors report trains best: 10,794 sentences, 25.4% check-worthy.
 
-`prepare_data.py` maps CFS to label 1 and both other classes to 0, on the reasoning
-that an unimportant fact is not worth a search call either.
+| Metric | Value |
+|---|---|
+| Average precision | 0.837 |
+| ROC AUC | 0.927 |
+| Precision at 0.70 | 0.855 |
+| Recall at 0.70 | 0.599 |
 
-Any other CSV works too, as long as it has a text column and a binary or -1/0/1
-label column. Check the license of whatever you use, and record it here.
+The extension's default threshold is **0.70**, chosen for precision: every flagged
+claim is a search call the user may spend.
+
+Despite training on political debate transcripts, it separates real-world news
+prose cleanly. News and encyclopedia claims score 0.77 to 0.99, while chatter,
+opinion, questions and navigation text score 0.05 to 0.30. The heuristic scored
+the same Wikipedia claim 0.15, so the model is a real improvement on general prose
+rather than only on debates.
+
+## The data, and crediting it
+
+**ClaimBuster**, from the IDIR Lab at the University of Texas at Arlington,
+released under **CC BY 4.0**. Attribution is a licence condition, not a courtesy:
+see [`ATTRIBUTION.md`](../ATTRIBUTION.md) at the repository root for the required
+citations and the authors' funding acknowledgment. The exported model carries the
+same attribution in its `attribution` field, because a model trained on CC BY data
+is a derivative work and the credit has to travel with the weights.
+
+Raw data lives in `train/raw/` and is git-ignored, so this repository does not
+redistribute it. Download it from <https://zenodo.org/records/3836810>.
+
+The zip holds several files. `3xNCS.json` is the one used here: already binary
+labelled, filtered by stricter annotator agreement, three non-check-worthy
+sentences per check-worthy one. `groundtruth.csv` and `crowdsourced.csv` carry the
+raw three-way verdicts, where 1 is a check-worthy factual sentence, 0 an
+unimportant factual sentence and -1 a non-factual one; `prepare_data.py` maps only
+1 to a positive label, since an unimportant fact is not worth a search call either.
+
+Any other CSV or JSON works too, given a text column and a binary or -1/0/1 label
+column. Check the licence of whatever you add, and record it in `ATTRIBUTION.md`.
 
 ## Running it
 
@@ -42,7 +70,7 @@ label column. Check the license of whatever you use, and record it here.
 pip install -r train/requirements.txt
 
 # Normalize whatever CSV you have into text,label columns
-python train/prepare_data.py --input raw/crowdsourced.csv --output train/data/dataset.csv
+python classifier/train/prepare_data.py   --input classifier/train/raw/ClaimBuster_Datasets/datasets/3xNCS.json   --output classifier/train/data/dataset.csv
 
 # Train, evaluate, and export model.json + the parity fixture
 cd train && python train.py --data data/dataset.csv

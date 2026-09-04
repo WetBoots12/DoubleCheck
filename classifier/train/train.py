@@ -142,6 +142,23 @@ def main():
     payload = {
         "version": 1,
         "created_from": os.path.basename(args.data),
+        # A model trained on CC BY 4.0 data is a derivative work, so the credit
+        # travels with the weights, not only with the repository.
+        "attribution": {
+            "dataset": "ClaimBuster",
+            "creator": "IDIR Lab, University of Texas at Arlington",
+            "url": "https://idir.uta.edu/claimbuster/",
+            "doi": "10.5281/zenodo.3609356",
+            "license": "CC BY 4.0",
+            "cite": [
+                "Arslan, Hassan, Li, Tremayne (2020). A Benchmark Dataset of "
+                "Check-worthy Factual Claims. ICWSM.",
+                "Meng, Jimenez, Arslan, Devasier, Obembe, Li (2020). Gradient-Based "
+                "Adversarial Training on Transformer Networks for Detecting "
+                "Check-Worthy Factual Claims.",
+            ],
+            "notice": "Labels check-worthiness, not truth. Do not present scores as truth ratings.",
+        },
         "vocabulary": vocabulary,
         "idf": [float(v) for v in vectorizer.idf_],
         "coef": [float(v) for v in model.coef_[0]],

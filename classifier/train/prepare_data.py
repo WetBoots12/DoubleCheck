@@ -15,12 +15,18 @@ Usage:
 """
 
 import argparse
+import json
+import os
 import sys
 
 import pandas as pd
 
 TEXT_CANDIDATES = ["text", "Text", "sentence", "Sentence", "claim", "Claim"]
 LABEL_CANDIDATES = ["label", "Label", "Verdict", "verdict", "class", "Class"]
+
+# Data credit: ClaimBuster, IDIR Lab, University of Texas at Arlington, CC BY 4.0.
+# See ATTRIBUTION.md at the repository root. Required when redistributing either
+# the data or a model derived from it.
 
 
 def pick_column(df, explicit, candidates, kind):
@@ -57,7 +63,15 @@ def main():
                     help="Drop sentences shorter than this many characters")
     args = ap.parse_args()
 
-    df = pd.read_csv(args.input)
+    if args.input.lower().endswith(".json"):
+        # 2xNCS/2.5xNCS/3xNCS: already binary, already filtered by stricter label
+        # agreement. The dataset authors report these train better than the raw CSVs.
+        with open(args.input, encoding="utf-8") as fh:
+            rows = json.load(fh)
+        df = pd.DataFrame(rows)
+    else:
+        df = pd.read_csv(args.input, encoding="utf-8")
+
     text_col = pick_column(df, args.text_column, TEXT_CANDIDATES, "text")
     label_col = pick_column(df, args.label_column, LABEL_CANDIDATES, "label")
 
@@ -70,7 +84,6 @@ def main():
     out = out[out["text"].str.len() >= args.min_length]
     out = out.drop_duplicates(subset="text")
 
-    import os
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     out.to_csv(args.output, index=False)
 
