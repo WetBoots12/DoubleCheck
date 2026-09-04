@@ -3,8 +3,16 @@
   "name": "FactCheck Sidebar",
   "version": "0.1.0",
   "description": "Flags check-worthy claims on pages and videos in real time and cross-references them with search results.",
-  "permissions": ["storage", "sidePanel", "activeTab", "scripting", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "src/background/index.js",
     "type": "module"
@@ -15,11 +23,15 @@
   "options_page": "src/options/options.html",
   "commands": {
     "next-claim": {
-      "suggested_key": { "default": "Alt+Shift+N" },
+      "suggested_key": {
+        "default": "Alt+Shift+N"
+      },
       "description": "Go to next flagged claim"
     },
     "prev-claim": {
-      "suggested_key": { "default": "Alt+Shift+P" },
+      "suggested_key": {
+        "default": "Alt+Shift+P"
+      },
       "description": "Go to previous flagged claim"
     }
   },
@@ -28,23 +40,47 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "exclude_matches": ["*://*.youtube.com/*", "*://youtu.be/*"],
-      "js": ["src/content/textmatch.js", "src/content/segment.js", "src/content/article/index.js"],
-      "css": ["src/content/highlight.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "*://*.youtube.com/*",
+        "*://youtu.be/*"
+      ],
+      "js": [
+        "src/content/textmatch.cjs",
+        "src/content/segment.cjs",
+        "src/content/article/index.js"
+      ],
+      "css": [
+        "src/content/highlight.css"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["*://*.youtube.com/*", "*://youtu.be/*"],
-      "js": ["src/content/textmatch.js", "src/content/segment.js", "src/content/video/index.js"],
-      "css": ["src/content/highlight.css"],
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://youtu.be/*"
+      ],
+      "js": [
+        "src/content/textmatch.cjs",
+        "src/content/segment.cjs",
+        "src/content/video/index.js"
+      ],
+      "css": [
+        "src/content/highlight.css"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["classifier/model/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "classifier/model/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

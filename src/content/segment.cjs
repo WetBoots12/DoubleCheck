@@ -8,7 +8,7 @@
 // as auto-generated captions, comes through as one segment either way.
 //
 // Loaded as a plain content script (they cannot use ES imports) and shared with the
-// Node tests through module.exports, like textmatch.js.
+// Node tests through module.exports, like textmatch.cjs.
 
 (function (root) {
   // Tokens that end in a period but do not end a sentence. Lower-case, no period.
