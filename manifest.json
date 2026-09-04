@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "FactCheck Sidebar",
+  "version": "0.1.0",
+  "description": "Flags check-worthy claims on pages and videos in real time and cross-references them with search results.",
+  "permissions": ["storage", "sidePanel", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background/index.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/panel.html"
+  },
+  "options_page": "src/options/options.html",
+  "action": {
+    "default_title": "FactCheck Sidebar"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "exclude_matches": ["*://*.youtube.com/*", "*://youtu.be/*"],
+      "js": ["src/content/article/index.js"],
+      "css": ["src/content/highlight.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.youtube.com/*", "*://youtu.be/*"],
+      "js": ["src/content/video/index.js"],
+      "css": ["src/content/highlight.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["classifier/model/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

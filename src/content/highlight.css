@@ -1,0 +1,43 @@
+.fc-highlight {
+  border-bottom: 2px solid #c8963e;
+  background: rgba(200, 150, 62, 0.12);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.fc-highlight:hover { background: rgba(200, 150, 62, 0.28); }
+.fc-highlight[data-fc-status="checked"] {
+  border-bottom-color: #3d7a5a;
+  background: rgba(61, 122, 90, 0.12);
+}
+.fc-highlight[data-fc-status="error"],
+.fc-highlight[data-fc-status="noKey"] {
+  border-bottom-color: #9a9a9a;
+  background: rgba(154, 154, 154, 0.12);
+}
+.fc-highlight.fc-focused {
+  outline: 2px solid #c8963e;
+  outline-offset: 2px;
+}
+
+/* Video mode: claim markers pinned near the player. */
+#fc-video-overlay {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  max-width: 320px;
+  font: 12px/1.4 system-ui, sans-serif;
+  background: rgba(20, 20, 20, 0.92);
+  color: #f2f2f2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: none;
+}
+#fc-video-overlay.fc-visible { display: block; }
+#fc-video-overlay .fc-marker {
+  padding: 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+}
+#fc-video-overlay .fc-marker:first-child { border-top: none; }
+#fc-video-overlay .fc-time { color: #c8963e; margin-right: 6px; }
