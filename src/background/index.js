@@ -15,6 +15,7 @@ import {
   getLlmProvider,
   getFactCheckProvider,
   originDomain,
+  searchQuery,
   ProviderError,
 } from '../providers/index.js';
 import { tabStore } from './tabstate.js';
@@ -217,11 +218,13 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     const search = getSearchProvider(settings.searchProvider);
     const factCheck = getFactCheckProvider(settings.factCheckProvider);
     const excludeDomain = await tabOrigin(tabId);
+    // Verbatim by default. Distillation is an opt-in until it has been measured.
+    const query = settings.distillQueries ? searchQuery(claim.text) : claim.text;
 
     // Published fact-checks come back with the search results, from the same button.
     // A failure to find any must not lose the search results, so it is caught apart.
     const [results, factChecks] = await Promise.all([
-      search.search(claim.text, settings.searchApiKey, { excludeDomain }),
+      search.search(query, settings.searchApiKey, { excludeDomain }),
       settings.factCheckApiKey
         ? factCheck.lookup(claim.text, settings.factCheckApiKey).catch((err) => {
             claim.factCheckError = err.message;

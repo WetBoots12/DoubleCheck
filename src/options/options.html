@@ -124,6 +124,19 @@
             call is only spent when you press "Check sources" on a claim in the side panel.
           </div>
         </div>
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" id="distillQueries" />
+            Shorten long claims before searching (experimental)
+          </label>
+          <div class="hint">
+            Strips lead-in attributions such as "officials said that" and, for long
+            sentences, searches only the distinctive words. Off until you have checked it
+            helps: <a id="compareLink" href="#">compare both forms on your own claims</a>.
+            That page uses the key saved here and caches results, so it spends a few
+            search calls the first time and none after.
+          </div>
+        </div>
       </section>
 
       <section>
