@@ -71,6 +71,12 @@ Then open the extension's options page and add a search API key. SerpAPI and
 Brave Search are supported. Without a key, claims are still flagged and
 highlighted, but no sources are fetched.
 
+Two optional extras, both configured on the same page. **Published fact-checks**
+uses Google's free Fact Check Tools API to look for verdicts already published by
+organisations such as Snopes, PolitiFact and Full Fact, shown with the search
+results when you press Check sources. Most claims have no published fact-check, so
+expect it to be empty more often than not.
+
 AI summaries are optional and off by default. You can use your own Anthropic or
 OpenAI key, Chrome's built-in on-device model where available, or a local model
 served by Ollama or LM Studio. Brave's Leo assistant exposes no extension API and
@@ -81,7 +87,7 @@ cannot be used; the local model option covers Brave.
 | Action | What happens |
 |---|---|
 | Extension icon | Opens the side panel; the badge counts flagged claims |
-| **Check sources** | Spends one search call for that claim |
+| **Check sources** | Spends one search call, and looks for published fact-checks |
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |
 | Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |
@@ -106,6 +112,13 @@ npm test
 - [`docs/training-data.md`](docs/training-data.md) — data sources and threshold tuning
 - [`classifier/README.md`](classifier/README.md) — the model and how to retrain it
 - [`ATTRIBUTION.md`](ATTRIBUTION.md) — required credit for the ClaimBuster dataset
+
+## Licence
+
+MIT, see [`LICENSE`](LICENSE). It covers this project's source code only. The
+trained model is a derivative of the CC BY 4.0 ClaimBuster dataset and carries its
+own attribution requirements; search results, fact-check records and AI summaries
+belong to their providers under those providers' terms.
 
 ## Credits
 

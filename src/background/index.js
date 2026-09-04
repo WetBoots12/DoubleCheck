@@ -4,7 +4,12 @@
 
 import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
 import { scoreClaimWorthiness } from '../../classifier/inference/classifier.js';
-import { getSearchProvider, getLlmProvider, ProviderError } from '../providers/index.js';
+import {
+  getSearchProvider,
+  getLlmProvider,
+  getFactCheckProvider,
+  ProviderError,
+} from '../providers/index.js';
 
 const tabs = new Map(); // tabId -> { claims: Map<id, Claim>, seen: Set<textKey> }
 const MAX_INFLIGHT = 3;
@@ -191,7 +196,22 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
 
   try {
     const search = getSearchProvider(settings.searchProvider);
-    claim.results = await search.search(claim.text, settings.searchApiKey);
+    const factCheck = getFactCheckProvider(settings.factCheckProvider);
+
+    // Published fact-checks come back with the search results, from the same button.
+    // A failure to find any must not lose the search results, so it is caught apart.
+    const [results, factChecks] = await Promise.all([
+      search.search(claim.text, settings.searchApiKey),
+      settings.factCheckApiKey
+        ? factCheck.lookup(claim.text, settings.factCheckApiKey).catch((err) => {
+            claim.factCheckError = err.message;
+            return [];
+          })
+        : Promise.resolve([]),
+    ]);
+
+    claim.results = results;
+    claim.factChecks = factChecks;
     claim.status = STATUS.CHECKED;
 
     if (withAi) await summarize(tabId, claim, settings);

@@ -106,6 +106,10 @@ function render(claims) {
       el.appendChild(p);
     }
 
+    // Verdicts from real fact-checking organisations sit above the AI summary and
+    // the raw results, because a human verdict outranks both.
+    if (c.factChecks?.length) el.appendChild(renderFactChecks(c.factChecks));
+
     if (c.analysis) el.appendChild(renderAnalysis(c.analysis));
 
     if (c.error && c.status === STATUS.ERROR) {
@@ -139,6 +143,60 @@ function render(claims) {
 
     feed.appendChild(el);
   }
+}
+
+// A published fact-check's own wording is the verdict. Ratings are free text and
+// vary by publisher ("False", "Pants on Fire", "Mostly true"), so they are shown
+// verbatim rather than remapped onto a scale this project invented; only the colour
+// hint is inferred, and anything unrecognised stays neutral.
+function ratingTone(rating) {
+  const r = (rating || '').toLowerCase();
+  if (/(false|fake|incorrect|pants on fire|debunked|no evidence|misleading)/.test(r)) return 'false';
+  if (/(true|correct|accurate|confirmed)/.test(r)) return 'true';
+  if (/(mixture|mixed|partly|half|unproven|outdated|context)/.test(r)) return 'mixed';
+  return 'unknown';
+}
+
+function renderFactChecks(list) {
+  const box = document.createElement('div');
+  box.className = 'factchecks';
+
+  const head = document.createElement('div');
+  head.className = 'fc-head';
+  head.textContent = list.length === 1 ? 'Published fact-check' : `Published fact-checks (${list.length})`;
+  box.appendChild(head);
+
+  for (const f of list) {
+    const row = document.createElement('div');
+    row.className = 'factcheck';
+
+    const rating = document.createElement('span');
+    rating.className = `rating tone-${ratingTone(f.rating)}`;
+    rating.textContent = f.rating || 'rated';
+    row.appendChild(rating);
+
+    const a = document.createElement('a');
+    a.href = f.url;
+    a.target = '_blank';
+    a.rel = 'noreferrer';
+    a.textContent = f.title || f.claim || f.url;
+    row.appendChild(a);
+
+    const by = document.createElement('div');
+    by.className = 'src';
+    by.textContent = [f.publisher, f.reviewDate].filter(Boolean).join(' · ');
+    row.appendChild(by);
+
+    if (f.claim && f.claim !== f.title) {
+      const claimed = document.createElement('div');
+      claimed.className = 'snip';
+      claimed.textContent = f.claimant ? `${f.claimant}: ${f.claim}` : f.claim;
+      row.appendChild(claimed);
+    }
+
+    box.appendChild(row);
+  }
+  return box;
 }
 
 // The thermometer reads how far the sources go toward supporting the claim. It is

@@ -69,6 +69,86 @@ const brave = {
   },
 };
 
+// --- Fact-check providers ---------------------------------------------------
+// Verdicts published by real fact-checking organisations, which outrank anything a
+// language model infers from snippets. Shown alongside search results.
+
+// Long sentences rarely match anything in a fact-check index, which is keyed to
+// short claim wordings. Falling back to the most distinctive words turns a miss
+// into a hit often enough to be worth the second call.
+const STOPWORDS = new Set(('a an the and or but if then than that this these those of in on at to for with '
+  + "from by as is are was were be been being it its he she they we you i his her their our your not "
+  + 'no do does did has have had will would could should may might can said says according also more most '
+  + 'about into over under after before during while when where who whom which what how why').split(' '));
+
+export function keywordQuery(sentence, limit = 8) {
+  // Keeps decimals and hyphenated words whole, so "4.2" does not split into "4"
+  // and "2", and "twenty-year" stays one token.
+  const words = (sentence.toLowerCase().match(/[a-z0-9]+(?:[.'-][a-z0-9]+)*/g) || [])
+    // A digit earns its place whatever its length: "15" and "4.2" are the most
+    // distinctive parts of a factual claim, and a length rule threw them away.
+    .filter((w) => (/\d/.test(w) || w.length > 2) && !STOPWORDS.has(w));
+  // Numbers and long words carry the most signal in a factual claim.
+  const ranked = [...new Set(words)].sort((a, b) => {
+    const score = (w) => (/\d/.test(w) ? 100 : 0) + w.length;
+    return score(b) - score(a);
+  });
+  return ranked.slice(0, limit).join(' ');
+}
+
+export function mapClaimReviews(data, limit = 5) {
+  const out = [];
+  for (const claim of data?.claims || []) {
+    for (const review of claim.claimReview || []) {
+      out.push({
+        claim: claim.text || '',
+        claimant: claim.claimant || '',
+        publisher: review.publisher?.name || review.publisher?.site || 'Unknown publisher',
+        url: review.url || '',
+        title: review.title || '',
+        rating: review.textualRating || '',
+        reviewDate: (review.reviewDate || '').slice(0, 10),
+      });
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
+const noFactCheck = {
+  id: 'none',
+  label: 'None',
+  async lookup() {
+    return [];
+  },
+};
+
+const googleFactCheck = {
+  id: 'google',
+  label: 'Google Fact Check Tools (free key)',
+  async lookup(sentence, apiKey) {
+    if (!apiKey) throw new ProviderError('noKey', 'No fact-check API key configured');
+    const base = 'https://factchecktools.googleapis.com/v1alpha1/claims:search';
+    const call = async (query) => {
+      const url = `${base}?query=${encodeURIComponent(query)}&languageCode=en&pageSize=10&key=${encodeURIComponent(apiKey)}`;
+      return mapClaimReviews(await fetchJson(url));
+    };
+
+    let results = await call(sentence);
+    if (!results.length) {
+      const keywords = keywordQuery(sentence);
+      if (keywords && keywords !== sentence.toLowerCase()) results = await call(keywords);
+    }
+    return results;
+  },
+};
+
+export const FACTCHECK_PROVIDERS = { none: noFactCheck, google: googleFactCheck };
+
+export function getFactCheckProvider(id) {
+  return FACTCHECK_PROVIDERS[id] || noFactCheck;
+}
+
 // --- LLM providers ----------------------------------------------------------
 
 function crossReferencePrompt(claim, results) {
