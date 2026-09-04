@@ -334,6 +334,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendToActiveTab({ type: MSG.NAV_CLAIM, direction: msg.direction });
       return false;
 
+    case MSG.CAPTION_HINT:
+      // Only the active tab's video may put a banner in the panel; a background tab
+      // with captions off must not nag about a page the user is not looking at.
+      activeTabId().then((id) => {
+        if (tabId == null || id !== tabId) return;
+        chrome.runtime
+          .sendMessage({ type: MSG.CAPTION_HINT, tabId, hint: msg.hint ?? null })
+          .catch(() => {});
+      });
+      return false;
+
     case MSG.NAV_STATE:
       // Straight through to the panel's find-bar counter.
       chrome.runtime

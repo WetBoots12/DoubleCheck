@@ -7,6 +7,21 @@ const findbar = document.getElementById('findbar');
 const counter = document.getElementById('counter');
 const prevBtn = document.getElementById('prev');
 const nextBtn = document.getElementById('next');
+const banner = document.getElementById('banner');
+
+// The video script explains an idle state that has a cause the viewer can fix.
+const CAPTION_HINTS = {
+  off: 'Turn on YouTube subtitles (the CC button) so claims in this video can be detected.',
+  none: 'This video has no captions, so nothing can be detected from it.',
+};
+let bannerTabId = null;
+
+function renderCaptionHint(msg) {
+  const text = CAPTION_HINTS[msg.hint];
+  banner.hidden = !text;
+  banner.textContent = text || '';
+  bannerTabId = text ? msg.tabId : null;
+}
 
 const STATUS_LABEL = {
   [STATUS.UNCHECKED]: 'flagged',
@@ -333,7 +348,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === MSG.PANEL_UPDATE) render(msg.claims || []);
+  if (msg.type === MSG.PANEL_UPDATE) {
+    // A banner belongs to one video tab; switching to any other tab clears it.
+    if (bannerTabId != null && msg.tabId !== bannerTabId) renderCaptionHint({ hint: null });
+    render(msg.claims || []);
+  } else if (msg.type === MSG.CAPTION_HINT) renderCaptionHint(msg);
   else if (msg.type === MSG.NAV_STATE) renderNavState(msg);
   else if (msg.type === MSG.PANEL_FOCUS) focusClaim(msg.claimId);
   else if (msg.type === MSG.LLM_REQUEST) runInPageLlm(msg);
