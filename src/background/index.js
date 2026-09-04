@@ -250,6 +250,58 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
   pushHighlights(tabId, [claim]);
 }
 
+// --- context menu -----------------------------------------------------------
+// The classifier will always miss some claims. A right-click on selected text
+// puts it through the same path as a flagged sentence, bypassing the threshold
+// and marked as the user's own, so an unflagged claim still has a way in. The
+// guards keep the worker loadable where these APIs are absent, as in the tests.
+
+const MENU_ID = 'fc-check-selection';
+
+chrome.runtime.onInstalled?.addListener(() => {
+  chrome.contextMenus?.create(
+    { id: MENU_ID, title: 'Fact-check selected text', contexts: ['selection'] },
+    () => void chrome.runtime.lastError, // already exists after a reload; harmless
+  );
+});
+
+chrome.contextMenus?.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== MENU_ID || tab?.id == null) return;
+  addUserClaim(tab.id, info.selectionText || '');
+});
+
+async function addUserClaim(tabId, selection) {
+  const text = selection.replace(/\s+/g, ' ').trim();
+  if (text.length < 10) return;
+
+  const state = await tabStore.get(tabId);
+  const key = text.toLowerCase();
+
+  // Already a claim, flagged or added: bring it into view rather than duplicate it.
+  const existing = [...state.claims.values()].find((c) => c.text.trim().toLowerCase() === key);
+  const claimId = existing ? existing.id : `u${Date.now().toString(36)}`;
+
+  if (!existing) {
+    const settings = await getSettings();
+    state.seen.add(key);
+    state.claims.set(claimId, {
+      id: claimId,
+      text,
+      score: null, // never scored; the user decided this one
+      userAdded: true,
+      status: settings.searchApiKey ? STATUS.UNCHECKED : STATUS.NO_KEY,
+    });
+    await tabStore.save(tabId);
+    updateBadge(tabId);
+    pushHighlights(tabId, [state.claims.get(claimId)]);
+  }
+
+  // A menu click is a user gesture, which is what opening the panel requires.
+  chrome.sidePanel.open?.({ tabId }).catch(() => {});
+  await pushPanel(tabId);
+  chrome.runtime.sendMessage({ type: MSG.PANEL_FOCUS, claimId }).catch(() => {});
+}
+
 async function sendToActiveTab(message) {
   const tabId = await activeTabId();
   if (tabId == null) return;
