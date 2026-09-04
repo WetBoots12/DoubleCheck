@@ -4,49 +4,74 @@
     <meta charset="utf-8" />
     <title>FactCheck settings</title>
     <style>
-      :root { color-scheme: light dark; }
+      /* Colors live in variables so light/dark can't be broken by rule order. */
+      :root {
+        color-scheme: light dark;
+        --bg: #faf9f7;
+        --fg: #1c1b19;
+        --card: #ffffff;
+        --border: #e5e2db;
+        --input-bg: #ffffff;
+        --input-border: #d8d4cb;
+        --muted: #6b675f;
+        --err: #b4462d;
+        --ok: #3d7a5a;
+        --btn-bg: #1c1b19;
+        --btn-fg: #faf9f7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16150f;
+          --fg: #ece9e2;
+          --card: #1f1e17;
+          --border: #33312a;
+          --input-bg: #14130e;
+          --input-border: #3d3a31;
+          --muted: #a8a49a;
+          --err: #e08a70;
+          --ok: #7fb79a;
+          --btn-bg: #ece9e2;
+          --btn-fg: #16150f;
+        }
+      }
       body {
         margin: 0;
         padding: 32px 20px 64px;
         font: 14px/1.6 system-ui, -apple-system, sans-serif;
-        background: #faf9f7;
-        color: #1c1b19;
-      }
-      @media (prefers-color-scheme: dark) {
-        body { background: #16150f; color: #ece9e2; }
-        section { background: #1f1e17; border-color: #33312a; }
-        input, select { background: #14130e; color: #ece9e2; border-color: #3d3a31; }
-        .hint { color: #a8a49a; }
+        background: var(--bg);
+        color: var(--fg);
       }
       .wrap { max-width: 620px; margin: 0 auto; }
-      h1 { font-size: 20px; margin: 0 0 4px; }
-      .sub { color: #6b675f; margin: 0 0 24px; font-size: 13px; }
+      h1 { font-size: 20px; margin: 0 0 4px; color: var(--fg); }
+      .sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
       section {
-        background: #fff; border: 1px solid #e5e2db; border-radius: 10px;
+        background: var(--card); border: 1px solid var(--border); border-radius: 10px;
         padding: 18px 20px; margin-bottom: 16px;
       }
-      h2 { font-size: 14px; margin: 0 0 14px; letter-spacing: 0.01em; }
-      label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 5px; }
+      h2 { font-size: 14px; margin: 0 0 14px; letter-spacing: 0.01em; color: var(--fg); }
+      label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 5px; color: var(--fg); }
       input[type="text"], input[type="password"], select {
         width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit;
-        border: 1px solid #d8d4cb; border-radius: 6px; background: #fff;
+        border: 1px solid var(--input-border); border-radius: 6px;
+        background: var(--input-bg); color: var(--fg);
       }
+      option { background: var(--input-bg); color: var(--fg); }
       .field { margin-bottom: 16px; }
       .field:last-child { margin-bottom: 0; }
-      .hint { font-size: 12px; color: #6b675f; margin-top: 5px; }
+      .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
       .row { display: flex; align-items: center; gap: 10px; }
       .row input[type="range"] { flex: 1; }
       .switch { display: flex; align-items: center; gap: 8px; font-weight: 500; }
       .switch input { width: 16px; height: 16px; }
-      .err { color: #b4462d; font-size: 12px; margin-top: 5px; display: none; }
+      .err { color: var(--err); font-size: 12px; margin-top: 5px; display: none; }
       .err.show { display: block; }
       footer { display: flex; align-items: center; gap: 14px; }
       button {
         padding: 9px 18px; font: inherit; font-weight: 500; cursor: pointer;
-        background: #1c1b19; color: #faf9f7; border: none; border-radius: 6px;
+        background: var(--btn-bg); color: var(--btn-fg); border: none; border-radius: 6px;
       }
       button:hover { opacity: 0.9; }
-      #saved { color: #3d7a5a; font-size: 13px; opacity: 0; transition: opacity 0.2s; }
+      #saved { color: var(--ok); font-size: 13px; opacity: 0; transition: opacity 0.2s; }
       #saved.show { opacity: 1; }
     </style>
   </head>
