@@ -48,8 +48,19 @@
   // Chrome, player chrome, and dialogs produce long strings that look like text but
   // are controls ("Auto480p1080p720p", font pickers, menus).
   const EXCLUDE = [
-    'nav', 'header', 'footer', 'aside', 'form',
-    '[role="menu"]', '[role="menubar"]', '[role="dialog"]',
+    'nav', 'header', 'footer', 'aside', 'form', 'dialog',
+    '[role="menu"]', '[role="menubar"]', '[role="dialog"]', '[aria-modal="true"]',
+    '[role="banner"]', '[role="complementary"]', '[role="contentinfo"]', '[role="navigation"]',
+    // Newsletter boxes, paywalls, cookie notices, recommendation rails, share bars:
+    // sentence-shaped text that is not the article. Matched below the content root
+    // only, so a site-wide class cannot exclude a whole page.
+    '[class*="newsletter"]', '[id*="newsletter"]',
+    '[class*="subscri"]', '[class*="signup"]', '[class*="sign-up"]',
+    '[class*="promo"]', '[class*="paywall"]', '[class*="cookie"]', '[class*="consent"]',
+    '[class*="advert"]', '[class*="sponsor"]',
+    '[class*="sidebar"]', '[class*="footer"]', '[class*="related"]', '[class*="recommend"]',
+    '[class*="share"]', '[class*="social"]', '[class*="breadcrumb"]', '[class*="toolbar"]',
+    '[class*="comments"]', '[id*="comments"]',
     '[class*="player"]', '[class*="Player"]',
     '[class*="video"]', '[class*="Video"]',
     '[class*="menu"]', '[class*="Menu"]',
@@ -99,6 +110,8 @@
     const batch = [];
     for (const para of visibleParagraphs(root)) {
       for (const s of segment(para)) {
+        // Calls to action and legal lines survive the container rules on some sites.
+        if (FCSegment.isBoilerplate(s)) continue;
         const k = key(s);
         if (sent.has(k)) continue;
         sent.add(k);

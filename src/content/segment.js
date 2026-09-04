@@ -69,7 +69,28 @@
     return merged.map((s) => s.trim()).filter((s) => s.length > minLength);
   }
 
-  const api = { splitSentences, endsWithAbbreviation, ABBREVIATIONS };
+  // Sentences that are page furniture rather than content: sign-up pitches, legal
+  // lines, sharing prompts, app plugs. They reach the extractor when a site puts
+  // them in plain paragraphs, and a few carry numbers ("join 2 million readers")
+  // that the classifier reads as claims. Matched anywhere in the sentence, so a real
+  // claim that merely mentions a newsletter is lost too; that trade is deliberate.
+  const BOILERPLATE = [
+    /\b(sign(?:ing)? up|signup|subscribe|subscription|newsletter|unsubscribe)\b/i,
+    /\b(enter your email|your inbox|delivered (?:straight )?to you|get the latest|stay (?:up to date|updated|informed))\b/i,
+    /\b(terms of (?:service|use)|privacy policy|cookie policy|all rights reserved)\b/i,
+    /\b(follow us|share this|click here|read more|learn more|sign in|log in|create an account|already have an account)\b/i,
+    /\b(advertisement|sponsored content|paid partnership)\b/i,
+    /\b(download (?:the|our) app|app store|google play)\b/i,
+    /\b(support (?:our|independent) journalism|become a (?:member|supporter|subscriber)|donate (?:now|today))\b/i,
+    /©|\(c\) \d{4}/,
+  ];
+
+  function isBoilerplate(sentence) {
+    const s = (sentence || '').trim();
+    return s.length > 0 && BOILERPLATE.some((re) => re.test(s));
+  }
+
+  const api = { splitSentences, endsWithAbbreviation, isBoilerplate, ABBREVIATIONS };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FCSegment = api;
