@@ -53,6 +53,7 @@
         "src/content/textmatch.js",
         "src/content/segment.js",
         "src/content/mutations.js",
+        "src/content/language.js",
         "src/content/article/index.js"
       ],
       "css": [
@@ -69,6 +70,7 @@
         "src/content/textmatch.js",
         "src/content/segment.js",
         "src/content/mutations.js",
+        "src/content/language.js",
         "src/content/video/index.js"
       ],
       "css": [

@@ -15,11 +15,16 @@
     NAV_STATE: 'navState',
     UNLOCATED: 'unlocated',
     PAGE_PRIVATE: 'pagePrivate',
+    PAGE_LANGUAGE: 'pageLanguage',
   };
 
   let autoCheck = true;
   let scanAllowed = true; // the worker's verdict on this page's URL
   let privateFieldsReported = false;
+  let languageReported = false;
+  // Set when the user presses the thumbs-up on this site: their explicit yes
+  // outranks our guess about the language.
+  let languageOverride = false;
   const sent = new Set(); // sentence keys already shipped to the worker
 
   // A password or card field marks a private page whatever its domain: login
@@ -124,6 +129,27 @@
       return;
     }
     const root = contentRoot();
+
+    // The classifier's vocabulary is English. On a French or German page it does
+    // not fail, it scores erratically, so say so and stay out of the way. The
+    // check leans towards scanning: see content/language.js.
+    if (!languageOverride) {
+      const verdict = FCLanguage.detect(
+        document.documentElement.getAttribute('lang'),
+        (root.innerText || '').slice(0, 4000),
+      );
+      if (!verdict.english) {
+        scanAllowed = false;
+        if (!languageReported) {
+          languageReported = true;
+          chrome.runtime
+            .sendMessage({ type: MSG.PAGE_LANGUAGE, language: verdict.language })
+            .catch(() => {});
+        }
+        return;
+      }
+    }
+
     const batch = [];
     for (const para of visibleParagraphs(root)) {
       for (const s of segment(para)) {
@@ -298,7 +324,13 @@
       autoCheck = msg.autoCheck;
       if (msg.scanAllowed !== undefined) {
         scanAllowed = msg.scanAllowed;
-        if (scanAllowed) privateFieldsReported = false;
+        if (scanAllowed) {
+          privateFieldsReported = false;
+          // Reaching here after a language block means the user asked for this site
+          // to be scanned. Take them at their word for as long as the page lasts.
+          if (languageReported) languageOverride = true;
+          languageReported = false;
+        }
       }
       if (autoCheck && scanAllowed) collect();
     }
@@ -320,6 +352,8 @@
     highlighted.clear();
     currentId = null;
     privateFieldsReported = false;
+    languageReported = false;
+    languageOverride = false;
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
       .catch(() => {});

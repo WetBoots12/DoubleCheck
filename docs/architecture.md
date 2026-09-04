@@ -129,6 +129,15 @@ It never changes *when* a call happens, only what a repeat click costs. Failures
 not stored, so a rate-limited provider can be retried at once. Entries include claim
 text, so the options page carries a switch and a clear button.
 
+### 3.6c Language gate
+
+`src/content/language.js`. The model's vocabulary is English, and on foreign text it
+scores erratically rather than failing, so pages that are not English are not
+scanned. Two signals: the page's own `lang` attribute, then the share of English
+function words in the text, which also catches a template left on the wrong locale.
+Every threshold leans towards scanning, because a wrong "not English" disables the
+extension silently, which is the worse error. The user's thumbs-up overrides it.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of
