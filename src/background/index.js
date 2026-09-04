@@ -416,16 +416,19 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
 }
 
 // --- context menu -----------------------------------------------------------
-// The classifier will always miss some claims. A right-click on selected text
-// puts it through the same path as a flagged sentence, bypassing the threshold
-// and marked as the user's own, so an unflagged claim still has a way in. The
-// guards keep the worker loadable where these APIs are absent, as in the tests.
+// The classifier will always miss some claims. Highlighting a sentence and
+// right-clicking it puts that sentence through the same path as a flagged one,
+// bypassing the threshold and marked as the user's own, so an unflagged claim
+// still has a way in. The guards keep the worker loadable where these APIs are
+// absent, as in the tests.
 
 const MENU_ID = 'fc-check-selection';
 
 chrome.runtime.onInstalled?.addListener(() => {
   chrome.contextMenus?.create(
-    { id: MENU_ID, title: 'Fact-check selected text', contexts: ['selection'] },
+    // contexts: ['selection'] means the item only exists once text is highlighted,
+    // which is why every instruction says to highlight the sentence first.
+    { id: MENU_ID, title: 'Fact-check the highlighted text', contexts: ['selection'] },
     () => void chrome.runtime.lastError, // already exists after a reload; harmless
   );
 });
