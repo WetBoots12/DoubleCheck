@@ -189,6 +189,18 @@ whenever it is open. The side panel offers a button that opens it, so the viewer
 does not have to find it under "…more". It is their page and their click, one step
 further along, and no request goes anywhere YouTube did not send it.
 
+### 3.6g Appearance
+
+`src/shared/appearance.js` turns settings into CSS variables, and `highlight.css`
+reads them with fallbacks so a page rendered before the settings arrive still looks
+right. Content scripts cannot import modules, so the worker computes the values and
+sends them as plain data with every state reply.
+
+Colours are a named list rather than a free picker: the choices stay legible on light
+and dark pages and stay distinguishable from one another, which a picker cannot
+promise. The styles include one that draws nothing on the page at all, for readers
+who want only the side panel.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of
@@ -239,6 +251,20 @@ end to end.
   inline error state; the rest of the queue is unaffected.
 - Restricted pages (chrome:// pages, PDFs without a content script, etc.):
   extension icon shows a disabled state, no scanning attempted.
+
+## 5b. What is never scanned
+
+One function, `scanPolicy`, decides whether anything may happen for a tab, and every
+path that could read, score, store or send a page's text consults it: the automatic
+scan, the right-click menu, and a rescan alike. A right-click is an explicit request
+and still does not override it, because sending a sentence from a bank statement to a
+search API is the exact thing the rules exist to prevent.
+
+URL rules cannot see a form, so a page reporting a password or card field is
+remembered as private for as long as the tab stays there, and anything already
+collected from it is thrown away. The content script also waits briefly for the
+policy answer before its first read, so on a blocked page the text is usually never
+read at all rather than read and then discarded.
 
 ## 6. Security & privacy
 

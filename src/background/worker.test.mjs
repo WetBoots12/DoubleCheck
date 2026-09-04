@@ -210,6 +210,68 @@ test('sentences from a never-scan domain are dropped by the worker itself', asyn
   await chrome.storage.local.set({ fc_settings: {} });
 });
 
+test('the right-click menu does not get round a never-scan rule', async () => {
+  // The rules exist to stop a sentence from a bank statement or a medical portal
+  // reaching a search API. An explicit right-click is still not an exception; the
+  // thumbs-up in the panel is the deliberate way to change your mind about a site.
+  await chrome.storage.local.set({ fc_settings: { blockedDomains: ['example.com'] } });
+  const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
+
+  menuClickListener(
+    { menuItemId: 'fc-check-selection', selectionText: 'The account balance fell by 4,200 dollars during March, the statement shows.' },
+    { id: ACTIVE_TAB },
+  );
+  await settle();
+
+  assert.equal((await send({ type: 'panelReady' }, undefined)).claims.length, before,
+    'a selection on a blocked page must not become a claim');
+  await chrome.storage.local.set({ fc_settings: {} });
+});
+
+test('a page reporting a password field is blocked, and what it already sent is thrown away', async () => {
+  // A URL rule cannot see a form, so the page has to say so, and the worker has to
+  // remember it rather than only showing a banner once.
+  await send({
+    type: 'sentences',
+    sentences: [{ id: 'pf1', text: 'The council raised the budget by 12 million dollars this year, records show.' }],
+  });
+  await settle();
+  assert.ok((await send({ type: 'panelReady' }, undefined)).claims.length >= 1);
+
+  await send({ type: 'pagePrivate', reason: 'fields' });
+  await settle();
+
+  assert.deepEqual((await send({ type: 'panelReady' }, undefined)).claims, [],
+    'claims collected before the form appeared must be dropped');
+  const state = await send({ type: 'getState' });
+  assert.equal(state.scanAllowed, false, 'the tab stays blocked, not just for one message');
+  assert.equal(state.reason, 'fields');
+
+  // And nothing new gets in while it stands.
+  await send({
+    type: 'sentences',
+    sentences: [{ id: 'pf2', text: 'Unemployment fell to 4.2 percent last quarter, according to the Labor Department.' }],
+  });
+  await settle();
+  assert.deepEqual((await send({ type: 'panelReady' }, undefined)).claims, []);
+
+  // Navigating away clears it: the next page is judged on its own merits.
+  await send({ type: 'pageChanged' });
+  await settle();
+  assert.equal((await send({ type: 'getState' })).scanAllowed, true);
+
+  // Put the tab back the way the later tests expect to find it.
+  await send({
+    type: 'sentences',
+    sentences: [
+      { id: 's1', text: 'Unemployment fell to 4.2 percent last quarter, according to the Labor Department.' },
+      { id: 's2', text: 'The company reported record revenue of 5 billion dollars in 2023.' },
+    ],
+  });
+  await settle();
+  assert.ok((await send({ type: 'panelReady' }, undefined)).claims.length >= 1);
+});
+
 test('a thumbs-up rule lets a built-in-blocked site scan, and PANEL_READY reports the rule', async () => {
   chrome.tabs.get = async (id) => ({ id, url: 'https://secure.chase.com/dashboard' });
   chrome.tabs.query = async () => [{ id: ACTIVE_TAB, url: 'https://secure.chase.com/dashboard' }];

@@ -64,6 +64,78 @@
       .field { margin-bottom: 16px; }
       .field:last-child { margin-bottom: 0; }
       .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+      /* The sample uses the same variables the real highlights do, so what is shown
+         here is what appears on a page rather than an approximation of it. */
+      .sample {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
+        background: var(--card);
+      }
+      .sample p { margin: 0; line-height: 1.7; }
+      .fc-sample {
+        --fc-tone: var(--fc-color, #c8963e);
+        border-bottom: var(--fc-line, 2px) solid var(--fc-tone);
+        background: color-mix(in srgb, var(--fc-tone) 12%, transparent);
+      }
+      .fc-sample[data-fc-status="checked"] { --fc-tone: var(--fc-color-checked, #3d7a5a); }
+      .fc-sample-current {
+        background: #f5a623;
+        color: #1c1b19;
+        border-bottom-color: #b4711a;
+        outline: 2px solid #b4711a;
+        outline-offset: 1px;
+      }
+      :root[data-fc-style="underline"] .fc-sample:not(.fc-sample-current),
+      :root[data-fc-style="dotted"] .fc-sample:not(.fc-sample-current) { background: transparent; }
+      :root[data-fc-style="dotted"] .fc-sample:not(.fc-sample-current) { border-bottom-style: dotted; }
+      :root[data-fc-style="background"] .fc-sample:not(.fc-sample-current) {
+        border-bottom: none;
+        background: color-mix(in srgb, var(--fc-tone) 22%, transparent);
+        border-radius: 2px;
+      }
+      :root[data-fc-style="none"] .fc-sample:not(.fc-sample-current) {
+        border-bottom: none;
+        background: transparent;
+      }
+      /* The guide shows what the panel looks like rather than describing it. These
+         are pictures made of HTML: no click handlers, no behaviour. */
+      .tabpanel p.lead { font-size: 15px; line-height: 1.6; }
+      p.warn {
+        border-left: 3px solid var(--btn-bg);
+        padding: 8px 12px;
+        background: var(--card);
+        border-radius: 0 4px 4px 0;
+      }
+      ul.plain { list-style: none; padding-left: 0; }
+      ul.plain li { padding-left: 16px; position: relative; }
+      ul.plain li::before { content: "\2013"; position: absolute; left: 0; color: var(--muted); }
+      .sample.demo p { font-size: 14px; }
+      .mock-panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--card);
+        padding: 12px;
+        margin: 0 0 12px;
+        max-width: 380px;
+      }
+      .mock-claim { display: flex; flex-direction: column; gap: 8px; }
+      .mock-score { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .mock-text { font-size: 13px; line-height: 1.5; }
+      .mock-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+      .mock-btn {
+        display: inline-block;
+        border: 1px solid var(--input-border);
+        border-radius: 5px;
+        padding: 3px 9px;
+        font-size: 12px;
+        color: var(--fg);
+        background: transparent;
+        white-space: nowrap;
+      }
+      .mock-btn.primary { background: var(--btn-bg); color: var(--btn-fg); border-color: var(--btn-bg); }
+      table.guide th .mock-btn { font-weight: 400; }
       button.ghost {
         background: none;
         border: 1px solid var(--input-border);
@@ -172,187 +244,246 @@
 
       <div class="tabpanel" id="tab-guide" role="tabpanel" aria-labelledby="tab-guide-btn">
         <section>
-          <h2>What this does, and what it does not</h2>
-          <p>
-            As you read a page or watch a video with captions, a small model running on
-            this machine reads each sentence and estimates how <em>check-worthy</em> it
-            is: whether it states a fact that could be looked up and would matter if it
-            were wrong. Those sentences are highlighted on the page and listed in the
-            side panel.
+          <h2>In one paragraph</h2>
+          <p class="lead">
+            While you read, this extension marks sentences that state a fact worth
+            checking. It does not decide whether they are true. When you want to know,
+            you press a button and it goes looking for what other sources say.
           </p>
           <p>
-            <strong>It never decides whether anything is true.</strong> A highlight means
-            "this is a factual claim, worth a look", not "this is false". Everything past
-            that point is you pressing a button to go and see what other sources say.
-          </p>
-          <p class="hint">
-            No page text leaves this machine unless you press one of the buttons below.
-            Scanning, scoring and highlighting all happen locally, for free.
+            The marking happens on your own computer and is free. Nothing is searched,
+            and nothing is sent anywhere, until you press something.
           </p>
         </section>
 
         <section>
-          <h2>Getting started, with no keys at all</h2>
+          <h2>What you will see</h2>
+          <p>On the page, a marked sentence looks like this:</p>
+          <div class="sample demo">
+            <p>
+              The mayor said the new bridge
+              <span class="fc-sample" data-fc-status="unchecked">cost 40 million dollars more than planned</span>
+              and that traffic has fallen since it opened.
+            </p>
+          </div>
+          <p>
+            Only the first part is marked, because only that part states a checkable
+            fact. Click a mark, or open the side panel, and you get a card for it:
+          </p>
+
+          <div class="mock-panel">
+            <div class="mock-claim">
+              <div class="mock-score">Check-worthiness 0.82</div>
+              <div class="mock-text">The new bridge cost 40 million dollars more than planned.</div>
+              <div class="mock-actions">
+                <span class="mock-btn primary">Check sources</span>
+                <span class="mock-btn">Search in browser</span>
+                <span class="mock-btn">Check with AI</span>
+              </div>
+            </div>
+          </div>
+          <p class="hint">
+            Those are pictures of the buttons, not the buttons themselves. The real ones
+            are in the side panel, which opens when you click the extension's icon.
+          </p>
+        </section>
+
+        <section>
+          <h2>What each button does</h2>
+          <table class="guide">
+            <tr>
+              <th><span class="mock-btn primary">Check sources</span></th>
+              <td>Goes and finds what other sources say about this sentence, and shows them under it. Works straight away, with no setup.</td>
+            </tr>
+            <tr>
+              <th><span class="mock-btn">Search in browser</span></th>
+              <td>Opens the sentence in your normal search engine, in a new tab. Exactly like searching for it yourself.</td>
+            </tr>
+            <tr>
+              <th><span class="mock-btn">Check with AI</span></th>
+              <td>Finds the sources, then has an AI read them and tell you what they say. Only appears once you have set up an AI in Settings.</td>
+            </tr>
+            <tr>
+              <th><span class="mock-btn">Rescan</span></th>
+              <td>Reads the page again. Press this after you change a setting, otherwise the change only affects the next page you open.</td>
+            </tr>
+            <tr>
+              <th><span class="mock-btn">&#128077; &#128078;</span></th>
+              <td>Always check this website, or never check it. Your choice sticks.</td>
+            </tr>
+            <tr>
+              <th>Right-click</th>
+              <td>Select any sentence, right-click, and choose to check it. Use this when something was not marked and you think it should have been.</td>
+            </tr>
+            <tr>
+              <th>Alt+Shift+N</th>
+              <td>Jump to the next marked sentence, the way Ctrl+F jumps between matches. Alt+Shift+P goes back.</td>
+            </tr>
+          </table>
+        </section>
+
+        <section>
+          <h2>Reading the results</h2>
+          <p>
+            After you press <strong>Check sources</strong>, each claim gets a short
+            summary of what was found. It is built from things that can be pointed at,
+            not from an opinion:
+          </p>
+          <ul class="plain">
+            <li>whether the sources are actually about the same thing;</li>
+            <li>whether they give a <strong>different number</strong> from the claim;</li>
+            <li>whether they are <strong>old enough to be about the wrong year</strong>;</li>
+            <li>what kind of websites they are;</li>
+            <li>whether a real fact-checking organisation has already ruled on it.</li>
+          </ul>
+          <p>
+            The panel writes these out in plain words underneath, so you can see why it
+            said what it said, and disagree with it.
+          </p>
+          <p class="warn">
+            A mark never means "this is false". It means "this is the kind of sentence
+            worth checking". The judgment stays yours.
+          </p>
+        </section>
+
+        <section>
+          <h2>Do I need an API key?</h2>
+          <p><strong>No.</strong> It works without one. A key just widens where it can look.</p>
+          <table class="guide">
+            <tr><th>With no key</th><td>Marks claims, searches Wikipedia, and opens your normal search engine in a tab. Free, no accounts.</td></tr>
+            <tr><th>With a search key</th><td>Full web results appear inside the panel, including recent news that Wikipedia will not have.</td></tr>
+            <tr><th>With a fact-check key</th><td>Also looks up verdicts already published by fact-checking organisations. Free from Google.</td></tr>
+            <tr><th>With an AI</th><td>Adds a plain-language summary of what the sources say, and flags where they disagree.</td></tr>
+          </table>
+          <p class="hint">
+            A "key" is a long password a website gives you so a program can use its
+            service on your behalf. You paste it into Settings once. It is stored on
+            this computer and sent only to the service it belongs to.
+          </p>
+
+          <h3>Where to get one</h3>
+          <table class="guide">
+            <tr>
+              <th>Web search</th>
+              <td>
+                <a href="https://api-dashboard.search.brave.com/" target="_blank" rel="noreferrer">Brave Search API</a>
+                is the one to try first: make an account, choose the free plan, copy the key.
+                <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noreferrer">SerpAPI</a>
+                is the alternative and returns Google results. Both have free allowances that
+                change over time, so check their pricing pages rather than trusting a number here.
+              </td>
+            </tr>
+            <tr>
+              <th>Published fact-checks</th>
+              <td>
+                <a href="https://console.cloud.google.com/apis/library/factchecktools.googleapis.com" target="_blank" rel="noreferrer">Google Fact Check Tools</a>.
+                Free. Enable the API, then create a key under Credentials. Most sentences have
+                never been fact-checked, so this finds nothing more often than not, and is
+                worth a lot when it does.
+              </td>
+            </tr>
+            <tr>
+              <th>AI</th>
+              <td>
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Anthropic</a>
+                or <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI</a>,
+                both paid per use and usually fractions of a penny per summary. Or run one on
+                your own machine for nothing, which is explained below.
+              </td>
+            </tr>
+          </table>
+          <p class="hint">
+            Nothing is ever spent without you pressing a button. There is no background
+            activity, so a key cannot quietly drain while you browse.
+          </p>
+        </section>
+
+        <section>
+          <h2>Running the AI on your own computer</h2>
+          <p>
+            "Local model" means the AI runs on your machine instead of on a company's
+            servers. It is free, it works offline, and what you are reading never leaves
+            your computer. The trade is that it uses your own processor and memory, and
+            small models are less sharp than the large paid ones.
+          </p>
+          <p>There are two ways to have one, and neither needs an account.</p>
+
+          <h3>1. The model built into your browser</h3>
+          <p>
+            Recent versions of Chrome ship a small AI model. If yours has it, "Your
+            browser's built-in AI" appears in the Settings list. Choose it and you are
+            done. There is nothing to install and nothing to pay. Chrome downloads the
+            model the first time you use it, so the first summary is slow and later ones
+            are quick. Brave does not offer this to extensions, so use the option below
+            there.
+          </p>
+
+          <h3>2. Ollama, on your machine</h3>
+          <p>
+            <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> is a
+            free program that runs AI models locally. Setting it up takes about five
+            minutes:
+          </p>
           <ol class="steps">
-            <li>Open a news article, then click the extension icon to open the side panel.
-              The badge on the icon counts the claims found on the page.</li>
-            <li>Press <strong>Check sources</strong> on a claim. Out of the box this
-              searches Wikipedia, which needs no account and no key.</li>
-            <li>Press <strong>Search in browser</strong> to open the same claim in
-              whichever search engine your browser already uses, in a new tab.</li>
-            <li>Use the arrows at the top of the panel, or Alt+Shift+N and Alt+Shift+P, to
-              step through the claims on the page the way Ctrl+F steps through matches.</li>
+            <li>Download and install Ollama from <a href="https://ollama.com" target="_blank" rel="noreferrer">ollama.com</a>.</li>
+            <li>Open a terminal and run <code>ollama pull llama3.1</code>. This fetches the model, a few gigabytes, once.</li>
+            <li>Leave Ollama running. It serves at <code>http://localhost:11434</code>, which is already filled in under Settings.</li>
+            <li>In Settings, set the AI provider to "Local model", and the model name to <code>llama3.1</code>.</li>
           </ol>
           <p>
-            That is the whole extension, working, with nothing configured. API keys widen
-            what <strong>Check sources</strong> can reach; they are not needed to use it.
+            That is the whole setup. The extension then sends the claim and the search
+            results to the program running on your own computer, and no request leaves
+            the machine. LM Studio and anything else that speaks the same format work
+            the same way; just point the endpoint at it.
           </p>
-        </section>
-
-        <section>
-          <h2>The buttons</h2>
           <table class="guide">
-            <tr><th>Check sources</th><td>Searches for the claim, reads the top results' own pages, and looks for a published fact-check. One search call per press.</td></tr>
-            <tr><th>Search in browser</th><td>Opens the claim in your default search engine in a new tab. No key, no quota.</td></tr>
-            <tr><th>Check with AI</th><td>Searches, then asks your chosen AI model what those sources actually say. Needs an AI provider set up.</td></tr>
-            <tr><th>Summarize with AI</th><td>Same summary, over results already fetched, without spending another search call.</td></tr>
-            <tr><th>Rescan</th><td>Reads the current page again with the current settings. Press this after changing the threshold or a provider, since settings otherwise only apply to pages opened afterwards.</td></tr>
-            <tr><th>Open the transcript</th><td>On YouTube with subtitles off, opens the video's own transcript so it can be read.</td></tr>
-            <tr><th>&#128077; and &#128078;</th><td>Always scan this site, or never scan it. Your choice outranks the built-in rules in both directions.</td></tr>
-            <tr><th>Right-click a sentence</th><td>"Check this claim with FactCheck" sends a sentence the model missed straight to the panel.</td></tr>
+            <tr><th>Cost</th><td>Nothing, ever. No account, no key, no bill.</td></tr>
+            <tr><th>Privacy</th><td>Nothing leaves your computer. This is the strongest option if that matters to you.</td></tr>
+            <tr><th>Speed</th><td>Seconds on a recent machine, slower on an older one. It uses your processor while it works.</td></tr>
+            <tr><th>Quality</th><td>Good enough to summarise a handful of sources. The paid models are better at spotting subtle disagreement.</td></tr>
+            <tr><th>Disk space</th><td>A few gigabytes for the model, downloaded once.</td></tr>
           </table>
         </section>
 
         <section>
-          <h2>Where the numbers in the panel come from</h2>
+          <h2>Websites that are never checked</h2>
           <p>
-            Each claim shows a <strong>check-worthiness</strong> score from the local
-            model, and after a check an <strong>evidence</strong> reading built from
-            things that can be inspected rather than from an AI's opinion of itself:
+            Some pages are nobody's business, including this extension's. Banking,
+            health, email, and account pages are never read, and neither is any page
+            showing a password or a card field. On those pages the extension does
+            nothing at all: nothing is marked, nothing is stored, and the right-click
+            option refuses too.
           </p>
-          <ul>
-            <li>how much of the claim's distinctive wording appears in each source;</li>
-            <li>whether the source hedges, editorialises or shouts;</li>
-            <li>what kind of outlet it is, which you can override in Settings;</li>
-            <li>whether a source gives a <em>different figure</em> from the claim;</li>
-            <li>whether it was published early enough to be about the right period;</li>
-            <li>if an AI ran, whether each source supports or contradicts the claim;</li>
-            <li>a published fact-check, when one exists, which outranks all of the above.</li>
-          </ul>
-          <p class="hint">
-            The panel lists these reasons in plain language under each reading, so you can
-            disagree with it.
+          <p>
+            You can add your own sites to that list in Settings, and the thumbs buttons
+            in the panel let you block or allow a site as you come across it.
           </p>
         </section>
 
         <section>
-          <h2>API keys: what each one buys you</h2>
+          <h2>Making it look how you want</h2>
           <p>
-            Every key is optional. Keys are stored in this browser's local storage on this
-            device, are sent only to the provider they belong to, and are never sent
-            anywhere by this extension otherwise. There is no server in this project.
+            Under Appearance in Settings you can change the colour of the marks, use a
+            plain underline instead of a tint, make the underline thinner or thicker,
+            enlarge the side panel text, or hide the markers that appear over YouTube
+            videos. There is a live sample there that changes as you choose.
           </p>
-
-          <h3>Web search, instead of Wikipedia</h3>
           <p>
-            Wikipedia is excellent for people, places, organisations and long-standing
-            figures, and useless for anything that happened this week. A web search key
-            puts full results in the panel, with snippets, sources and dates.
-          </p>
-          <ul>
-            <li>
-              <strong>Brave Search API</strong> —
-              <a href="https://api-dashboard.search.brave.com/" target="_blank" rel="noreferrer">api-dashboard.search.brave.com</a>.
-              Create an account, subscribe to the free plan, then copy the key from the
-              API Keys page. Independent index, and the free tier is generous enough for
-              ordinary reading.
-            </li>
-            <li>
-              <strong>SerpAPI</strong> —
-              <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noreferrer">serpapi.com/manage-api-key</a>.
-              Returns Google results. The free tier is small, so it suits occasional
-              checking rather than a day of browsing.
-            </li>
-          </ul>
-          <p class="hint">
-            Free allowances change; check the provider's current pricing page rather than
-            trusting a number written here. Nothing is ever called automatically, so a
-            quota is only spent when you press a button.
-          </p>
-
-          <h3>Published fact-checks</h3>
-          <ul>
-            <li>
-              <strong>Google Fact Check Tools</strong> —
-              <a href="https://console.cloud.google.com/apis/library/factchecktools.googleapis.com" target="_blank" rel="noreferrer">enable the API</a>
-              in a Google Cloud project, then create an API key under Credentials. It is
-              free. This searches verdicts already published by organisations such as
-              Snopes, PolitiFact and Full Fact. Most claims have never been fact-checked,
-              so expect it to find nothing more often than not, and to be worth a lot when
-              it does.
-            </li>
-          </ul>
-
-          <h3>AI summaries</h3>
-          <p>
-            An AI model reads the sources fetched for a claim and reports what they say,
-            including which ones disagree. Four ways to have one, in order of least fuss:
-          </p>
-          <ul>
-            <li>
-              <strong>Your browser's built-in model</strong> — no key, nothing installed,
-              nothing sent anywhere. Shown in the provider list only if this browser
-              actually exposes it. Chrome downloads the model on first use, so the first
-              summary is slow. Brave's Leo has no extension API, so use a local model there.
-            </li>
-            <li>
-              <strong>A local model</strong> —
-              <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> or
-              LM Studio, or anything else speaking the OpenAI chat format. Point the
-              endpoint at it, name the model, and no key or account is involved. Your
-              reading never leaves the machine.
-            </li>
-            <li>
-              <strong>Anthropic</strong> —
-              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com/settings/keys</a>.
-              Keys begin with <code>sk-ant-</code>. The default model here is the cheapest
-              current one; you can name a stronger model in the Model field.
-            </li>
-            <li>
-              <strong>OpenAI</strong> —
-              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a>.
-              Keys begin with <code>sk-</code>. Any chat model your account can use works.
-            </li>
-          </ul>
-          <p class="hint">
-            Hosted providers are paid per request, which is why the AI step is behind its
-            own button and never runs on its own. A summary sends the claim and the search
-            snippets, not the page you are reading.
+            If you would rather nothing appeared on the page at all, choose "Nothing on
+            the page, panel only". Claims are still found and still listed, and you can
+            still jump between them.
           </p>
         </section>
 
         <section>
-          <h2>Tuning the settings</h2>
+          <h2>When something seems wrong</h2>
           <table class="guide">
-            <tr><th>Flagging threshold</th><td>How sure the local model must be before a sentence is flagged. Lower catches more and flags more chatter; higher flags only strong factual claims. Start at the default and move it a little at a time, then press Rescan.</td></tr>
-            <tr><th>Check automatically</th><td>Off stops all scanning everywhere, without uninstalling anything.</td></tr>
-            <tr><th>Private sites</th><td>Banking, health, email and account pages are never scanned, and neither is any page showing a password or card field. Add your own domains, or override either way with the thumbs buttons.</td></tr>
-            <tr><th>Trusted and distrusted sources</th><td>Domains you list here weigh more or less in the evidence reading. This is your judgment, applied consistently, and it is visible in the reasons the panel lists.</td></tr>
-            <tr><th>Shorten long claims</th><td>Sends the distinctive words of a long sentence rather than the whole thing. Better recall on some engines, worse on others, which is why it is off by default and has a comparison page.</td></tr>
-            <tr><th>Academic mode</th><td>Biases web search towards scholarly sources and asks OpenAlex, a free index of research papers, for peer-reviewed work on the claim.</td></tr>
-            <tr><th>Read the sources' pages</th><td>Fetches the top results and uses the paragraphs that mention the claim instead of a 150-character snippet. Requests carry no cookies.</td></tr>
-            <tr><th>Remember answers</th><td>Keeps answers for a day so checking the same claim twice costs one call, not two. Stored on this machine, and clearable here.</td></tr>
+            <tr><th>Nothing is marked</th><td>Look at the message at the top of the panel. The site may be on a never-check list, the page may not be in English, or checking may be switched off.</td></tr>
+            <tr><th>A setting did nothing</th><td>Press Rescan. Settings apply to sentences that have not been judged yet.</td></tr>
+            <tr><th>Sign-up boxes get marked</th><td>Raise the threshold slider a little in Settings, then press Rescan.</td></tr>
+            <tr><th>A video is not being read</th><td>Turn on subtitles, or press "Open the transcript" in the panel.</td></tr>
+            <tr><th>Too many marks</th><td>Raise the threshold. Too few, lower it. Move it a little at a time.</td></tr>
           </table>
-        </section>
-
-        <section>
-          <h2>If something looks wrong</h2>
-          <ul>
-            <li><strong>Nothing is flagged.</strong> Check the panel banner: the site may be on a never-scan list, the page may not be in English, or auto-check may be off.</li>
-            <li><strong>A setting had no effect.</strong> Press Rescan. Settings apply to sentences not already judged.</li>
-            <li><strong>Sign-up boxes get flagged.</strong> Tell me, or raise the threshold. Page furniture is filtered by rules that no set of rules covers completely.</li>
-            <li><strong>A video is not being read.</strong> Turn on subtitles, or press "Open the transcript" in the panel.</li>
-          </ul>
         </section>
       </div>
 
@@ -378,6 +509,53 @@
             <span class="hint">fewer claims</span>
           </div>
           <div class="hint">How confident the classifier must be before a sentence gets flagged.</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Appearance</h2>
+        <p class="hint">
+          The sample updates as you change these. Press Save, then Rescan in the side
+          panel, to see it on a page that is already open.
+        </p>
+        <div class="sample" id="sample">
+          <p>
+            The council said the bridge repairs
+            <span class="fc-sample" data-fc-status="unchecked">cost 40 million dollars more than planned</span>,
+            and that
+            <span class="fc-sample" data-fc-status="checked">work will finish in March</span>.
+            A claim you are stepping through looks like
+            <span class="fc-sample fc-sample-current">this one</span>.
+          </p>
+        </div>
+        <div class="field">
+          <label for="highlightStyle">How claims are marked on the page</label>
+          <select id="highlightStyle"></select>
+        </div>
+        <div class="field">
+          <label for="highlightColor">Colour</label>
+          <select id="highlightColor"></select>
+          <div class="hint">
+            The second colour, used once a claim has been checked, changes with it.
+          </div>
+        </div>
+        <div class="field">
+          <label for="highlightThickness">Underline thickness</label>
+          <select id="highlightThickness"></select>
+        </div>
+        <div class="field">
+          <label for="panelTextSize">Side panel text size</label>
+          <select id="panelTextSize"></select>
+        </div>
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" id="showVideoOverlay" />
+            Show claim markers over YouTube videos
+          </label>
+          <div class="hint">
+            Turn this off for a clean player. Claims are still found and still listed
+            in the side panel.
+          </div>
         </div>
       </section>
 

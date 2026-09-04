@@ -1,3 +1,5 @@
+import { DEFAULT_APPEARANCE } from './appearance.js';
+
 // Shared message contract between content scripts, background worker, and side panel.
 // Every message is { type, ...payload }. Tab id is attached by the background worker
 // from sender.tab, never trusted from the message body.
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS = {
   trustedDomains: [],     // sources the user rates highly; see shared/evidence.js
   distrustedDomains: [],  // sources the user rates weak
   readSources: true,      // read the top results' own pages, not just their snippets
+  ...DEFAULT_APPEARANCE,  // highlight colour and style, panel text size; see shared/appearance.js
   cacheResults: true,     // remember search, fact-check and AI answers for a day; see shared/cache.js
   factCheckProvider: 'google',
   factCheckApiKey: '',

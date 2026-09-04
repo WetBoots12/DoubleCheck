@@ -1,4 +1,5 @@
 import { MSG, STATUS, getSettings } from '../shared/messages.js';
+import { panelTextSize } from '../shared/appearance.js';
 import { getLlmProvider } from '../providers/index.js';
 import { ratingTone } from '../shared/evidence.js';
 
@@ -600,10 +601,16 @@ toggle.addEventListener('change', () => {
     .catch(() => {});
 });
 
-// Changing the AI provider in settings should show or hide the AI buttons without
-// needing the panel reopened.
+// The panel's own text size, for anyone who finds the default hard going.
+function applyPanelSize(settings) {
+  document.documentElement.style.setProperty('--fc-panel-size', panelTextSize(settings));
+}
+
+// Changing the AI provider or the appearance in settings takes effect here without
+// the panel needing to be reopened.
 chrome.storage.onChanged.addListener(async () => {
   const s = await getSettings();
+  applyPanelSize(s);
   const next = s.llmProvider !== 'none';
   toggle.checked = s.autoCheck;
   if (next !== llmEnabled) {
@@ -614,6 +621,7 @@ chrome.storage.onChanged.addListener(async () => {
 
 (async () => {
   const settings = await getSettings();
+  applyPanelSize(settings);
   llmEnabled = settings.llmProvider !== 'none';
   toggle.checked = settings.autoCheck;
   const res = await chrome.runtime.sendMessage({ type: MSG.PANEL_READY }).catch(() => null);
