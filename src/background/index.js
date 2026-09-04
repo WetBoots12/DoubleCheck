@@ -1,6 +1,11 @@
 // Orchestrator: sentences in -> scored -> flagged -> searched -> (optionally) summarized
-// -> pushed to side panel + highlighted on the page. Per-tab state is in-memory; it
-// resets when the service worker restarts, which is acceptable for v1.
+// -> pushed to side panel + highlighted on the page.
+//
+// Per-tab state lives in chrome.storage.session via tabstate.js, so it survives the
+// service worker being put to sleep, which Manifest V3 does after ~30s idle. Every
+// mutation is followed by a save. The job queue below is deliberately in-memory: it
+// only holds work the user just asked for, and a fetch in flight keeps the worker
+// alive until it completes.
 
 import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
 import { scoreClaimWorthiness } from '../../classifier/inference/classifier.js';
@@ -10,20 +15,20 @@ import {
   getFactCheckProvider,
   ProviderError,
 } from '../providers/index.js';
+import { tabStore } from './tabstate.js';
 
-const tabs = new Map(); // tabId -> { claims: Map<id, Claim>, seen: Set<textKey> }
 const MAX_INFLIGHT = 3;
 let inflight = 0;
 const queue = [];
 
-function stateFor(tabId) {
-  if (!tabs.has(tabId)) tabs.set(tabId, { claims: new Map(), seen: new Set() });
-  return tabs.get(tabId);
-}
-
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
-chrome.tabs.onRemoved.addListener((tabId) => tabs.delete(tabId));
+// A worker that died mid-check left claims spinning; put them back to actionable.
+tabStore.recoverStale().catch(() => {});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabStore.clear(tabId).catch(() => {});
+});
 
 // Any URL change resets the tab: a real load reports a status, while a single-page-app
 // navigation (history.pushState) reports only a url. Requiring both missed every SPA.
@@ -31,8 +36,8 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.url) resetTab(tabId);
 });
 
-function resetTab(tabId) {
-  tabs.delete(tabId);
+async function resetTab(tabId) {
+  await tabStore.clear(tabId);
   updateBadge(tabId);
   pushPanel(tabId);
 }
@@ -42,8 +47,14 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
   pushPanel(tabId);
 });
 
-function updateBadge(tabId) {
-  const count = tabs.get(tabId)?.claims.size || 0;
+async function activeTabId() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.id ?? null;
+}
+
+async function updateBadge(tabId) {
+  const state = await tabStore.peek(tabId);
+  const count = state?.claims.size || 0;
   chrome.action.setBadgeText({ tabId, text: count ? String(count) : '' }).catch(() => {});
   chrome.action.setBadgeBackgroundColor({ tabId, color: '#b4462d' }).catch(() => {});
 }
@@ -51,9 +62,9 @@ function updateBadge(tabId) {
 // Only the active tab may drive the panel, otherwise a background tab navigating
 // blanks whatever the user is currently reading.
 async function pushPanel(tabId) {
-  const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!active || active.id !== tabId) return;
-  const claims = [...(tabs.get(tabId)?.claims.values() || [])];
+  if ((await activeTabId()) !== tabId) return;
+  const state = await tabStore.peek(tabId);
+  const claims = [...(state?.claims.values() || [])];
   chrome.runtime
     .sendMessage({ type: MSG.PANEL_UPDATE, tabId, claims })
     .catch(() => {}); // no panel open — fine
@@ -74,14 +85,17 @@ async function handleSentences(tabId, sentences) {
   const settings = await getSettings();
   if (!settings.autoCheck) return;
 
-  const state = stateFor(tabId);
+  const state = await tabStore.get(tabId);
   const fresh = sentences.filter((s) => {
     const key = s.text.trim().toLowerCase();
     if (!key || state.seen.has(key)) return false;
     state.seen.add(key);
     return true;
   });
-  if (!fresh.length) return;
+  if (!fresh.length) {
+    await tabStore.save(tabId); // seen changed even if nothing was flagged
+    return;
+  }
 
   const scores = await scoreClaimWorthiness(fresh.map((s) => s.text));
   const flagged = [];
@@ -97,6 +111,7 @@ async function handleSentences(tabId, sentences) {
     state.claims.set(claim.id, claim);
     flagged.push(claim);
   });
+  await tabStore.save(tabId);
   if (!flagged.length) return;
 
   updateBadge(tabId);
@@ -109,29 +124,32 @@ async function handleSentences(tabId, sentences) {
 // withAi false: fetch sources only. withAi true: also summarize them. If sources are
 // already fetched, summarizing costs no further search call.
 async function requestCheck(claimId, withAi) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id == null) return;
-  const claim = tabs.get(tab.id)?.claims.get(claimId);
+  const tabId = await activeTabId();
+  if (tabId == null) return;
+  const state = await tabStore.peek(tabId);
+  const claim = state?.claims.get(claimId);
   if (!claim || claim.status === STATUS.PENDING || claim.summarizing) return;
 
   const settings = await getSettings();
 
   if (withAi && claim.results?.length) {
-    summarize(tab.id, claim, settings);
+    summarize(tabId, claim, settings);
     return;
   }
 
   if (!settings.searchApiKey) {
     claim.status = STATUS.NO_KEY;
-    pushPanel(tab.id);
+    await tabStore.save(tabId);
+    pushPanel(tabId);
     return;
   }
 
   claim.status = STATUS.PENDING;
   claim.error = undefined;
-  pushPanel(tab.id);
-  pushHighlights(tab.id, [claim]);
-  enqueue(() => checkClaim(tab.id, claimId, settings, withAi));
+  await tabStore.save(tabId);
+  pushPanel(tabId);
+  pushHighlights(tabId, [claim]);
+  enqueue(() => checkClaim(tabId, claimId, settings, withAi));
 }
 
 async function summarize(tabId, claim, settings) {
@@ -140,6 +158,7 @@ async function summarize(tabId, claim, settings) {
 
   claim.summarizing = true;
   claim.error = undefined;
+  await tabStore.save(tabId);
   pushPanel(tabId);
 
   if (llm.runsInPage) {
@@ -153,8 +172,9 @@ async function summarize(tabId, claim, settings) {
         claim: claim.text,
         results: claim.results,
       })
-      .catch(() => {
+      .catch(async () => {
         claim.summarizing = false;
+        await tabStore.save(tabId);
         pushPanel(tabId);
       });
     return;
@@ -170,6 +190,7 @@ async function summarize(tabId, claim, settings) {
     claim.error = `Summary unavailable: ${err.message}`;
   }
   claim.summarizing = false;
+  await tabStore.save(tabId);
   pushPanel(tabId);
 }
 
@@ -190,9 +211,9 @@ function drain() {
 }
 
 async function checkClaim(tabId, claimId, settings, withAi = false) {
-  const state = tabs.get(tabId);
+  const state = await tabStore.peek(tabId);
   const claim = state?.claims.get(claimId);
-  if (!claim) return;
+  if (!claim) return; // tab was reset or closed while queued
 
   try {
     const search = getSearchProvider(settings.searchProvider);
@@ -213,6 +234,7 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     claim.results = results;
     claim.factChecks = factChecks;
     claim.status = STATUS.CHECKED;
+    await tabStore.save(tabId);
 
     if (withAi) await summarize(tabId, claim, settings);
   } catch (err) {
@@ -220,15 +242,15 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     claim.error = err.message;
   }
 
-  state.claims.set(claimId, claim);
+  await tabStore.save(tabId);
   pushPanel(tabId);
   pushHighlights(tabId, [claim]);
 }
 
 async function sendToActiveTab(message) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id == null) return;
-  chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+  const tabId = await activeTabId();
+  if (tabId == null) return;
+  chrome.tabs.sendMessage(tabId, message).catch(() => {});
 }
 
 // Keyboard shortcuts, so claims can be stepped through without opening the panel.
@@ -252,17 +274,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (tabId != null) resetTab(tabId);
       return false;
 
-    case MSG.UNLOCATED: {
-      const state = tabId != null && tabs.get(tabId);
-      if (state) {
-        for (const id of msg.ids || []) {
-          const claim = state.claims.get(id);
-          if (claim) claim.located = false;
-        }
-        pushPanel(tabId);
+    case MSG.UNLOCATED:
+      if (tabId != null) {
+        tabStore.peek(tabId).then(async (state) => {
+          if (!state) return;
+          for (const id of msg.ids || []) {
+            const claim = state.claims.get(id);
+            if (claim) claim.located = false;
+          }
+          await tabStore.save(tabId);
+          pushPanel(tabId);
+        });
       }
       return false;
-    }
 
     case MSG.SENTENCES:
       if (tabId != null) handleSentences(tabId, msg.sentences || []);
@@ -273,35 +297,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case MSG.PANEL_READY:
-      chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-        sendResponse({
-          tabId: tab?.id,
-          claims: [...(tabs.get(tab?.id)?.claims.values() || [])],
-        });
+      activeTabId().then(async (id) => {
+        const state = id == null ? null : await tabStore.peek(id);
+        sendResponse({ tabId: id, claims: [...(state?.claims.values() || [])] });
       });
       return true;
 
     case MSG.SET_AUTOCHECK:
       saveSettings({ autoCheck: msg.autoCheck }).then(() => {
-        chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-          if (tab?.id != null) {
-            chrome.tabs
-              .sendMessage(tab.id, { type: MSG.SCAN_CONFIG, autoCheck: msg.autoCheck })
-              .catch(() => {});
-          }
-        });
+        sendToActiveTab({ type: MSG.SCAN_CONFIG, autoCheck: msg.autoCheck });
         sendResponse({ ok: true });
       });
       return true;
 
     case MSG.LLM_RESULT:
-      chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-        const claim = tab?.id != null && tabs.get(tab.id)?.claims.get(msg.claimId);
+      activeTabId().then(async (id) => {
+        const state = id == null ? null : await tabStore.peek(id);
+        const claim = state?.claims.get(msg.claimId);
         if (!claim) return;
         claim.summarizing = false;
         if (msg.analysis) claim.analysis = msg.analysis;
         if (msg.error) claim.error = `Summary unavailable: ${msg.error}`;
-        pushPanel(tab.id);
+        await tabStore.save(id);
+        pushPanel(id);
       });
       return false;
 
@@ -315,22 +333,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     case MSG.NAV_STATE:
       // Straight through to the panel's find-bar counter.
-      chrome.runtime.sendMessage({
-        type: MSG.NAV_STATE,
-        claimId: msg.claimId,
-        index: msg.index,
-        total: msg.total,
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: MSG.NAV_STATE,
+          claimId: msg.claimId,
+          index: msg.index,
+          total: msg.total,
+        })
+        .catch(() => {});
       return false;
 
     case MSG.FOCUS_CLAIM:
-      chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-        if (tab?.id != null) {
-          chrome.tabs
-            .sendMessage(tab.id, { type: MSG.FOCUS_SENTENCE, claimId: msg.claimId })
-            .catch(() => {});
-        }
-      });
+      sendToActiveTab({ type: MSG.FOCUS_SENTENCE, claimId: msg.claimId });
       return false;
 
     default:
