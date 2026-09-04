@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import FCSegment from './segment.cjs';
+// Loaded the way a content script loads it: for the global it installs.
+import './segment.js';
+
+const FCSegment = globalThis.FCSegment;
 
 const { splitSentences, endsWithAbbreviation } = FCSegment;
 

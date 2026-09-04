@@ -48,8 +48,8 @@
         "*://youtu.be/*"
       ],
       "js": [
-        "src/content/textmatch.cjs",
-        "src/content/segment.cjs",
+        "src/content/textmatch.js",
+        "src/content/segment.js",
         "src/content/article/index.js"
       ],
       "css": [
@@ -63,8 +63,8 @@
         "*://youtu.be/*"
       ],
       "js": [
-        "src/content/textmatch.cjs",
-        "src/content/segment.cjs",
+        "src/content/textmatch.js",
+        "src/content/segment.js",
         "src/content/video/index.js"
       ],
       "css": [

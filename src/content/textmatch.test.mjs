@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import FCTextMatch from './textmatch.cjs';
+// Loaded the way a content script loads it: for the global it installs.
+import './textmatch.js';
+
+const FCTextMatch = globalThis.FCTextMatch;
 
 const { buildMatchPlan, normalize } = FCTextMatch;
 

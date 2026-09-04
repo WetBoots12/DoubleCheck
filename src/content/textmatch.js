@@ -10,8 +10,9 @@
 // remembering where every normalized character came from, finds the sentence in
 // that, and reports the per-node character ranges to wrap.
 //
-// Loaded as a plain content script (they cannot use ES imports) and shared with the
-// Node tests through module.exports.
+// Loaded as a plain content script (they cannot use ES imports). It installs a
+// global rather than exporting, which is also how the Node tests read it. The file
+// must stay .js: Chrome refuses to inject content scripts with any other extension.
 
 (function (root) {
   function normalize(text) {

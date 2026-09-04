@@ -7,8 +7,9 @@
 // abbreviation list merges those back. Anything without terminal punctuation, such
 // as auto-generated captions, comes through as one segment either way.
 //
-// Loaded as a plain content script (they cannot use ES imports) and shared with the
-// Node tests through module.exports, like textmatch.cjs.
+// Loaded as a plain content script (they cannot use ES imports). It installs a
+// global rather than exporting, which is also how the Node tests read it. The file
+// must stay .js: Chrome refuses to inject content scripts with any other extension.
 
 (function (root) {
   // Tokens that end in a period but do not end a sentence. Lower-case, no period.
