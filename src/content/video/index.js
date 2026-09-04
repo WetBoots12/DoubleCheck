@@ -16,6 +16,7 @@
     CAPTION_HINT: 'captionHint',
     PAGE_LANGUAGE: 'pageLanguage',
     OPEN_TRANSCRIPT: 'openTranscript',
+    RESCAN: 'rescan',
   };
 
   let autoCheck = true;
@@ -329,6 +330,24 @@
       seekTo(msg.claimId);
     } else if (msg.type === MSG.NAV_CLAIM) {
       navigate(msg.direction);
+    } else if (msg.type === MSG.RESCAN) {
+      // Everything this script remembers about the video, so a changed threshold
+      // is applied to captions and transcript alike rather than only to whatever
+      // is said next.
+      sent.clear();
+      markers.clear();
+      buffer = '';
+      lastCue = '';
+      currentId = null;
+      lastReport = '';
+      lastTranscriptCount = 0;
+      english = null;
+      languageReported = false;
+      dropHeld();
+      renderMarkers();
+      readCues();
+      ingestTranscript(true);
+      reportCaptionState();
     } else if (msg.type === MSG.OPEN_TRANSCRIPT) {
       openTranscript();
     } else if (msg.type === MSG.SCAN_CONFIG) {

@@ -17,6 +17,7 @@
     PAGE_PRIVATE: 'pagePrivate',
     PAGE_LANGUAGE: 'pageLanguage',
     PAGE_SOURCES: 'pageSources',
+    RESCAN: 'rescan',
   };
 
   let autoCheck = true;
@@ -376,6 +377,7 @@
       reportPosition(orderedHighlights(), document.querySelector('.fc-current'));
     } else if (msg.type === MSG.FOCUS_SENTENCE) focus(msg.claimId);
     else if (msg.type === MSG.NAV_CLAIM) navigate(msg.direction);
+    else if (msg.type === MSG.RESCAN) rescan();
     else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck;
       if (msg.scanAllowed !== undefined) {
@@ -403,6 +405,41 @@
 
   // Same document, new page: reset local state so the new page is scanned from
   // scratch, and tell the worker to drop the old page's claims.
+  // Reading the page again from scratch, for when the settings changed under it.
+  //
+  // The highlights have to come out of the DOM first. They are real spans wrapped
+  // around parts of text nodes, and leaving them there would both show claims that
+  // no longer pass the threshold and split the text so the same sentences could not
+  // be matched again. Unwrapping and normalizing puts the page back as it was.
+  function clearHighlights() {
+    for (const span of document.querySelectorAll('.fc-highlight')) {
+      const parent = span.parentNode;
+      if (!parent) continue;
+      span.replaceWith(...span.childNodes);
+      parent.normalize(); // re-join the text nodes the wrapping split
+    }
+    highlighted.clear();
+    currentId = null;
+  }
+
+  function rescan() {
+    clearHighlights();
+    sent.clear();
+    privateFieldsReported = false;
+    languageReported = false;
+    reportedPublishers = '';
+    // languageOverride is not reset: the user pressing the thumbs-up on this site
+    // is a decision about the site, not about this particular scan.
+    chrome.runtime
+      .sendMessage({ type: MSG.GET_STATE })
+      .then((res) => {
+        autoCheck = res?.autoCheck ?? autoCheck;
+        scanAllowed = res?.scanAllowed !== false;
+        collect();
+      })
+      .catch(() => collect()); // a sleeping worker must not stop the rescan
+  }
+
   function onPageChanged() {
     sent.clear();
     highlighted.clear();

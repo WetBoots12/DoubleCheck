@@ -301,6 +301,39 @@ test('the panel can ask the video script to open the transcript', async () => {
   assert.equal(forwarded.tabId, ACTIVE_TAB);
 });
 
+test('a rescan clears the tab and asks the page to read itself again', async () => {
+  // The bug this fixes: both sides remember what they have already judged, so a
+  // changed threshold did nothing to the page on screen. A rescan has to empty
+  // the worker's memory of the tab and tell the content script to empty its own.
+  const before = (await send({ type: 'panelReady' }, undefined)).claims;
+  assert.ok(before.length >= 1, 'expected claims to clear');
+
+  sent.tabs.length = 0;
+  const res = await send({ type: 'rescan' }, undefined);
+  await settle();
+
+  assert.deepEqual(res, { ok: true });
+  const after = (await send({ type: 'panelReady' }, undefined)).claims;
+  assert.deepEqual(after, [], 'the tab should have been emptied');
+  assert.ok(sent.tabs.some((m) => m.msg.type === 'rescan' && m.tabId === ACTIVE_TAB),
+    'the content script was never asked to read the page again');
+});
+
+test('after a rescan the same sentences are scored again, at the current threshold', async () => {
+  // Re-sending what the page holds is what the content script does on a rescan,
+  // and it must produce claims rather than being swallowed as already seen.
+  await send({
+    type: 'sentences',
+    sentences: [
+      { id: 'r1', text: 'Unemployment fell to 4.2 percent last quarter, according to the Labor Department.' },
+      { id: 'r2', text: 'The company reported record revenue of 5 billion dollars in 2023.' },
+    ],
+  });
+  await settle();
+  const claims = (await send({ type: 'panelReady' }, undefined)).claims;
+  assert.ok(claims.length >= 1, 'a rescanned page should flag its claims again');
+});
+
 test('re-sending the same sentences does not duplicate claims', async () => {
   const before = (await send({ type: 'panelReady' }, undefined)).claims.length;
   await send({
