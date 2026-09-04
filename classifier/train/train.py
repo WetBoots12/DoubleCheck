@@ -33,9 +33,14 @@ from sklearn.model_selection import train_test_split
 TOKEN_RE = re.compile(r"[a-z0-9']+")
 
 # Order matters: the JavaScript scorer appends these in exactly this sequence.
+# The last three were added after the model went beyond US political debates.
+# ClaimBuster is transcripts, where quantities are dollars and percentages; a page
+# about climate, health or technology states its facts in ppm, mg/dL, gigawatts and
+# decimals, and in currencies other than the dollar.
 FEATURE_NAMES = [
     "has_digit", "has_percent", "has_year", "has_big_number", "has_attribution",
     "has_quantifier", "has_causal", "has_hedge", "first_person", "is_question", "is_long",
+    "has_currency", "has_unit", "has_decimal",
 ]
 
 FEATURE_PATTERNS = {
@@ -49,6 +54,14 @@ FEATURE_PATTERNS = {
     "has_hedge": re.compile(r"\b(i think|i feel|in my opinion|maybe|probably|might|could be|seems like)\b", re.I),
     "first_person": re.compile(r"^\s*(i|we|you)\b", re.I),
     "is_question": re.compile(r"\?\s*$"),
+    "has_currency": re.compile(
+        r"[$\u00a3\u20ac\u00a5\u20b9\u20a9]|\b(dollars?|pounds?|euros?|yen|yuan|rupees?|usd|eur|gbp|jpy|cny)\b", re.I),
+    "has_unit": re.compile(
+        r"\b(ppm|ppb|mg|kg|g|mcg|km|cm|mm|ft|mi|kwh|mwh|gwh|gw|mw|kw|tw|celsius|fahrenheit|"
+        r"hectares?|acres?|tonnes?|tons?|litres?|liters?|barrels?|degrees?|bpm|calories|"
+        r"kilometres?|kilometers?|miles|watts?|joules?|volts?|amps?)\b"
+        r"|\u00b0\s*[cf]\b|\bmg/dl\b|\bkm/h\b|\bmph\b|\bm/s\b", re.I),
+    "has_decimal": re.compile(r"\d+\.\d|\b\d+/\d+\b|\b\d+(?:\.\d+)?e[+-]?\d+\b", re.I),
 }
 
 

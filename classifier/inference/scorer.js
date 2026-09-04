@@ -30,6 +30,12 @@ export const FEATURES = [
   ['first_person', (t) => /^\s*(i|we|you)\b/i.test(t)],
   ['is_question', (t) => /\?\s*$/.test(t)],
   ['is_long', (t) => (t.match(/\S+/g) || []).length >= 15],
+  // Added when the model stopped being only about US political debates. Debate
+  // transcripts state quantities in dollars and percentages; pages about climate,
+  // health or technology use ppm, mg/dL, gigawatts, decimals and other currencies.
+  ['has_currency', (t) => /[$\u00a3\u20ac\u00a5\u20b9\u20a9]|\b(dollars?|pounds?|euros?|yen|yuan|rupees?|usd|eur|gbp|jpy|cny)\b/i.test(t)],
+  ['has_unit', (t) => /\b(ppm|ppb|mg|kg|g|mcg|km|cm|mm|ft|mi|kwh|mwh|gwh|gw|mw|kw|tw|celsius|fahrenheit|hectares?|acres?|tonnes?|tons?|litres?|liters?|barrels?|degrees?|bpm|calories|kilometres?|kilometers?|miles|watts?|joules?|volts?|amps?)\b|\u00b0\s*[cf]\b|\bmg\/dl\b|\bkm\/h\b|\bmph\b|\bm\/s\b/i.test(t)],
+  ['has_decimal', (t) => /\d+\.\d|\b\d+\/\d+\b|\b\d+(?:\.\d+)?e[+-]?\d+\b/i.test(t)],
 ];
 
 export function handcrafted(text) {
