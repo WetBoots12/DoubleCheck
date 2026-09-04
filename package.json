@@ -2,6 +2,7 @@
   "name": "factcheck-sidebar",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "license": "MIT",
   "description": "Chromium extension that flags check-worthy claims and cross-references them with search results.",
   "scripts": {

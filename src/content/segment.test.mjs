@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import FCSegment from './segment.js';
+import FCSegment from './segment.cjs';
 
 const { splitSentences, endsWithAbbreviation } = FCSegment;
 

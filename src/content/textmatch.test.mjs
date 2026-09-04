@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import FCTextMatch from './textmatch.js';
+import FCTextMatch from './textmatch.cjs';
 
 const { buildMatchPlan, normalize } = FCTextMatch;
 
