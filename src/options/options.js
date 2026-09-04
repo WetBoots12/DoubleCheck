@@ -11,10 +11,14 @@ const fields = {
   llmProvider: el('llmProvider'),
   llmApiKey: el('llmApiKey'),
   llmKeyField: el('llmKeyField'),
+  localFields: el('localFields'),
+  localLlmUrl: el('localLlmUrl'),
+  localLlmModel: el('localLlmModel'),
+  builtinNote: el('builtinNote'),
 };
 
-// Providers that need no key of their own (browser's built-in AI, or no summary at all).
-const KEYLESS_LLM = new Set(['none', 'builtin']);
+// Providers needing no key: no summary, the browser's own model, or a local server.
+const KEYLESS_LLM = new Set(['none', 'builtin', 'local']);
 
 function fill(select, providers) {
   select.innerHTML = '';
@@ -27,7 +31,10 @@ function fill(select, providers) {
 }
 
 function syncLlmKeyVisibility() {
-  fields.llmKeyField.style.display = KEYLESS_LLM.has(fields.llmProvider.value) ? 'none' : '';
+  const id = fields.llmProvider.value;
+  fields.llmKeyField.style.display = KEYLESS_LLM.has(id) ? 'none' : '';
+  fields.localFields.style.display = id === 'local' ? '' : 'none';
+  fields.builtinNote.style.display = id === 'builtin' ? '' : 'none';
 }
 
 function showError(id, message) {
@@ -79,6 +86,8 @@ async function save() {
     // Keep the key even while a keyless provider is selected, so switching back
     // later doesn't mean pasting it again.
     llmApiKey: fields.llmApiKey.value.trim(),
+    localLlmUrl: fields.localLlmUrl.value.trim() || 'http://localhost:11434/v1',
+    localLlmModel: fields.localLlmModel.value.trim() || 'llama3.1',
   });
 
   // Let the active tab's content script react without needing a reload.
@@ -107,6 +116,8 @@ async function save() {
   fields.searchApiKey.value = s.searchApiKey;
   fields.llmProvider.value = llmOptions.some((p) => p.id === s.llmProvider) ? s.llmProvider : 'none';
   fields.llmApiKey.value = s.llmApiKey;
+  fields.localLlmUrl.value = s.localLlmUrl;
+  fields.localLlmModel.value = s.localLlmModel;
   syncLlmKeyVisibility();
 
   fields.threshold.addEventListener('input', () => {

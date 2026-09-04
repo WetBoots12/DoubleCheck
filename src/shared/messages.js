@@ -23,6 +23,10 @@ export const MSG = {
   SET_AUTOCHECK: 'setAutoCheck',    // { autoCheck }
   FOCUS_CLAIM: 'focusClaim',        // { claimId } -> forward to content script
   CHECK_CLAIM: 'checkClaim',        // { claimId } -> user asked to spend a search call
+
+  // The browser's built-in model needs a document context, so the panel runs it.
+  LLM_REQUEST: 'llmRequest',        // background -> panel { claimId, claim, results }
+  LLM_RESULT: 'llmResult',          // panel -> background { claimId, summary?, error? }
 };
 
 // Claim: { id, text, ts?, status, score, results?: SearchResult[], summary?, error? }
@@ -43,6 +47,8 @@ export const DEFAULT_SETTINGS = {
   searchApiKey: '',
   llmProvider: 'none',
   llmApiKey: '',
+  localLlmUrl: 'http://localhost:11434/v1',
+  localLlmModel: 'llama3.1',
 };
 
 export async function getSettings() {

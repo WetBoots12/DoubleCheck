@@ -148,12 +148,29 @@ async function checkClaim(tabId, claimId, settings) {
     claim.status = STATUS.CHECKED;
 
     const llm = getLlmProvider(settings.llmProvider);
-    if (llm.id !== 'none' && claim.results.length && (await llm.isAvailable())) {
-      try {
-        claim.summary = await llm.crossReference(claim.text, claim.results, settings.llmApiKey);
-      } catch (err) {
-        claim.summary = '';
-        claim.error = `Summary unavailable: ${err.message}`;
+    if (llm.id !== 'none' && claim.results.length) {
+      if (llm.runsInPage) {
+        // The browser's built-in model only exists in a document context, so the side
+        // panel runs it and returns the summary via LLM_RESULT. No panel open means no
+        // summary, which is fine since summaries are only ever read there.
+        chrome.runtime
+          .sendMessage({
+            type: MSG.LLM_REQUEST,
+            claimId,
+            claim: claim.text,
+            results: claim.results,
+          })
+          .catch(() => {});
+      } else if (await llm.isAvailable()) {
+        try {
+          claim.summary = await llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
+            url: settings.localLlmUrl,
+            model: settings.localLlmModel,
+          });
+        } catch (err) {
+          claim.summary = '';
+          claim.error = `Summary unavailable: ${err.message}`;
+        }
       }
     }
   } catch (err) {
@@ -209,6 +226,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: true });
       });
       return true;
+
+    case MSG.LLM_RESULT:
+      chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+        const claim = tab?.id != null && tabs.get(tab.id)?.claims.get(msg.claimId);
+        if (!claim) return;
+        if (msg.summary) claim.summary = msg.summary;
+        if (msg.error) claim.error = `Summary unavailable: ${msg.error}`;
+        pushPanel(tab.id);
+      });
+      return false;
 
     case MSG.CHECK_CLAIM:
       requestCheck(msg.claimId);

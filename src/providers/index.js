@@ -140,39 +140,67 @@ const openai = {
   },
 };
 
-// Chrome's on-device Prompt API. Surface has moved around (window.ai -> LanguageModel);
-// feature-detect both and hide the option entirely when neither is present.
+// Chrome's on-device Gemini Nano via the Prompt API (Chrome 138+). The global is
+// `LanguageModel`; availability() reports unavailable / downloadable / downloading /
+// available. It needs a document context, so `runsInPage` tells the background worker
+// to hand this off to the side panel rather than calling it itself.
 const builtin = {
   id: 'builtin',
-  label: "This browser's built-in AI (no key needed)",
+  label: "Chrome built-in AI — Gemini Nano (no key needed)",
+  runsInPage: true,
   async isAvailable() {
     try {
-      if (typeof LanguageModel !== 'undefined') {
-        const a = await LanguageModel.availability();
-        return a && a !== 'unavailable';
-      }
-      return typeof self.ai?.languageModel !== 'undefined';
+      if (typeof LanguageModel === 'undefined') return false;
+      const a = await LanguageModel.availability();
+      return Boolean(a) && a !== 'unavailable';
     } catch {
       return false;
     }
   },
   async crossReference(claim, results) {
+    if (typeof LanguageModel === 'undefined') {
+      throw new ProviderError('unknown', 'This browser has no built-in AI model');
+    }
+    let session;
     try {
-      const session =
-        typeof LanguageModel !== 'undefined'
-          ? await LanguageModel.create()
-          : await self.ai.languageModel.create();
+      // A 'downloadable' model downloads on first create(); this can take a while.
+      session = await LanguageModel.create();
       const out = await session.prompt(crossReferencePrompt(claim, results));
-      session.destroy?.();
       return (out || '').trim();
     } catch (err) {
       throw new ProviderError('unknown', err.message);
+    } finally {
+      session?.destroy?.();
     }
   },
 };
 
+// Any OpenAI-compatible endpoint running on the user's own machine (Ollama, LM Studio,
+// llama.cpp). Needs no key, and gives Brave and other browsers without an on-device
+// model the same no-key experience. Brave's own Leo assistant has no extension API.
+const local = {
+  id: 'local',
+  label: 'Local model — Ollama / LM Studio (no key needed)',
+  async isAvailable() {
+    return true;
+  },
+  async crossReference(claim, results, _apiKey, opts = {}) {
+    const base = (opts.url || 'http://localhost:11434/v1').replace(/\/+$/, '');
+    const data = await fetchJson(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: opts.model || 'llama3.1',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: crossReferencePrompt(claim, results) }],
+      }),
+    });
+    return data.choices?.[0]?.message?.content?.trim() || '';
+  },
+};
+
 export const SEARCH_PROVIDERS = { serpapi, brave };
-export const LLM_PROVIDERS = { none: noLlm, builtin, anthropic, openai };
+export const LLM_PROVIDERS = { none: noLlm, builtin, local, anthropic, openai };
 
 export function getSearchProvider(id) {
   return SEARCH_PROVIDERS[id] || serpapi;
