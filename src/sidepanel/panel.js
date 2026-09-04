@@ -575,6 +575,12 @@ chrome.runtime.onMessage.addListener((msg) => {
 // Settings apply to sentences the extension has not judged yet, so changing the
 // threshold does nothing to the page already on screen. This throws away what both
 // sides remember about this tab and reads the page again.
+// The guide answers what the panel cannot: what the scores mean, where keys come
+// from, and what each button spends.
+document.getElementById('guideLink')?.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/options/options.html#guide') });
+});
+
 const rescanBtn = document.getElementById('rescan');
 rescanBtn?.addEventListener('click', async () => {
   rescanBtn.disabled = true;
