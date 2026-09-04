@@ -1,6 +1,6 @@
 // Pluggable provider layer. Nothing outside this folder talks to a vendor directly.
 //
-//   SearchProvider: { id, label, search(query, apiKey) -> SearchResult[] }
+//   SearchProvider: { id, label, search(query, apiKey, { excludeDomain }) -> SearchResult[] }
 //   LLMProvider:    { id, label, isAvailable(), crossReference(claim, results, apiKey, opts) -> Analysis }
 //   Analysis:       { verdict, confidence, summary, agreement, dispute, perspectives[] }
 //   SearchResult:   { title, url, source, snippet? }
@@ -33,39 +33,78 @@ async function fetchJson(url, init) {
   return res.json();
 }
 
+// --- Source exclusion -------------------------------------------------------
+// Searching for a sentence verbatim tends to return the very article it came from
+// as the top hit, so the panel would cite the page the user is reading as its own
+// corroboration. The page's domain is excluded in the query where the engine
+// supports it, and always filtered out of the results, which is the part that is
+// guaranteed to work.
+
+export function originDomain(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+export function isSameSite(url, domain) {
+  if (!domain) return false;
+  const host = originDomain(url);
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+export function excludeOrigin(results, domain) {
+  return domain ? results.filter((r) => !isSameSite(r.url, domain)) : results;
+}
+
+function withExclusion(query, domain) {
+  return domain ? `${query} -site:${domain}` : query;
+}
+
+// Fetch more than are shown, so excluding the origin still leaves a full set.
+const FETCH_COUNT = 10;
+const SHOW_COUNT = 5;
+
 // --- Search providers -------------------------------------------------------
 
 const serpapi = {
   id: 'serpapi',
   label: 'SerpAPI (Google results)',
-  async search(query, apiKey) {
+  async search(query, apiKey, opts = {}) {
     if (!apiKey) throw new ProviderError('noKey', 'No search API key configured');
-    const url = `https://serpapi.com/search.json?engine=google&num=5&q=${encodeURIComponent(query)}&api_key=${encodeURIComponent(apiKey)}`;
+    const q = withExclusion(query, opts.excludeDomain);
+    const url = `https://serpapi.com/search.json?engine=google&num=${FETCH_COUNT}&q=${encodeURIComponent(q)}&api_key=${encodeURIComponent(apiKey)}`;
     const data = await fetchJson(url);
-    return (data.organic_results || []).slice(0, 5).map((r) => ({
+    const mapped = (data.organic_results || []).map((r) => ({
       title: r.title,
       url: r.link,
       source: r.source || domainOf(r.link || ''),
       snippet: r.snippet,
     }));
+    return excludeOrigin(mapped, opts.excludeDomain).slice(0, SHOW_COUNT);
   },
 };
 
 const brave = {
   id: 'brave',
   label: 'Brave Search API',
-  async search(query, apiKey) {
+  // Brave documents site: and minus-term exclusion; -site: is not documented, so it
+  // is sent as a best effort and the client-side filter does the real work.
+  async search(query, apiKey, opts = {}) {
     if (!apiKey) throw new ProviderError('noKey', 'No search API key configured');
-    const url = `https://api.search.brave.com/res/v1/web/search?count=5&q=${encodeURIComponent(query)}`;
+    const q = withExclusion(query, opts.excludeDomain);
+    const url = `https://api.search.brave.com/res/v1/web/search?count=${FETCH_COUNT}&q=${encodeURIComponent(q)}`;
     const data = await fetchJson(url, {
       headers: { Accept: 'application/json', 'X-Subscription-Token': apiKey },
     });
-    return (data.web?.results || []).slice(0, 5).map((r) => ({
+    const mapped = (data.web?.results || []).map((r) => ({
       title: r.title,
       url: r.url,
       source: domainOf(r.url || ''),
       snippet: r.description,
     }));
+    return excludeOrigin(mapped, opts.excludeDomain).slice(0, SHOW_COUNT);
   },
 };
 
