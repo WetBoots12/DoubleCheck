@@ -6,6 +6,6 @@
   "license": "MIT",
   "description": "Chromium extension that flags check-worthy claims and cross-references them with search results.",
   "scripts": {
-    "test": "node --test classifier/inference/scorer.test.mjs classifier/inference/perf.test.mjs src/providers/parse.test.mjs tools/nav-logic.test.mjs src/content/textmatch.test.mjs src/providers/factcheck.test.mjs src/content/segment.test.mjs src/content/mutations.test.mjs src/content/language.test.mjs src/background/tabstate.test.mjs src/background/queue.test.mjs src/providers/exclusion.test.mjs src/providers/searchquery.test.mjs src/providers/prompt.test.mjs src/background/worker.test.mjs src/shared/privacy.test.mjs src/providers/academic.test.mjs src/shared/evidence.test.mjs src/providers/wikipedia.test.mjs src/shared/cache.test.mjs src/shared/extract.test.mjs"
+    "test": "node --test classifier/inference/scorer.test.mjs classifier/inference/perf.test.mjs src/providers/parse.test.mjs tools/nav-logic.test.mjs src/content/textmatch.test.mjs src/providers/factcheck.test.mjs src/content/segment.test.mjs src/content/mutations.test.mjs src/content/language.test.mjs src/background/tabstate.test.mjs src/background/queue.test.mjs src/providers/exclusion.test.mjs src/providers/searchquery.test.mjs src/providers/prompt.test.mjs src/background/worker.test.mjs src/shared/privacy.test.mjs src/providers/academic.test.mjs src/shared/evidence.test.mjs src/providers/wikipedia.test.mjs src/shared/cache.test.mjs src/shared/extract.test.mjs src/shared/dates.test.mjs"
   }
 }

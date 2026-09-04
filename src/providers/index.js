@@ -3,7 +3,7 @@
 //   SearchProvider: { id, label, requiresKey, search(query, apiKey, { excludeDomain, academic }) -> SearchResult[] }
 //   LLMProvider:    { id, label, isAvailable(), crossReference(claim, results, apiKey, opts) -> Analysis }
 //   Analysis:       { verdict, summary, agreement, dispute, perspectives[], stances{index: stance} }
-//   SearchResult:   { title, url, source, snippet? }
+//   SearchResult:   { title, url, source, snippet?, date?, excerpt? }
 
 export class ProviderError extends Error {
   constructor(kind, message) {
@@ -141,6 +141,7 @@ const serpapi = {
       url: r.link,
       source: r.source || domainOf(r.link || ''),
       snippet: r.snippet,
+      date: r.date || '', // present on news results, absent on many others
     }));
     return shapeResults(mapped, opts);
   },
@@ -164,6 +165,7 @@ const brave = {
       url: r.url,
       source: domainOf(r.url || ''),
       snippet: r.description,
+      date: r.page_age || r.age || '',
     }));
     return shapeResults(mapped, opts);
   },

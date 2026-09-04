@@ -175,3 +175,41 @@ test('position is always within the thermometer bounds when present', () => {
     assert.ok(e.position >= 0 && e.position <= 100, String(e.position));
   }
 });
+
+// --- how old a source is, against what period the claim is about --------------------
+
+const NOW = new Date('2026-09-04T00:00:00Z');
+
+test('a source published before the year in the claim counts for less and says why', () => {
+  const sources = [
+    { url: 'https://a.com/1', title: 'Jobs', snippet: 'Unemployment fell to 4.2 percent, the Labor Department said.', date: '2015-01-01' },
+  ];
+  const dated = scoreEvidence('Unemployment fell to 4.2 percent in 2023, the Labor Department said.', sources, { now: NOW });
+  const undated = scoreEvidence('Unemployment fell to 4.2 percent in 2023, the Labor Department said.',
+    [{ ...sources[0], date: '' }], { now: NOW });
+
+  assert.equal(dated.rows[0].time.status, 'predates');
+  assert.ok(dated.rows[0].weight < undated.rows[0].weight, 'the older source should weigh less');
+  assert.ok(dated.lines.some((l) => l.includes("out of step with the claim's date")), dated.lines.join(' | '));
+});
+
+test('a claim about the present is weakly served by a page from years ago', () => {
+  const sources = [{ url: 'https://a.com/1', title: 'Crime', snippet: 'Crime is at an all-time low across the country.', date: '2017-03-02' }];
+  const out = scoreEvidence('Crime is at an all-time low.', sources, { now: NOW });
+  assert.equal(out.rows[0].time.status, 'stale');
+  assert.ok(out.rows[0].time.note.includes('2017'), out.rows[0].time.note);
+});
+
+test('a recent source, an undated one and a later one are all left alone', () => {
+  const base = { url: 'https://a.com/1', title: 'Jobs', snippet: 'Unemployment fell to 4.2 percent, the Labor Department said.' };
+  for (const date of ['2026-06-01', '', '2024-01-01']) {
+    const out = scoreEvidence('Unemployment fell to 4.2 percent in 2023.', [{ ...base, date }], { now: NOW });
+    assert.ok(!['predates', 'stale'].includes(out.rows[0].time.status), `${date || 'undated'} should not be penalised`);
+    assert.equal(out.rows[0].time.note, '');
+  }
+});
+
+test('the timing note never appears when there is nothing wrong with the timing', () => {
+  const out = scoreEvidence(CLAIM, [{ url: 'https://a.com/1', title: 'Jobs', snippet: 'Unemployment fell to 4.2 percent.', date: '2026-08-01' }], { now: NOW });
+  assert.ok(!out.lines.some((l) => l.includes('out of step')), out.lines.join(' | '));
+});
