@@ -201,6 +201,23 @@ and dark pages and stay distinguishable from one another, which a picker cannot
 promise. The styles include one that draws nothing on the page at all, for readers
 who want only the side panel.
 
+### 3.6h Which regions of a page count
+
+`src/content/regions.js`. Navigation, newsletter boxes, promos, share bars, players
+and recommendation rails are recognised partly by class-name substrings, which works
+for a widget and fails badly for a container. Fox News wraps stories in
+`<article class="article-wrap has-video">`, so the player rule matched the article
+itself: 284 blocks examined, 284 excluded, nothing flagged on any story with a video
+in it.
+
+The rule that fixes it needs no per-site knowledge. A region holding at least half
+the article's text is the article, whatever it calls itself; furniture is small. Any
+size that cannot be measured keeps the old behaviour and excludes, so a named region
+is only rescued on positive evidence.
+
+Measured live before and after: Fox went from 0 blocks to 54 of article prose, while
+the BBC, the Associated Press, NPR and Wikipedia were unchanged.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of

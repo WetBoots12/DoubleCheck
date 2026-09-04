@@ -54,6 +54,7 @@
         "src/content/segment.js",
         "src/content/mutations.js",
         "src/content/language.js",
+        "src/content/regions.js",
         "src/content/article/index.js"
       ],
       "css": [
