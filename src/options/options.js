@@ -8,6 +8,7 @@ const fields = {
   thresholdVal: el('thresholdVal'),
   searchProvider: el('searchProvider'),
   searchApiKey: el('searchApiKey'),
+  distillQueries: el('distillQueries'),
   llmProvider: el('llmProvider'),
   factCheckProvider: el('factCheckProvider'),
   factCheckApiKey: el('factCheckApiKey'),
@@ -88,6 +89,7 @@ async function save() {
     factCheckProvider: fields.factCheckProvider.value,
     factCheckApiKey: fields.factCheckApiKey.value.trim(),
     searchApiKey: fields.searchApiKey.value.trim(),
+    distillQueries: fields.distillQueries.checked,
     llmProvider: fields.llmProvider.value,
     // Keep the key even while a keyless provider is selected, so switching back
     // later doesn't mean pasting it again.
@@ -121,6 +123,10 @@ async function save() {
   fields.thresholdVal.textContent = Number(s.threshold).toFixed(2);
   fields.searchProvider.value = s.searchProvider;
   fields.searchApiKey.value = s.searchApiKey;
+  fields.distillQueries.checked = Boolean(s.distillQueries);
+  // The comparison page is an extension page, so it can read the saved key itself.
+  el('compareLink').href = chrome.runtime.getURL('tools/query-compare.html');
+  el('compareLink').target = '_blank';
   fields.factCheckProvider.value = s.factCheckProvider;
   fields.factCheckApiKey.value = s.factCheckApiKey;
   fields.llmProvider.value = llmOptions.some((p) => p.id === s.llmProvider) ? s.llmProvider : 'none';

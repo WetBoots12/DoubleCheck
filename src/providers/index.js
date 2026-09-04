@@ -135,6 +135,54 @@ export function keywordQuery(sentence, limit = 8) {
   return ranked.slice(0, limit).join(' ');
 }
 
+// --- Search query formation -------------------------------------------------
+// A long news sentence with a lead-in attribution ("Treasury Secretary Janet Yellen
+// told reporters on Tuesday that ...") often returns nothing useful from a web
+// search. This strips the attribution and, for long sentences, keeps only the
+// distinctive words in their original order, since engines reward proximity.
+// Off by default until measured; see tools/query-compare.html.
+
+const ATTRIBUTION_VERBS =
+  'said|says|told|announced|reported|stated|claimed|confirmed|noted|added|wrote|argued|warned|insisted|suggested|estimated';
+
+const ATTRIBUTION_PATTERNS = [
+  // "According to the report, ..."
+  /^according to [^,]{1,80},\s+/i,
+  // "Treasury Secretary Janet Yellen told reporters on Tuesday that ..."
+  // Backslashes are doubled: inside a template literal a single \s is just "s".
+  new RegExp(`^(?:[A-Z][\\w.'-]*\\s+){1,8}(?:${ATTRIBUTION_VERBS})(?:\\s+reporters|\\s+the\\s+\\w+)?(?:\\s+on\\s+\\w+day)?(?:\\s+that)?[,:]?\\s+`),
+  // "Officials said that ..." / "The U.S. government said that ..."
+  new RegExp(`^(?:[\\w.]+\\s+){1,4}(?:${ATTRIBUTION_VERBS})\\s+that\\s+`, 'i'),
+];
+
+// Only strips when what remains is still a substantial clause, so a short quote
+// such as "He said no." is never gutted.
+export function stripAttribution(sentence) {
+  const s = (sentence || '').trim();
+  for (const re of ATTRIBUTION_PATTERNS) {
+    const stripped = s.replace(re, '');
+    if (stripped !== s && stripped.split(/\s+/).length >= 5) return stripped;
+  }
+  return s;
+}
+
+const MAX_VERBATIM_WORDS = 15;
+const DISTILLED_BUDGET = 12;
+
+export function searchQuery(sentence) {
+  const base = stripAttribution(sentence).replace(/\s+/g, ' ').trim();
+  if (!base) return '';
+  if (base.split(' ').length <= MAX_VERBATIM_WORDS) return base;
+
+  // Quoted phrases are kept whole and first: they are the most searchable part.
+  const quoted = base.match(/"[^"]{3,80}"/g) || [];
+  const rest = quoted.reduce((t, q) => t.replace(q, ' '), base);
+  const kept = (rest.toLowerCase().match(/[a-z0-9]+(?:[.'-][a-z0-9]+)*/g) || [])
+    .filter((w) => (/\d/.test(w) || w.length > 2) && !STOPWORDS.has(w));
+  const budget = Math.max(4, DISTILLED_BUDGET - quoted.length * 2);
+  return [...quoted, ...kept.slice(0, budget)].join(' ').trim();
+}
+
 export function mapClaimReviews(data, limit = 5) {
   const out = [];
   for (const claim of data?.claims || []) {

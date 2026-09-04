@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>FactCheck query comparison</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #faf9f7; --fg: #1c1b19; --card: #fff; --border: #e5e2db; --muted: #6b675f;
+        --link: #2f6ea8; --accent-soft: rgba(200, 150, 62, 0.16); --ok: #3d7a5a; --err: #b4462d;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16150f; --fg: #ece9e2; --card: #1f1e17; --border: #33312a; --muted: #a8a49a;
+          --link: #7fb0dd; --accent-soft: rgba(200, 150, 62, 0.22); --ok: #7fb79a; --err: #e08a70;
+        }
+      }
+      body { margin: 0; padding: 28px 20px 64px; font: 14px/1.55 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+      .wrap { max-width: 960px; margin: 0 auto; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+      textarea { width: 100%; box-sizing: border-box; min-height: 150px; font: 13px/1.5 ui-monospace, monospace; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--fg); }
+      .bar { display: flex; gap: 12px; align-items: center; margin: 12px 0 20px; flex-wrap: wrap; }
+      button { font: inherit; font-weight: 500; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--accent-soft); color: var(--fg); cursor: pointer; }
+      button.secondary { background: transparent; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .spent { font-variant-numeric: tabular-nums; color: var(--muted); }
+      .claim { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+      .claim-text { font-weight: 500; margin-bottom: 10px; }
+      .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
+      .col h3 { font-size: 12px; margin: 0 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .query { font: 12px/1.4 ui-monospace, monospace; background: var(--accent-soft); padding: 6px 8px; border-radius: 4px; margin-bottom: 8px; word-break: break-word; }
+      .result { margin-top: 6px; font-size: 12px; }
+      .result a { color: var(--link); text-decoration: none; font-weight: 500; }
+      .result .src { color: var(--muted); }
+      .note { font-size: 12px; color: var(--muted); font-style: italic; }
+      .err { color: var(--err); font-size: 12px; }
+      .same { grid-column: 1 / -1; }
+      .cached { color: var(--ok); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Query comparison</h1>
+      <p class="sub">
+        Runs the verbatim sentence and its distilled form against your configured search
+        provider, side by side. Uses the key already saved in the extension; nothing is
+        entered here. A claim whose distilled query equals the verbatim one is skipped,
+        since that would spend two calls for one answer, and every result is cached in this
+        browser so re-running costs nothing.
+      </p>
+
+      <textarea id="claims" spellcheck="false"></textarea>
+      <div class="bar">
+        <button id="run">Run comparison</button>
+        <button id="clear" class="secondary">Clear cache</button>
+        <span class="spent" id="spent">0 calls spent this session</span>
+        <span class="note" id="status"></span>
+      </div>
+      <div id="out"></div>
+    </div>
+
+    <script type="module">
+      import { getSettings } from '../src/shared/messages.js';
+      import { getSearchProvider, searchQuery } from '../src/providers/index.js';
+
+      const CACHE_KEY = 'fc_query_compare_cache';
+      const DEFAULT_CLAIMS = [
+        'Treasury Secretary Janet Yellen told reporters on Tuesday that inflation fell to 3 percent last month, the lowest reading since the pandemic began.',
+        'The agency reported on Thursday that the national unemployment rate fell to 4.2 percent in the last quarter of the year, the lowest level recorded since the survey began in 1990.',
+        'According to the report, spending on the program increased by more than 15 billion dollars over the decade while enrolment fell by a fifth.',
+        'Officials confirmed that the strike on the wedding earlier this week likely resulted from a direct hit by a munition, contradicting earlier statements.',
+        'The company said that revenue reached a record 5 billion dollars in 2023 even as it cut roughly 12 percent of its workforce during the year.',
+      ];
+
+      const $ = (id) => document.getElementById(id);
+      let cache = {};
+      try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch { cache = {}; }
+      let spent = 0;
+
+      $('claims').value = DEFAULT_CLAIMS.join('\n');
+
+      function saveCache() {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch {}
+      }
+
+      async function search(provider, q, key) {
+        if (cache[q]) return { results: cache[q], cached: true };
+        const results = await provider.search(q, key, {});
+        cache[q] = results;
+        saveCache();
+        spent++;
+        $('spent').textContent = `${spent} call${spent === 1 ? '' : 's'} spent this session`;
+        return { results, cached: false };
+      }
+
+      function renderResults(col, { results, cached }) {
+        if (cached) {
+          const c = document.createElement('div');
+          c.className = 'note cached';
+          c.textContent = 'from cache, no call spent';
+          col.appendChild(c);
+        }
+        if (!results.length) {
+          const n = document.createElement('div');
+          n.className = 'note';
+          n.textContent = 'no results';
+          col.appendChild(n);
+          return;
+        }
+        for (const r of results) {
+          const row = document.createElement('div');
+          row.className = 'result';
+          const a = document.createElement('a');
+          a.href = r.url; a.target = '_blank'; a.rel = 'noreferrer';
+          a.textContent = r.title || r.url;
+          row.appendChild(a);
+          const src = document.createElement('div');
+          src.className = 'src';
+          src.textContent = r.source || '';
+          row.appendChild(src);
+          col.appendChild(row);
+        }
+      }
+
+      function column(title, query) {
+        const col = document.createElement('div');
+        col.className = 'col';
+        const h = document.createElement('h3');
+        h.textContent = title;
+        col.appendChild(h);
+        const q = document.createElement('div');
+        q.className = 'query';
+        q.textContent = query;
+        col.appendChild(q);
+        return col;
+      }
+
+      async function run() {
+        const settings = await getSettings();
+        if (!settings.searchApiKey) {
+          $('status').textContent = 'No search API key is saved in the extension settings.';
+          return;
+        }
+        const provider = getSearchProvider(settings.searchProvider);
+        const claims = $('claims').value.split('\n').map((s) => s.trim()).filter(Boolean);
+
+        $('run').disabled = true;
+        $('out').innerHTML = '';
+        $('status').textContent = `Using ${provider.label}…`;
+
+        for (const claim of claims) {
+          const verbatim = claim;
+          const distilled = searchQuery(claim);
+
+          const card = document.createElement('div');
+          card.className = 'claim';
+          const t = document.createElement('div');
+          t.className = 'claim-text';
+          t.textContent = claim;
+          card.appendChild(t);
+          const cols = document.createElement('div');
+          cols.className = 'cols';
+          card.appendChild(cols);
+          $('out').appendChild(card);
+
+          if (distilled === verbatim) {
+            const same = document.createElement('div');
+            same.className = 'note same';
+            same.textContent = 'Distilled query is identical to the verbatim one; skipped, no calls spent.';
+            cols.appendChild(same);
+            continue;
+          }
+
+          const left = column('Verbatim', verbatim);
+          const right = column('Distilled', distilled);
+          cols.append(left, right);
+
+          try {
+            const [a, b] = await Promise.all([
+              search(provider, verbatim, settings.searchApiKey),
+              search(provider, distilled, settings.searchApiKey),
+            ]);
+            renderResults(left, a);
+            renderResults(right, b);
+          } catch (err) {
+            const e = document.createElement('div');
+            e.className = 'err same';
+            e.textContent = `Search failed: ${err.message}`;
+            cols.appendChild(e);
+          }
+        }
+
+        $('status').textContent = 'Done. Judge which column surfaces independent, on-topic sources.';
+        $('run').disabled = false;
+      }
+
+      $('run').addEventListener('click', run);
+      $('clear').addEventListener('click', () => {
+        cache = {};
+        saveCache();
+        $('status').textContent = 'Cache cleared.';
+      });
+    </script>
+  </body>
+</html>

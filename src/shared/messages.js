@@ -48,6 +48,7 @@ export const DEFAULT_SETTINGS = {
   threshold: 0.7,
   searchProvider: 'serpapi',
   searchApiKey: '',
+  distillQueries: false, // shorten long claims before web search; see tools/query-compare.html
   factCheckProvider: 'google',
   factCheckApiKey: '',
   llmProvider: 'none',
