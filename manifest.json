@@ -9,7 +9,8 @@
     "activeTab",
     "scripting",
     "tabs",
-    "contextMenus"
+    "contextMenus",
+    "search"
   ],
   "host_permissions": [
     "<all_urls>"

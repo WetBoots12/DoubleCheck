@@ -1,6 +1,6 @@
 // Pluggable provider layer. Nothing outside this folder talks to a vendor directly.
 //
-//   SearchProvider: { id, label, search(query, apiKey, { excludeDomain }) -> SearchResult[] }
+//   SearchProvider: { id, label, requiresKey, search(query, apiKey, { excludeDomain, academic }) -> SearchResult[] }
 //   LLMProvider:    { id, label, isAvailable(), crossReference(claim, results, apiKey, opts) -> Analysis }
 //   Analysis:       { verdict, summary, agreement, dispute, perspectives[], stances{index: stance} }
 //   SearchResult:   { title, url, source, snippet? }
@@ -118,6 +118,7 @@ function shapeResults(mapped, opts) {
 const serpapi = {
   id: 'serpapi',
   label: 'SerpAPI (Google results)',
+  requiresKey: true,
   async search(query, apiKey, opts = {}) {
     if (!apiKey) throw new ProviderError('noKey', 'No search API key configured');
     const q = withExclusion(opts.academic ? academicQuery(query) : query, opts.excludeDomain);
@@ -136,6 +137,7 @@ const serpapi = {
 const brave = {
   id: 'brave',
   label: 'Brave Search API',
+  requiresKey: true,
   // Brave documents site: and minus-term exclusion; -site: is not documented, so it
   // is sent as a best effort and the client-side filter does the real work.
   async search(query, apiKey, opts = {}) {
@@ -152,6 +154,41 @@ const brave = {
       snippet: r.description,
     }));
     return shapeResults(mapped, opts);
+  },
+};
+
+// --- Keyless source: Wikipedia ------------------------------------------------
+// Works the moment the extension is installed. It will not cover breaking news,
+// but a large share of claims name a person, place, organisation or figure that
+// has an article, and that is real cross-referencing. No browser hands its search
+// results to extensions as data, so this is what "out of the box" can honestly
+// mean. Field paths were confirmed against a live response, not recalled.
+
+export function stripTags(html) {
+  return String(html || '').replace(/<[^>]*>/g, '');
+}
+
+export function mapWikipedia(data, limit = 5) {
+  const pages = Array.isArray(data?.pages) ? data.pages : [];
+  return pages.slice(0, limit).map((p) => ({
+    title: p.title || p.key || 'Untitled',
+    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.key || '')}`,
+    source: 'en.wikipedia.org',
+    snippet: [p.description, stripTags(p.excerpt)].filter(Boolean).join(' \u2014 '),
+  }));
+}
+
+const wikipedia = {
+  id: 'wikipedia',
+  label: 'Wikipedia (free, no key)',
+  requiresKey: false,
+  async search(query, _apiKey, opts = {}) {
+    // Encyclopedia search matches titles and lead text; the distinctive words of a
+    // sentence find the article where the whole sentence would not.
+    const q = keywordQuery(query) || query;
+    if (!q.trim()) return [];
+    const url = `https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(q)}&limit=${FETCH_COUNT}`;
+    return shapeResults(mapWikipedia(await fetchJson(url), FETCH_COUNT), opts);
   },
 };
 
@@ -561,11 +598,11 @@ const local = {
   },
 };
 
-export const SEARCH_PROVIDERS = { serpapi, brave };
+export const SEARCH_PROVIDERS = { wikipedia, serpapi, brave };
 export const LLM_PROVIDERS = { none: noLlm, builtin, local, anthropic, openai };
 
 export function getSearchProvider(id) {
-  return SEARCH_PROVIDERS[id] || serpapi;
+  return SEARCH_PROVIDERS[id] || wikipedia;
 }
 
 export function getLlmProvider(id) {

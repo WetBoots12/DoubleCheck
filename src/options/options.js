@@ -9,6 +9,7 @@ const fields = {
   thresholdVal: el('thresholdVal'),
   searchProvider: el('searchProvider'),
   searchApiKey: el('searchApiKey'),
+  searchKeyField: el('searchKeyField'),
   distillQueries: el('distillQueries'),
   academicMode: el('academicMode'),
   privateSitesRule: el('privateSitesRule'),
@@ -56,6 +57,8 @@ function syncLlmKeyVisibility() {
   fields.localFields.style.display = id === 'local' ? '' : 'none';
   fields.builtinNote.style.display = id === 'builtin' ? '' : 'none';
   fields.factCheckKeyField.style.display = fields.factCheckProvider.value === 'none' ? 'none' : '';
+  fields.searchKeyField.style.display =
+    SEARCH_PROVIDERS[fields.searchProvider.value]?.requiresKey === false ? 'none' : '';
   const hosted = MODEL_DEFAULTS[id];
   fields.llmModelField.style.display = hosted ? '' : 'none';
   if (hosted) {
@@ -176,5 +179,6 @@ async function save() {
   });
   fields.llmProvider.addEventListener('change', syncLlmKeyVisibility);
   fields.factCheckProvider.addEventListener('change', syncLlmKeyVisibility);
+  fields.searchProvider.addEventListener('change', syncLlmKeyVisibility);
   el('save').addEventListener('click', save);
 })();

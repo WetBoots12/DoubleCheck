@@ -73,9 +73,10 @@ No build step. Load it unpacked:
 2. Turn on **Developer mode**.
 3. Click **Load unpacked** and choose this folder.
 
-Then open the extension's options page and add a search API key. SerpAPI and
-Brave Search are supported. Without a key, claims are still flagged and
-highlighted, but no sources are fetched.
+It works out of the box. Check sources uses Wikipedia, which needs no key, and
+every claim has a Search in browser button that opens your default search engine,
+whichever you use. For full web results inside the panel, add a SerpAPI or Brave
+Search key on the options page.
 
 Two optional extras, both configured on the same page. **Published fact-checks**
 uses Google's free Fact Check Tools API to look for verdicts already published by
@@ -99,6 +100,7 @@ cannot be used; the local model option covers Brave.
 |---|---|
 | Extension icon | Opens the side panel; the badge counts flagged claims |
 | **Check sources** | Spends one search call, and looks for published fact-checks |
+| **Search in browser** | Opens the claim in your default search engine, in a new tab. No key needed |
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |
 | Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |

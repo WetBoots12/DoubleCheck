@@ -176,12 +176,23 @@ function render(claims) {
       addButton('Summarize with AI', 'Asking the AI…', true, false);
     }
 
+    // Native and keyless: opens the claim in the browser's own default search
+    // engine, in a new tab. On every claim, whatever the provider state.
+    const browse = document.createElement('button');
+    browse.className = 'check secondary';
+    browse.textContent = 'Search in browser';
+    browse.title = 'Open this claim in your default search engine, in a new tab';
+    browse.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ type: MSG.BROWSER_SEARCH, claimId: c.id }).catch(() => {});
+    });
+    actions.appendChild(browse);
+
     if (actions.childElementCount) el.appendChild(actions);
 
     if (c.status === STATUS.NO_KEY) {
       const p = document.createElement('div');
       p.className = 'summary';
-      p.innerHTML = 'Add a search API key to cross-reference this. ';
+      p.textContent = 'This search provider needs an API key. Add one, or switch to Wikipedia, which needs none. ';
       const b = document.createElement('button');
       b.className = 'link';
       b.textContent = 'Open settings';

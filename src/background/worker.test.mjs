@@ -21,7 +21,7 @@ function fakeStorageArea() {
   };
 }
 
-const sent = { runtime: [], tabs: [], badge: [] };
+const sent = { runtime: [], tabs: [], badge: [], search: [] };
 let messageListener = null;
 let menuClickListener = null;
 const ACTIVE_TAB = 1;
@@ -52,6 +52,7 @@ globalThis.chrome = {
   },
   sidePanel: { setPanelBehavior: async () => {}, open: async () => {} },
   commands: { onCommand: { addListener() {} } },
+  search: { query: async (o) => { sent.search.push(o); } },
 };
 
 // The classifier fetches its model through chrome.runtime.getURL; serve it from disk
@@ -185,6 +186,17 @@ test('a thumbs-up rule lets a built-in-blocked site scan, and PANEL_READY report
   await chrome.storage.local.set({ fc_settings: {} });
   chrome.tabs.get = async (id) => ({ id, url: 'https://www.example.com/article' });
   chrome.tabs.query = async () => [{ id: ACTIVE_TAB, url: 'https://www.example.com/article' }];
+});
+
+test('Search in browser opens the claim in the default engine via chrome.search', async () => {
+  const claims = (await send({ type: 'panelReady' }, undefined)).claims;
+  const target = claims[0];
+  await send({ type: 'browserSearch', claimId: target.id }, undefined);
+  await settle();
+  const call = sent.search.at(-1);
+  assert.ok(call, 'chrome.search.query was not called');
+  assert.equal(call.text, target.text);
+  assert.equal(call.disposition, 'NEW_TAB');
 });
 
 test('re-sending the same sentences does not duplicate claims', async () => {
