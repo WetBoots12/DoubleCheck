@@ -14,9 +14,15 @@
   border-bottom-color: #9a9a9a;
   background: rgba(154, 154, 154, 0.12);
 }
-.fc-highlight.fc-focused {
-  outline: 2px solid #c8963e;
-  outline-offset: 2px;
+/* The claim currently stepped to, styled like a find-in-page active match:
+   it persists rather than flashing, so the user can read it. */
+.fc-highlight.fc-current {
+  background: #f5a623;
+  color: #1c1b19;
+  border-bottom-color: #b4711a;
+  outline: 2px solid #b4711a;
+  outline-offset: 1px;
+  scroll-margin: 40vh;
 }
 
 /* Video mode: claim markers pinned near the player. */

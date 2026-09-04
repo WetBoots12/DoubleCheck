@@ -11,6 +11,8 @@
     SCAN_CONFIG: 'scanConfig',
     CLAIM_STATUS: 'claimStatus',
     FOCUS_SENTENCE: 'focusSentence',
+    NAV_CLAIM: 'navClaim',
+    NAV_STATE: 'navState',
   };
 
   let autoCheck = true;
@@ -105,6 +107,50 @@
     }
   }
 
+  // Stepping through video claims means seeking the player, ordered by timestamp
+  // rather than by when each claim was found.
+  let currentId = null;
+
+  function ordered() {
+    return [...markers.entries()].sort((a, b) => a[1].ts - b[1].ts);
+  }
+
+  function reportPosition(list, id) {
+    const index = list.findIndex(([mid]) => mid === id);
+    chrome.runtime
+      .sendMessage({
+        type: MSG.NAV_STATE,
+        claimId: id,
+        index: index === -1 ? 0 : index + 1,
+        total: list.length,
+      })
+      .catch(() => {});
+  }
+
+  function seekTo(claimId) {
+    const m = markers.get(claimId);
+    const v = video();
+    if (!m || !v) return;
+    v.currentTime = m.ts;
+    currentId = claimId;
+    reportPosition(ordered(), claimId);
+  }
+
+  function navigate(direction) {
+    const list = ordered();
+    if (!list.length) {
+      reportPosition(list, null);
+      return;
+    }
+    const at = list.findIndex(([id]) => id === currentId);
+    const next = at === -1
+      ? (direction === 'prev' ? list.length - 1 : 0)
+      : (direction === 'prev'
+        ? (at - 1 + list.length) % list.length
+        : (at + 1) % list.length);
+    seekTo(list[next][0]);
+  }
+
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === MSG.CLAIM_STATUS) {
       for (const c of msg.claims) {
@@ -112,10 +158,11 @@
         markers.set(c.id, { ts: prev?.ts ?? now(), text: c.text });
       }
       renderMarkers();
+      reportPosition(ordered(), currentId);
     } else if (msg.type === MSG.FOCUS_SENTENCE) {
-      const m = markers.get(msg.claimId);
-      const v = video();
-      if (m && v) v.currentTime = m.ts;
+      seekTo(msg.claimId);
+    } else if (msg.type === MSG.NAV_CLAIM) {
+      navigate(msg.direction);
     } else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck;
       if (!autoCheck) overlay().classList.remove('fc-visible');
@@ -130,6 +177,7 @@
     lastCue = '';
     sent.clear();
     markers.clear();
+    currentId = null;
     renderMarkers();
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })

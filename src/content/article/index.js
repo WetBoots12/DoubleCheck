@@ -11,6 +11,8 @@
     SCAN_CONFIG: 'scanConfig',
     CLAIM_STATUS: 'claimStatus',
     FOCUS_SENTENCE: 'focusSentence',
+    NAV_CLAIM: 'navClaim',
+    NAV_STATE: 'navState',
   };
 
   let autoCheck = true;
@@ -144,17 +146,72 @@
     }
   }
 
-  function focus(claimId) {
-    const el = document.querySelector(`[data-fc-id="${claimId}"]`);
-    if (!el) return;
+  // --- find-bar navigation --------------------------------------------------
+  // Ordered by position in the document, not by when each claim was discovered,
+  // so stepping through them reads top to bottom the way Ctrl+F does.
+
+  let currentId = null;
+
+  function orderedHighlights() {
+    return [...document.querySelectorAll('.fc-highlight')];
+  }
+
+  function reportPosition(list, el) {
+    chrome.runtime
+      .sendMessage({
+        type: MSG.NAV_STATE,
+        claimId: el ? el.dataset.fcId : null,
+        index: el ? list.indexOf(el) + 1 : 0,
+        total: list.length,
+      })
+      .catch(() => {});
+  }
+
+  function setCurrent(el, list = orderedHighlights()) {
+    for (const other of list) other.classList.remove('fc-current');
+    if (!el) {
+      currentId = null;
+      reportPosition(list, null);
+      return;
+    }
+    currentId = el.dataset.fcId;
+    el.classList.add('fc-current');
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('fc-focused');
-    setTimeout(() => el.classList.remove('fc-focused'), 1600);
+    reportPosition(list, el);
+  }
+
+  function navigate(direction) {
+    const list = orderedHighlights();
+    if (!list.length) {
+      setCurrent(null, list);
+      return;
+    }
+    const at = list.findIndex((el) => el.dataset.fcId === currentId);
+    let next;
+    if (at === -1) {
+      next = direction === 'prev' ? list.length - 1 : 0;
+    } else {
+      // Wraps at both ends, again matching find-in-page behavior.
+      next = direction === 'prev'
+        ? (at - 1 + list.length) % list.length
+        : (at + 1) % list.length;
+    }
+    setCurrent(list[next], list);
+  }
+
+  function focus(claimId) {
+    const list = orderedHighlights();
+    const el = list.find((n) => n.dataset.fcId === claimId);
+    if (el) setCurrent(el, list);
   }
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === MSG.CLAIM_STATUS) msg.claims.forEach(highlight);
-    else if (msg.type === MSG.FOCUS_SENTENCE) focus(msg.claimId);
+    if (msg.type === MSG.CLAIM_STATUS) {
+      msg.claims.forEach(highlight);
+      // A newly drawn highlight changes the total shown in the find bar.
+      reportPosition(orderedHighlights(), document.querySelector('.fc-current'));
+    } else if (msg.type === MSG.FOCUS_SENTENCE) focus(msg.claimId);
+    else if (msg.type === MSG.NAV_CLAIM) navigate(msg.direction);
     else if (msg.type === MSG.SCAN_CONFIG) {
       autoCheck = msg.autoCheck;
       if (autoCheck) collect();
@@ -174,6 +231,7 @@
   function onPageChanged() {
     sent.clear();
     highlighted.clear();
+    currentId = null;
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
       .catch(() => {});

@@ -13,6 +13,16 @@
     "default_path": "src/sidepanel/panel.html"
   },
   "options_page": "src/options/options.html",
+  "commands": {
+    "next-claim": {
+      "suggested_key": { "default": "Alt+Shift+N" },
+      "description": "Go to next flagged claim"
+    },
+    "prev-claim": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Go to previous flagged claim"
+    }
+  },
   "action": {
     "default_title": "FactCheck Sidebar"
   },

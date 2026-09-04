@@ -205,6 +205,19 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
   pushHighlights(tabId, [claim]);
 }
 
+async function sendToActiveTab(message) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id == null) return;
+  chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+}
+
+// Keyboard shortcuts, so claims can be stepped through without opening the panel.
+// Ctrl+F itself belongs to the browser and cannot be taken.
+chrome.commands?.onCommand.addListener((command) => {
+  if (command === 'next-claim') sendToActiveTab({ type: MSG.NAV_CLAIM, direction: 'next' });
+  else if (command === 'prev-claim') sendToActiveTab({ type: MSG.NAV_CLAIM, direction: 'prev' });
+});
+
 // --- messaging --------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -262,6 +275,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     case MSG.CHECK_CLAIM:
       requestCheck(msg.claimId, Boolean(msg.withAi));
+      return false;
+
+    case MSG.NAV_CLAIM:
+      sendToActiveTab({ type: MSG.NAV_CLAIM, direction: msg.direction });
+      return false;
+
+    case MSG.NAV_STATE:
+      // Straight through to the panel's find-bar counter.
+      chrome.runtime.sendMessage({
+        type: MSG.NAV_STATE,
+        claimId: msg.claimId,
+        index: msg.index,
+        total: msg.total,
+      }).catch(() => {});
       return false;
 
     case MSG.FOCUS_CLAIM:
