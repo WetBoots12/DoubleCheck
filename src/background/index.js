@@ -156,12 +156,12 @@ async function summarize(tabId, claim, settings) {
   }
 
   try {
-    claim.summary = await llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
+    claim.analysis = await llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
       url: settings.localLlmUrl,
       model: settings.localLlmModel,
     });
   } catch (err) {
-    claim.summary = '';
+    claim.analysis = null;
     claim.error = `Summary unavailable: ${err.message}`;
   }
   claim.summarizing = false;
@@ -254,7 +254,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const claim = tab?.id != null && tabs.get(tab.id)?.claims.get(msg.claimId);
         if (!claim) return;
         claim.summarizing = false;
-        if (msg.summary) claim.summary = msg.summary;
+        if (msg.analysis) claim.analysis = msg.analysis;
         if (msg.error) claim.error = `Summary unavailable: ${msg.error}`;
         pushPanel(tab.id);
       });

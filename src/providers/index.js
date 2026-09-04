@@ -1,7 +1,8 @@
 // Pluggable provider layer. Nothing outside this folder talks to a vendor directly.
 //
 //   SearchProvider: { id, label, search(query, apiKey) -> SearchResult[] }
-//   LLMProvider:    { id, label, isAvailable(), crossReference(claim, results, apiKey) -> string }
+//   LLMProvider:    { id, label, isAvailable(), crossReference(claim, results, apiKey, opts) -> Analysis }
+//   Analysis:       { verdict, confidence, summary, agreement, dispute, perspectives[] }
 //   SearchResult:   { title, url, source, snippet? }
 
 export class ProviderError extends Error {
@@ -74,12 +75,68 @@ function crossReferencePrompt(claim, results) {
   const sources = results
     .map((r, i) => `[${i + 1}] ${r.source} — ${r.title}\n${r.snippet || ''}`)
     .join('\n\n');
-  return `A claim was made in something the user is reading or watching. Using only the search results below, say in 2-4 sentences what the sources indicate about it. If the sources do not address the claim, say so plainly. Do not assert a verdict the sources do not support. Cite sources as [1], [2].
+  return `A claim was made in something the user is reading or watching. Using ONLY the search results below, assess it and reply with JSON and nothing else.
+
+Reply in exactly this shape:
+{
+  "verdict": "supported" | "mixed" | "not_supported" | "unclear",
+  "confidence": 0.0 to 1.0,
+  "summary": "2-3 sentences on what the sources indicate, citing them as [1], [2]",
+  "agreement": "what the sources agree on, or empty string",
+  "dispute": "where sources disagree or what they leave unanswered, or empty string",
+  "perspectives": [{ "source": "domain name", "lean": "left" | "center" | "right" | "unclear" }]
+}
+
+Rules:
+- "unclear" is the correct verdict when the sources do not actually address the claim. Never assert a verdict the sources do not support.
+- Base "summary", "agreement", and "dispute" only on the search results, never on your own knowledge of the topic.
+- "perspectives" is your own rough estimate of each outlet's editorial lean, for showing the spread of coverage. Use "unclear" whenever you are unsure. This is not an authoritative rating.
+- Lower "confidence" when sources are few, weak, or off-topic.
 
 CLAIM: ${claim}
 
 SEARCH RESULTS:
 ${sources}`;
+}
+
+const VERDICTS = new Set(['supported', 'mixed', 'not_supported', 'unclear']);
+
+// Models vary in how well they honor "JSON only" — small local models and on-device
+// models especially. Recover the object when it is wrapped in prose or a code fence,
+// and degrade to a plain summary rather than failing when it cannot be parsed.
+export function parseAnalysis(raw) {
+  const text = (raw || '').trim();
+  const fallback = { verdict: 'unclear', confidence: null, summary: text, agreement: '', dispute: '', perspectives: [] };
+  if (!text) return fallback;
+
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return fallback;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return fallback;
+  }
+
+  const confidence = Number(parsed.confidence);
+  return {
+    verdict: VERDICTS.has(parsed.verdict) ? parsed.verdict : 'unclear',
+    confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : null,
+    summary: typeof parsed.summary === 'string' ? parsed.summary : text,
+    agreement: typeof parsed.agreement === 'string' ? parsed.agreement : '',
+    dispute: typeof parsed.dispute === 'string' ? parsed.dispute : '',
+    perspectives: Array.isArray(parsed.perspectives)
+      ? parsed.perspectives
+          .filter((p) => p && typeof p.source === 'string')
+          .map((p) => ({
+            source: p.source,
+            lean: ['left', 'center', 'right'].includes(p.lean) ? p.lean : 'unclear',
+          }))
+          .slice(0, 8)
+      : [],
+  };
 }
 
 const noLlm = {
@@ -89,7 +146,7 @@ const noLlm = {
     return true;
   },
   async crossReference() {
-    return '';
+    return null;
   },
 };
 
@@ -111,11 +168,11 @@ const anthropic = {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
+        max_tokens: 700,
         messages: [{ role: 'user', content: crossReferencePrompt(claim, results) }],
       }),
     });
-    return (data.content || []).map((b) => b.text || '').join('').trim();
+    return parseAnalysis((data.content || []).map((b) => b.text || '').join(''));
   },
 };
 
@@ -132,11 +189,11 @@ const openai = {
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        max_tokens: 300,
+        max_tokens: 700,
         messages: [{ role: 'user', content: crossReferencePrompt(claim, results) }],
       }),
     });
-    return data.choices?.[0]?.message?.content?.trim() || '';
+    return parseAnalysis(data.choices?.[0]?.message?.content || '');
   },
 };
 
@@ -166,7 +223,7 @@ const builtin = {
       // A 'downloadable' model downloads on first create(); this can take a while.
       session = await LanguageModel.create();
       const out = await session.prompt(crossReferencePrompt(claim, results));
-      return (out || '').trim();
+      return parseAnalysis(out);
     } catch (err) {
       throw new ProviderError('unknown', err.message);
     } finally {
@@ -191,11 +248,11 @@ const local = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: opts.model || 'llama3.1',
-        max_tokens: 300,
+        max_tokens: 700,
         messages: [{ role: 'user', content: crossReferencePrompt(claim, results) }],
       }),
     });
-    return data.choices?.[0]?.message?.content?.trim() || '';
+    return parseAnalysis(data.choices?.[0]?.message?.content || '');
   },
 };
 

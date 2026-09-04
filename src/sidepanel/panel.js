@@ -78,7 +78,7 @@ function render(claims) {
     } else if (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR) {
       addButton(c.status === STATUS.ERROR ? 'Try again' : 'Check sources', 'Checking…', false, true);
       if (llmEnabled) addButton('Check with AI', 'Checking…', true, false);
-    } else if (c.status === STATUS.CHECKED && llmEnabled && !c.summary) {
+    } else if (c.status === STATUS.CHECKED && llmEnabled && !c.analysis) {
       // Sources are already paid for; summarizing them costs no further search call.
       addButton('Summarize with AI', 'Asking the AI…', true, false);
     }
@@ -97,12 +97,7 @@ function render(claims) {
       el.appendChild(p);
     }
 
-    if (c.summary) {
-      const s = document.createElement('div');
-      s.className = 'summary';
-      s.textContent = c.summary;
-      el.appendChild(s);
-    }
+    if (c.analysis) el.appendChild(renderAnalysis(c.analysis));
 
     if (c.error && c.status === STATUS.ERROR) {
       const e = document.createElement('div');
@@ -137,6 +132,88 @@ function render(claims) {
   }
 }
 
+// The thermometer reads how far the sources go toward supporting the claim. It is
+// deliberately NOT driven by the classifier score, which measures whether a sentence
+// is worth checking, not whether it is true — showing that as a truth reading would
+// mislead. So it only appears once sources have actually been consulted.
+const VERDICT_VIEW = {
+  not_supported: { label: 'Not supported by sources', position: 8, tone: 'cold' },
+  mixed: { label: 'Sources are mixed', position: 50, tone: 'warm' },
+  supported: { label: 'Supported by sources', position: 92, tone: 'hot' },
+  unclear: { label: "Sources don't settle this", position: 50, tone: 'flat' },
+};
+
+const LEAN_LABEL = { left: 'L', center: 'C', right: 'R', unclear: '?' };
+
+function renderAnalysis(a) {
+  const box = document.createElement('div');
+  box.className = 'analysis';
+
+  const view = VERDICT_VIEW[a.verdict] || VERDICT_VIEW.unclear;
+
+  const thermo = document.createElement('div');
+  thermo.className = `thermo tone-${view.tone}`;
+  const track = document.createElement('div');
+  track.className = 'thermo-track';
+  const marker = document.createElement('div');
+  marker.className = 'thermo-marker';
+  marker.style.left = `${view.position}%`;
+  track.appendChild(marker);
+  thermo.appendChild(track);
+
+  const scale = document.createElement('div');
+  scale.className = 'thermo-scale';
+  scale.innerHTML = '<span>refuted</span><span>mixed</span><span>supported</span>';
+  thermo.appendChild(scale);
+
+  const verdictLine = document.createElement('div');
+  verdictLine.className = 'verdict';
+  verdictLine.textContent = view.label;
+  if (a.confidence != null) {
+    const conf = document.createElement('span');
+    conf.className = 'confidence';
+    conf.textContent = `AI confidence ${Math.round(a.confidence * 100)}%`;
+    verdictLine.appendChild(conf);
+  }
+  box.appendChild(verdictLine);
+  box.appendChild(thermo);
+
+  if (a.summary) {
+    const s = document.createElement('div');
+    s.className = 'summary';
+    s.textContent = a.summary;
+    box.appendChild(s);
+  }
+
+  for (const [label, value] of [['Sources agree', a.agreement], ['Unsettled', a.dispute]]) {
+    if (!value) continue;
+    const row = document.createElement('div');
+    row.className = 'facet';
+    row.innerHTML = `<span class="facet-label">${label}</span> `;
+    row.appendChild(document.createTextNode(value));
+    box.appendChild(row);
+  }
+
+  if (a.perspectives?.length) {
+    const spread = document.createElement('div');
+    spread.className = 'spread';
+    for (const p of a.perspectives) {
+      const chip = document.createElement('span');
+      chip.className = `chip lean-${p.lean}`;
+      chip.textContent = `${LEAN_LABEL[p.lean]} ${p.source}`;
+      spread.appendChild(chip);
+    }
+    box.appendChild(spread);
+
+    const caveat = document.createElement('div');
+    caveat.className = 'caveat';
+    caveat.textContent = 'Lean is the AI model’s rough estimate, not an authoritative rating.';
+    box.appendChild(caveat);
+  }
+
+  return box;
+}
+
 function focusClaim(claimId) {
   const el = feed.querySelector(`[data-claim-id="${claimId}"]`);
   if (!el) return;
@@ -152,8 +229,8 @@ async function runInPageLlm(msg) {
   const llm = getLlmProvider(settings.llmProvider);
   if (!llm.runsInPage) return;
   try {
-    const summary = await llm.crossReference(msg.claim, msg.results, settings.llmApiKey);
-    chrome.runtime.sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, summary }).catch(() => {});
+    const analysis = await llm.crossReference(msg.claim, msg.results, settings.llmApiKey);
+    chrome.runtime.sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, analysis }).catch(() => {});
   } catch (err) {
     chrome.runtime
       .sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, error: err.message })
