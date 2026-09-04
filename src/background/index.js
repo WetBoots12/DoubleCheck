@@ -3,9 +3,10 @@
 //
 // Per-tab state lives in chrome.storage.session via tabstate.js, so it survives the
 // service worker being put to sleep, which Manifest V3 does after ~30s idle. Every
-// mutation is followed by a save. The job queue below is deliberately in-memory: it
-// only holds work the user just asked for, and a fetch in flight keeps the worker
-// alive until it completes.
+// mutation is followed by a save. The job queue is deliberately in-memory: it only
+// holds work the user just asked for, a fetch in flight keeps the worker alive until
+// it completes, and a tab that navigates or closes has its queued jobs dropped so
+// no search call is spent on a page nobody is reading any more.
 
 import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
 import { scoreClaimWorthiness } from '../../classifier/inference/classifier.js';
@@ -16,10 +17,9 @@ import {
   ProviderError,
 } from '../providers/index.js';
 import { tabStore } from './tabstate.js';
+import { createQueue } from './queue.js';
 
-const MAX_INFLIGHT = 3;
-let inflight = 0;
-const queue = [];
+const queue = createQueue(3);
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
@@ -27,6 +27,7 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => 
 tabStore.recoverStale().catch(() => {});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  queue.drop(tabId);
   tabStore.clear(tabId).catch(() => {});
 });
 
@@ -37,6 +38,7 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 });
 
 async function resetTab(tabId) {
+  queue.drop(tabId);
   await tabStore.clear(tabId);
   updateBadge(tabId);
   pushPanel(tabId);
@@ -149,7 +151,7 @@ async function requestCheck(claimId, withAi) {
   await tabStore.save(tabId);
   pushPanel(tabId);
   pushHighlights(tabId, [claim]);
-  enqueue(() => checkClaim(tabId, claimId, settings, withAi));
+  queue.push(tabId, () => checkClaim(tabId, claimId, settings, withAi));
 }
 
 async function summarize(tabId, claim, settings) {
@@ -192,22 +194,6 @@ async function summarize(tabId, claim, settings) {
   claim.summarizing = false;
   await tabStore.save(tabId);
   pushPanel(tabId);
-}
-
-function enqueue(job) {
-  queue.push(job);
-  drain();
-}
-
-function drain() {
-  while (inflight < MAX_INFLIGHT && queue.length) {
-    const job = queue.shift();
-    inflight++;
-    job().finally(() => {
-      inflight--;
-      drain();
-    });
-  }
 }
 
 async function checkClaim(tabId, claimId, settings, withAi = false) {
