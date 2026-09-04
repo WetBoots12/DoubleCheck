@@ -23,15 +23,16 @@ load.
 
 ## Trained model, current numbers
 
-Trained on ClaimBuster's `3xNCS.json`, the stricter binary split the dataset
-authors report trains best: 10,794 sentences, 25.4% check-worthy.
+Trained on ClaimBuster's `2.5xNCS.json` combined with `groundtruth.csv`: 10,706
+sentences, 25% check-worthy. `compare_datasets.py` documents why that combination
+beat the alternatives, including why the largest file was the worst.
 
 | Metric | Value |
 |---|---|
-| Average precision | 0.837 |
-| ROC AUC | 0.927 |
-| Precision at 0.70 | 0.855 |
-| Recall at 0.70 | 0.599 |
+| Average precision | 0.864 |
+| ROC AUC | 0.935 |
+| Precision at 0.70 | 0.870 |
+| Recall at 0.70 | 0.646 |
 
 The extension's default threshold is **0.70**, chosen for precision: every flagged
 claim is a search call the user may spend.
