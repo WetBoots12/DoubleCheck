@@ -58,6 +58,23 @@
       h1 { font-size: 13px; margin: 0; letter-spacing: 0.01em; color: var(--fg); }
       .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
       main { padding: 10px 12px 24px; }
+      /* Find bar: step through highlighted claims the way Ctrl+F steps matches. */
+      .findbar {
+        position: sticky; top: 37px; z-index: 2;
+        display: flex; align-items: center; gap: 6px;
+        padding: 6px 12px; font-size: 12px;
+        background: var(--card); color: var(--fg);
+        border-bottom: 1px solid var(--border);
+      }
+      .findbar button {
+        font: inherit; font-size: 11px; line-height: 1; cursor: pointer;
+        padding: 4px 8px; border-radius: 5px;
+        border: 1px solid var(--border); background: transparent; color: var(--fg);
+      }
+      .findbar button:hover:not(:disabled) { background: var(--accent-soft); }
+      .findbar button:disabled { opacity: 0.4; cursor: default; }
+      #counter { font-variant-numeric: tabular-nums; }
+      .findhint { color: var(--muted); }
       .claim {
         background: var(--card); color: var(--fg);
         border: 1px solid var(--border); border-radius: 8px;
@@ -132,6 +149,12 @@
         Auto-check
       </label>
     </header>
+    <div class="findbar" id="findbar" hidden>
+      <button id="prev" title="Previous claim (Alt+Shift+P)" aria-label="Previous claim">&#9650;</button>
+      <button id="next" title="Next claim (Alt+Shift+N)" aria-label="Next claim">&#9660;</button>
+      <span id="counter">0 of 0</span>
+      <span class="findhint">on this page</span>
+    </div>
     <main id="feed"><div class="empty">Nothing flagged yet on this page.</div></main>
     <script type="module" src="panel.js"></script>
   </body>

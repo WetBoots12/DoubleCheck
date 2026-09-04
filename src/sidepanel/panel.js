@@ -3,6 +3,10 @@ import { getLlmProvider } from '../providers/index.js';
 
 const feed = document.getElementById('feed');
 const toggle = document.getElementById('autocheck');
+const findbar = document.getElementById('findbar');
+const counter = document.getElementById('counter');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
 
 const STATUS_LABEL = {
   [STATUS.UNCHECKED]: 'flagged',
@@ -238,8 +242,36 @@ async function runInPageLlm(msg) {
   }
 }
 
+// --- find bar ---------------------------------------------------------------
+
+function step(direction) {
+  chrome.runtime.sendMessage({ type: MSG.NAV_CLAIM, direction }).catch(() => {});
+}
+
+function renderNavState({ index, total, claimId }) {
+  findbar.hidden = !total;
+  counter.textContent = `${index || 0} of ${total || 0}`;
+  prevBtn.disabled = !total;
+  nextBtn.disabled = !total;
+  if (claimId) focusClaim(claimId);
+}
+
+prevBtn.addEventListener('click', () => step('prev'));
+nextBtn.addEventListener('click', () => step('next'));
+
+// Enter and the arrow keys step matches, as they do in a find bar.
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input, textarea')) return;
+  if (e.key === 'Enter') step(e.shiftKey ? 'prev' : 'next');
+  else if (e.key === 'ArrowDown') step('next');
+  else if (e.key === 'ArrowUp') step('prev');
+  else return;
+  e.preventDefault();
+});
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === MSG.PANEL_UPDATE) render(msg.claims || []);
+  else if (msg.type === MSG.NAV_STATE) renderNavState(msg);
   else if (msg.type === MSG.PANEL_FOCUS) focusClaim(msg.claimId);
   else if (msg.type === MSG.LLM_REQUEST) runInPageLlm(msg);
 });

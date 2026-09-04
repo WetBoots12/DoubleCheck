@@ -13,10 +13,12 @@ export const MSG = {
   SCAN_CONFIG: 'scanConfig',        // { autoCheck }
   CLAIM_STATUS: 'claimStatus',      // { claims: [{id, status}] } -> draw/update highlights
   FOCUS_SENTENCE: 'focusSentence',  // { claimId } -> scroll page to it
+  NAV_CLAIM: 'navClaim',            // { direction: 'next' | 'prev' } -> step like Ctrl+F
 
   // background -> side panel
   PANEL_UPDATE: 'panelUpdate',      // { tabId, claims: Claim[] }
   PANEL_FOCUS: 'panelFocus',        // { claimId }
+  NAV_STATE: 'navState',            // { claimId, index, total } -> find-bar counter
 
   // side panel -> background
   PANEL_READY: 'panelReady',        // { } -> reply with current tab's claims
