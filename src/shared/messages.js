@@ -53,6 +53,7 @@ export const DEFAULT_SETTINGS = {
   factCheckApiKey: '',
   llmProvider: 'none',
   llmApiKey: '',
+  llmModel: '', // optional override for the Anthropic/OpenAI model; empty = provider default
   localLlmUrl: 'http://localhost:11434/v1',
   localLlmModel: 'llama3.1',
 };

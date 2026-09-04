@@ -15,6 +15,9 @@ const fields = {
   factCheckKeyField: el('factCheckKeyField'),
   llmApiKey: el('llmApiKey'),
   llmKeyField: el('llmKeyField'),
+  llmModelField: el('llmModelField'),
+  llmModel: el('llmModel'),
+  llmModelHint: el('llmModelHint'),
   localFields: el('localFields'),
   localLlmUrl: el('localLlmUrl'),
   localLlmModel: el('localLlmModel'),
@@ -23,6 +26,12 @@ const fields = {
 
 // Providers needing no key: no summary, the browser's own model, or a local server.
 const KEYLESS_LLM = new Set(['none', 'builtin', 'local']);
+
+// Shown as the placeholder so the default is visible without being saved.
+const MODEL_DEFAULTS = {
+  anthropic: { placeholder: 'claude-haiku-4-5', hint: 'Leave empty for claude-haiku-4-5, the cheapest current model. claude-opus-5 gives stronger summaries at higher cost.' },
+  openai: { placeholder: 'gpt-4o-mini', hint: 'Leave empty for gpt-4o-mini. Any chat-completions model ID your key can use works here.' },
+};
 
 function fill(select, providers) {
   select.innerHTML = '';
@@ -40,6 +49,12 @@ function syncLlmKeyVisibility() {
   fields.localFields.style.display = id === 'local' ? '' : 'none';
   fields.builtinNote.style.display = id === 'builtin' ? '' : 'none';
   fields.factCheckKeyField.style.display = fields.factCheckProvider.value === 'none' ? 'none' : '';
+  const hosted = MODEL_DEFAULTS[id];
+  fields.llmModelField.style.display = hosted ? '' : 'none';
+  if (hosted) {
+    fields.llmModel.placeholder = hosted.placeholder;
+    fields.llmModelHint.textContent = hosted.hint;
+  }
 }
 
 function showError(id, message) {
@@ -94,6 +109,7 @@ async function save() {
     // Keep the key even while a keyless provider is selected, so switching back
     // later doesn't mean pasting it again.
     llmApiKey: fields.llmApiKey.value.trim(),
+    llmModel: fields.llmModel.value.trim(),
     localLlmUrl: fields.localLlmUrl.value.trim() || 'http://localhost:11434/v1',
     localLlmModel: fields.localLlmModel.value.trim() || 'llama3.1',
   });
@@ -131,6 +147,7 @@ async function save() {
   fields.factCheckApiKey.value = s.factCheckApiKey;
   fields.llmProvider.value = llmOptions.some((p) => p.id === s.llmProvider) ? s.llmProvider : 'none';
   fields.llmApiKey.value = s.llmApiKey;
+  fields.llmModel.value = s.llmModel || '';
   fields.localLlmUrl.value = s.localLlmUrl;
   fields.localLlmModel.value = s.localLlmModel;
   syncLlmKeyVisibility();

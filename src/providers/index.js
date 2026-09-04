@@ -238,6 +238,11 @@ export function getFactCheckProvider(id) {
 
 // --- LLM providers ----------------------------------------------------------
 
+// Undated aliases track the current release of each model; date-suffixed IDs pin
+// a snapshot and go stale. Users may override either from the options page.
+const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5';
+const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini';
+
 function crossReferencePrompt(claim, results) {
   const sources = results
     .map((r, i) => `[${i + 1}] ${r.source} — ${r.title}\n${r.snippet || ''}`)
@@ -323,7 +328,7 @@ const anthropic = {
   async isAvailable() {
     return true;
   },
-  async crossReference(claim, results, apiKey) {
+  async crossReference(claim, results, apiKey, opts = {}) {
     if (!apiKey) throw new ProviderError('noKey', 'No LLM API key configured');
     const data = await fetchJson('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -334,7 +339,7 @@ const anthropic = {
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: opts.model || ANTHROPIC_DEFAULT_MODEL,
         max_tokens: 700,
         messages: [{ role: 'user', content: crossReferencePrompt(claim, results) }],
       }),
@@ -349,13 +354,13 @@ const openai = {
   async isAvailable() {
     return true;
   },
-  async crossReference(claim, results, apiKey) {
+  async crossReference(claim, results, apiKey, opts = {}) {
     if (!apiKey) throw new ProviderError('noKey', 'No LLM API key configured');
     const data = await fetchJson('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: opts.model || OPENAI_DEFAULT_MODEL,
         max_tokens: 700,
         messages: [{ role: 'user', content: crossReferencePrompt(claim, results) }],
       }),
