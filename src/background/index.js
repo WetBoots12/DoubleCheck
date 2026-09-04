@@ -187,7 +187,8 @@ async function summarize(tabId, claim, settings) {
   try {
     claim.analysis = await llm.crossReference(claim.text, claim.results, settings.llmApiKey, {
       url: settings.localLlmUrl,
-      model: settings.localLlmModel,
+      // The local server has its own model field; the hosted APIs share one override.
+      model: llm.id === 'local' ? settings.localLlmModel : settings.llmModel || undefined,
     });
   } catch (err) {
     claim.analysis = null;
