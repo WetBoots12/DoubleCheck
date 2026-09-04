@@ -1,67 +1,45 @@
-// Claim-worthiness scoring.
+// Claim-worthiness scoring for the extension.
 //
-// Interface (stable — the trained model will drop in behind this):
 //   scoreClaimWorthiness(sentences: string[]) -> Promise<number[]>  // 0..1, input order
 //
-// v1 ships the heuristic fallback described in docs/architecture.md 3.1, because the
-// ClaimBuster-trained model (docs/prompts/01-classifier-training.md) is not built yet.
-// When it is: load it in loadModel() and score in scoreBatch(); the heuristic stays as
-// the documented fallback for when the model fails to load.
+// Loads the trained model exported by classifier/train/train.py if it is present,
+// and falls back to the heuristic scorer when it is missing or fails to load, so the
+// extension keeps working either way.
+
+import { scoreWithModel, heuristicScore } from './scorer.js';
+
+const MODEL_PATH = 'classifier/model/model.json';
 
 let model = null;
-let modelLoadFailed = false;
+let loadAttempted = false;
 
 async function loadModel() {
-  if (model || modelLoadFailed) return model;
+  if (loadAttempted) return model;
+  loadAttempted = true;
   try {
-    // TODO(01-classifier-training): load the exported TF.js/ONNX model from
-    // chrome.runtime.getURL('classifier/model/...') and assign to `model`.
-    modelLoadFailed = true;
-    return null;
+    const url = chrome.runtime.getURL(MODEL_PATH);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`model fetch returned ${res.status}`);
+    const parsed = await res.json();
+    if (!parsed?.vocabulary || !parsed?.coef || !parsed?.idf) {
+      throw new Error('model.json is missing required fields');
+    }
+    model = parsed;
+    console.info('[factcheck] loaded trained classifier');
   } catch (err) {
-    console.warn('[factcheck] classifier model failed to load, using heuristic', err);
-    modelLoadFailed = true;
-    return null;
+    // Expected until the model is trained; not an error worth alarming the user about.
+    console.info('[factcheck] no trained classifier, using heuristic scorer:', err.message);
+    model = null;
   }
-}
-
-// Signals that a sentence is asserting a checkable fact rather than opinion or filler.
-const NUMERIC = /\b\d[\d,.]*\s*(%|percent|million|billion|trillion|thousand)?\b/i;
-const YEAR = /\b(19|20)\d{2}\b/;
-const ATTRIBUTION = /\b(said|says|claimed|according to|reported|announced|stated|admitted)\b/i;
-const QUANTIFIER = /\b(more than|less than|fewer than|highest|lowest|record|first|only|never|always|every|most|majority)\b/i;
-const CAUSAL = /\b(caused|causes|led to|because of|due to|resulted in|linked to)\b/i;
-const HEDGE = /\b(i think|i feel|in my opinion|maybe|probably|might|could be|seems like)\b/i;
-const FIRST_PERSON = /^\s*(i|we|you)\b/i;
-// Capitalized multi-word phrase mid-sentence ~ named entity.
-const ENTITY = /(?:^|\s)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/;
-
-function heuristicScore(text) {
-  const t = text.trim();
-  if (t.length < 40 || t.split(/\s+/).length < 7) return 0;
-
-  let score = 0.15;
-  if (NUMERIC.test(t)) score += 0.3;
-  if (YEAR.test(t)) score += 0.1;
-  if (ATTRIBUTION.test(t)) score += 0.15;
-  if (QUANTIFIER.test(t)) score += 0.15;
-  if (CAUSAL.test(t)) score += 0.15;
-  if (ENTITY.test(t)) score += 0.15;
-  if (HEDGE.test(t)) score -= 0.35;
-  if (FIRST_PERSON.test(t)) score -= 0.2;
-  if (t.endsWith('?')) score -= 0.3;
-
-  return Math.max(0, Math.min(1, score));
+  return model;
 }
 
 export async function scoreClaimWorthiness(sentences) {
   const m = await loadModel();
-  if (m) {
-    // TODO(01-classifier-training): batched forward pass through the real model.
-  }
+  if (m) return scoreWithModel(m, sentences);
   return sentences.map(heuristicScore);
 }
 
 export function isUsingHeuristic() {
-  return !model;
+  return model === null;
 }

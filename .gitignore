@@ -1,0 +1,11 @@
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Training inputs and outputs: datasets and exported weights are large and are
+# rebuilt by classifier/train, so they do not belong in git.
+classifier/train/data/
+classifier/train/raw/
+classifier/model/*.json
