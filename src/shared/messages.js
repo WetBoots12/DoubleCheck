@@ -58,6 +58,7 @@ export const SETTINGS_KEY = 'fc_settings';
 export const DEFAULT_SETTINGS = {
   autoCheck: true,
   threshold: 0.7,
+  browserSearchEngine: 'default', // which engine the Search in browser button asks, and how; see shared/engines.js
   searchProvider: 'wikipedia', // needs no key, so the extension works out of the box; keyed providers are the upgrade
   searchApiKey: '',
   distillQueries: false, // shorten long claims before web search; see tools/query-compare.html

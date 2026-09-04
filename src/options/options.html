@@ -297,8 +297,9 @@
                 Opens a search for the claim in your normal search engine, in a new tab.
                 It does not paste the whole sentence in: it sends the figure and the
                 names in quotation marks plus the words that pin the topic, which is
-                what you would type yourself. No key, no limit. This is the main button
-                until you add a search key.
+                what you would type yourself. Tell it which engine you use, under
+                Search in Settings, and the query is shaped to suit that engine.
+                No key, no limit. This is the main button until you add a search key.
               </td>
             </tr>
             <tr>
@@ -644,6 +645,20 @@
             SerpAPI or Brave Search give full web results in the panel and need one.
             Every claim also has a "Search in browser" button that opens your default
             search engine, whichever you use, with no key at all.
+          </div>
+        </div>
+        <div class="field">
+          <label for="browserSearchEngine">Which search engine do you use?</label>
+          <select id="browserSearchEngine"></select>
+          <div class="hint">
+            This shapes the query the "Search in browser" button sends, because
+            engines do not read one the same way. Google, Bing and Yahoo take two
+            phrases in quotation marks; DuckDuckGo and Brave call their own operators
+            experimental and return more when only the figure is quoted; Perplexity
+            and other answer engines want a plain question instead of keywords.
+            Leaving this on your browser's default sends the careful version that
+            suits all of them, since an extension cannot see which engine you set.
+            Naming one here also opens that engine directly.
           </div>
         </div>
         <div class="field" id="searchKeyField">

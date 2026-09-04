@@ -4,6 +4,7 @@ import { parseDomainList } from '../shared/privacy.js';
 import {
   HIGHLIGHT_STYLES, HIGHLIGHT_COLORS, THICKNESS, PANEL_SIZES, applyAppearance,
 } from '../shared/appearance.js';
+import { SEARCH_ENGINES } from '../shared/engines.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -40,6 +41,7 @@ const fields = {
   searchProvider: el('searchProvider'),
   searchApiKey: el('searchApiKey'),
   searchKeyField: el('searchKeyField'),
+  browserSearchEngine: el('browserSearchEngine'),
   distillQueries: el('distillQueries'),
   cacheResults: el('cacheResults'),
   highlightStyle: el('highlightStyle'),
@@ -162,6 +164,7 @@ async function save() {
     autoCheck,
     threshold: Number(fields.threshold.value),
     searchProvider: fields.searchProvider.value,
+    browserSearchEngine: fields.browserSearchEngine.value,
     factCheckProvider: fields.factCheckProvider.value,
     factCheckApiKey: fields.factCheckApiKey.value.trim(),
     searchApiKey: fields.searchApiKey.value.trim(),
@@ -211,6 +214,8 @@ async function save() {
   fields.autoCheck.checked = s.autoCheck;
   fields.threshold.value = s.threshold;
   fields.thresholdVal.textContent = Number(s.threshold).toFixed(2);
+  fill(fields.browserSearchEngine, SEARCH_ENGINES);
+  fields.browserSearchEngine.value = s.browserSearchEngine;
   fields.searchProvider.value = s.searchProvider;
   fields.searchApiKey.value = s.searchApiKey;
   fields.distillQueries.checked = Boolean(s.distillQueries);

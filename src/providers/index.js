@@ -722,22 +722,39 @@ export function properNounPhrases(sentence) {
 
 export function browserQuery(sentence, opts = {}) {
   const budget = opts.budget ?? BROWSER_TERM_BUDGET;
+  // How many quoted phrases this engine takes without over-constraining, and
+  // whether it would rather have a question. See shared/engines.js for the
+  // evidence behind each setting.
+  const maxPhrases = opts.maxPhrases ?? 1;
+  const asQuestion = Boolean(opts.question);
   const base = stripAttribution(sentence).replace(/\s+/g, ' ').trim();
   if (!base) return '';
 
+  // Answer engines are briefed, not queried: their own guidance is to write a
+  // full question rather than keywords. The claim goes over intact, since the
+  // wording is the thing being asked about.
+  if (asQuestion) {
+    const claim = String(sentence).trim().replace(/\s+/g, ' ').replace(/[.\s]+$/, '');
+    return claim ? `Is it true that ${claim}?` : '';
+  }
+
   // The figures first: they are what a factual claim turns on, and an engine given
   // "4.2 percent" in quotation marks returns pages that actually state it.
+  // The figure earns the first pair of quotation marks: it is what a factual claim
+  // turns on, and it is the phrase an engine matches most usefully.
   const figures = extractQuantities(base)
     .map((q) => q.raw.trim())
-    .filter((raw) => /\d/.test(raw))
-    .slice(0, 2);
+    .filter((raw) => /\d/.test(raw));
 
-  const names = properNounPhrases(base).slice(0, 2);
-  const quoted = [...new Set([...figures, ...names])].map((p) => `"${p}"`);
+  const names = properNounPhrases(base);
+  const phrases = [...new Set([...figures, ...names])].slice(0, Math.max(0, maxPhrases));
+  const quoted = phrases.map((p) => `"${p}"`);
 
   // Then the words that say what the claim is about, minus anything already quoted.
+  // Words already inside quotation marks are not repeated outside them, but words
+  // from a phrase that did not fit stay available as ordinary keywords.
   const inQuotes = new Set(
-    [...figures, ...names].join(' ').toLowerCase().match(/[a-z0-9]+(?:[.'-][a-z0-9]+)*/g) || [],
+    phrases.join(' ').toLowerCase().match(/[a-z0-9]+(?:[.'-][a-z0-9]+)*/g) || [],
   );
   // Reporting verbs and titles describe who spoke, not what was claimed, and they
   // pull a search towards coverage of the speaker rather than the fact.
