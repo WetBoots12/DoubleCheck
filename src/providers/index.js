@@ -5,6 +5,10 @@
 //   Analysis:       { verdict, summary, agreement, dispute, perspectives[], stances{index: stance} }
 //   SearchResult:   { title, url, source, snippet?, date?, excerpt? }
 
+// Quantities are pulled out by the same code the evidence score uses, so the
+// figure the panel talks about is the figure the search box gets.
+import { extractQuantities } from '../shared/numbers.js';
+
 export class ProviderError extends Error {
   constructor(kind, message) {
     super(message);
@@ -667,4 +671,80 @@ export function getSearchProvider(id) {
 
 export function getLlmProvider(id) {
   return LLM_PROVIDERS[id] || noLlm;
+}
+
+// --- The browser's own search box --------------------------------------------
+// A different job from the API providers. Those get a query and return data this
+// extension formats; this one hands a query to whatever search engine the user
+// already uses, and the user reads the results themselves.
+//
+// Pasting the whole sentence in is what a person would do and it is usually the
+// wrong move: search engines match a long sentence loosely and return pages that
+// share its shape rather than its facts. What works is what a researcher would
+// type: the figure in quotation marks, the names in quotation marks, and the few
+// words that pin the topic.
+//
+//   The mayor said the bridge cost 40 million dollars more than planned.
+//   -> "40 million dollars" bridge planned cost
+//
+// Quotation marks mean "these words, in this order" to every major engine, which
+// is exactly the guarantee a figure or a name needs.
+
+const BROWSER_TERM_BUDGET = 8;
+
+const ATTRIBUTION_WORDS = new Set(('said says say claimed claims claim reported reports announced announce '
+  + 'stated states told tells according alleged alleges denied denies wrote writes added adds '
+  + 'mayor governor senator president spokesman spokeswoman spokesperson official officials minister')
+  .split(' '));
+
+// Runs of capitalised words: names of people, agencies, companies, places.
+//
+// The first word of a sentence is capitalised by grammar rather than because it is
+// a name, so a leading determiner or quantifier is trimmed off the front rather
+// than the whole phrase being discarded. Throwing away anything at position zero
+// looked simpler and was wrong: stripping "The Labor Department said" off the front
+// of a claim moves the real name to position zero, where it was then lost.
+const SENTENCE_OPENERS = new Set(('the a an this that these those many some most all both each '
+  + 'his her their our its it he she they we you more fewer several few').split(' '));
+
+export function properNounPhrases(sentence) {
+  const text = String(sentence || '');
+  const out = [];
+  const re = /\b[A-Z][a-z'\u2019]+(?:\s+(?:of|for|the|and|de|van)\s+[A-Z][a-z'\u2019]+|\s+[A-Z][a-z'\u2019]+)+/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    let words = m[0].trim().split(/\s+/);
+    while (words.length && SENTENCE_OPENERS.has(words[0].toLowerCase())) words = words.slice(1);
+    if (words.length >= 2) out.push(words.join(' '));
+  }
+  return [...new Set(out)];
+}
+
+export function browserQuery(sentence, opts = {}) {
+  const budget = opts.budget ?? BROWSER_TERM_BUDGET;
+  const base = stripAttribution(sentence).replace(/\s+/g, ' ').trim();
+  if (!base) return '';
+
+  // The figures first: they are what a factual claim turns on, and an engine given
+  // "4.2 percent" in quotation marks returns pages that actually state it.
+  const figures = extractQuantities(base)
+    .map((q) => q.raw.trim())
+    .filter((raw) => /\d/.test(raw))
+    .slice(0, 2);
+
+  const names = properNounPhrases(base).slice(0, 2);
+  const quoted = [...new Set([...figures, ...names])].map((p) => `"${p}"`);
+
+  // Then the words that say what the claim is about, minus anything already quoted.
+  const inQuotes = new Set(
+    [...figures, ...names].join(' ').toLowerCase().match(/[a-z0-9]+(?:[.'-][a-z0-9]+)*/g) || [],
+  );
+  // Reporting verbs and titles describe who spoke, not what was claimed, and they
+  // pull a search towards coverage of the speaker rather than the fact.
+  const rest = keywordQuery(base, budget + 4)
+    .split(' ')
+    .filter((w) => w && !inQuotes.has(w) && !ATTRIBUTION_WORDS.has(w));
+
+  const room = Math.max(2, budget - quoted.length * 2);
+  return [...quoted, ...rest.slice(0, room)].join(' ').trim();
 }

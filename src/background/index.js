@@ -17,6 +17,7 @@ import {
   getScholarProvider,
   originDomain,
   searchQuery,
+  browserQuery,
   fetchPageHtml,
   ProviderError,
 } from '../providers/index.js';
@@ -703,7 +704,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const state = id == null ? null : await tabStore.peek(id);
         const claim = state?.claims.get(msg.claimId);
         if (!claim) return;
-        Promise.resolve(chrome.search?.query({ text: claim.text, disposition: 'NEW_TAB' })).catch(() => {});
+        // Not the sentence: a query. Pasting a whole sentence into a search box
+        // matches pages that share its shape rather than its facts, so the figure
+        // and the names go in quotation marks and the rest is trimmed to the words
+        // that pin the topic. See providers/index.js.
+        const text = browserQuery(claim.text) || claim.text;
+        Promise.resolve(chrome.search?.query({ text, disposition: 'NEW_TAB' })).catch(() => {});
       });
       return false;
 
