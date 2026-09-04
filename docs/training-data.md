@@ -1,9 +1,41 @@
 # Training data for the claim-worthiness classifier
 
-> **Status: trained.** The model in `classifier/model/model.json` is trained on
-> ClaimBuster's `3xNCS.json`. Average precision 0.837, ROC AUC 0.927, precision
-> 0.855 at the 0.70 threshold the extension now defaults to. Attribution
+> **Status: trained.** The shipped model uses ClaimBuster's `2.5xNCS.json`
+> combined with `groundtruth.csv`: 10,706 sentences, average precision 0.864,
+> ROC AUC 0.935, precision 0.870 at the 0.70 default threshold. Attribution
 > requirements are in [`ATTRIBUTION.md`](../ATTRIBUTION.md).
+
+## Which ClaimBuster files to train on
+
+The zip holds several label files and they are not equally useful. Run
+`classifier/train/compare_datasets.py` to reproduce this table; figures are held-out
+average precision, averaged over five random seeds.
+
+| Training set | Rows | AP | P@0.70 | Real-world margin |
+|---|---|---|---|---|
+| groundtruth.csv | 990 | **0.874** | 0.887 | 0.34 (missed a claim) |
+| 2.5xNCS.json | 9,442 | 0.849 | 0.878 | 0.48 |
+| 2.5xNCS + groundtruth (**shipped**) | 10,706 | 0.844 | 0.867 | **0.48** |
+| 3xNCS.json | 10,794 | 0.831 | 0.851 | 0.46 |
+| crowdsourced.csv | 21,943 | 0.741 | 0.744 | not tested |
+| groundtruth + crowdsourced | 22,926 | 0.757 | 0.772 | not tested |
+
+Two findings worth keeping in mind:
+
+**More rows made it worse.** The largest file is also the noisiest, and training on
+it dropped average precision from 0.85 to 0.74. Label quality beat quantity by a
+wide margin here. Reach for stricter annotator agreement before reaching for volume.
+
+**The best held-out score was the worst model in practice.** `groundtruth.csv`
+scored highest on its own test split, but on real news sentences it separated
+claims from non-claims by only 0.34 and missed one claim outright, because 990 rows
+give too thin a vocabulary. That is the trap in optimizing a held-out number from a
+distribution that is not your users' distribution. Always spot-check candidates on
+real page text before believing the table.
+
+A caution on the dataset's README: it reports 22,501 sentences for
+`groundtruth.csv` and 1,032 for `crowdsourced.csv`, but the files on disk are the
+other way round. Trust the files.
 
 ## The dataset we planned on
 
@@ -51,9 +83,24 @@ domain shift is not crippling.
 
 ## Worth adding
 
-**CLEF CheckThat! check-worthiness data.** Multiple years of shared-task data
-covering tweets and political speech, and closer to social-media phrasing than
-debates are. Licensing varies by year, so check each release.
+**CLEF CheckThat! check-worthiness data.** The strongest external option, and much
+closer to the extension's real input than debate transcripts are. The 2024 task
+released 66,630 labeled instances across four languages, 24,191 of them English,
+drawn from social and mainstream media rather than debate stages. Datasets live in
+the lab's GitLab repositories, one per year:
+
+- 2024: <https://gitlab.com/checkthat_lab/clef2024-checkthat-lab>
+- 2025: <https://gitlab.com/checkthat_lab/clef2025-checkthat-lab>
+
+Licensing varies by year and by subtask, so check each release before use and
+record what you find in `ATTRIBUTION.md`. The 2025 edition adds claim
+normalization and numerical-claim tasks, which are adjacent rather than a drop-in
+replacement.
+
+Given the finding above, add it as a *separate* labeled pool and measure, rather
+than pouring it in and assuming more is better. Mainstream-media phrasing is
+exactly the vocabulary the debate data lacks, so this is the most promising single
+addition available.
 
 **Your own captions and articles.** The highest-value addition, because it matches
 the real input distribution exactly. The stress fixture and the caption probe both
