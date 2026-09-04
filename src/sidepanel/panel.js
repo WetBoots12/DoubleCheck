@@ -42,7 +42,9 @@ function render(claims) {
     const text = document.createElement('div');
     text.className = 'claim-text';
     text.textContent = c.text;
-    text.title = 'Jump to this on the page';
+    text.title = c.located === false
+      ? 'This claim has no highlight on the page'
+      : 'Jump to this on the page';
     text.addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: MSG.FOCUS_CLAIM, claimId: c.id }).catch(() => {});
     });
@@ -52,6 +54,9 @@ function render(claims) {
     meta.className = 'meta';
     meta.innerHTML = `<span class="badge ${c.status}">${STATUS_LABEL[c.status] || c.status}</span>`;
     if (c.ts != null) meta.innerHTML += `<span>${fmtTime(c.ts)}</span>`;
+    // Says so plainly rather than leaving the user looking for a highlight that
+    // was never drawn, e.g. when the page rewrote the text after it was scanned.
+    if (c.located === false) meta.innerHTML += '<span title="This sentence could not be located in the page text, so it has no highlight to jump to.">not on page</span>';
     if (c.score != null) meta.innerHTML += `<span>score ${c.score}</span>`;
     el.appendChild(meta);
 

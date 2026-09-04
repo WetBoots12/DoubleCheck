@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html class="app-main-menu-pinned vector-feature-nav-enabled">
   <head>
     <meta charset="utf-8" />
     <title>FactCheck stress page</title>
@@ -35,6 +35,20 @@
       <p>
         This page exists to push the content script, the classifier, and the badge
         counter harder than a normal article does. Use the buttons above.
+      </p>
+      <p>
+        The &lt;html&gt; element carries the class
+        <code>app-main-menu-pinned vector-feature-nav-enabled</code> on purpose. It
+        contains both "menu" and "nav", the way Wikipedia's does. If the exclusion
+        rules walk that far up the tree, this whole page extracts nothing, which is
+        exactly the bug that made Wikipedia yield zero claims.
+      </p>
+      <p>
+        The agency <a href="#">said in a report</a> that costs rose <strong>more than
+        30 percent</strong> nationwide last year, a figure the ministry
+        <em>disputes</em>. This sentence is deliberately broken across a link, a bold
+        phrase and an emphasis, so it only highlights if matching spans multiple text
+        nodes.
       </p>
     </main>
 

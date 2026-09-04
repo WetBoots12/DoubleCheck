@@ -13,6 +13,7 @@
     FOCUS_SENTENCE: 'focusSentence',
     NAV_CLAIM: 'navClaim',
     NAV_STATE: 'navState',
+    UNLOCATED: 'unlocated',
   };
 
   let autoCheck = true;
@@ -56,11 +57,23 @@
     '[aria-hidden="true"]',
   ].join(', ');
 
+  // closest() walks all the way to <html>, and site-wide classes routinely contain
+  // these substrings — Wikipedia's <html> carries "vector-feature-main-menu-pinned",
+  // whose "menu" matched and excluded every paragraph on the page. Only consider
+  // ancestors below the content root, and never the document's own root elements.
+  function inExcludedRegion(el, root) {
+    for (let node = el; node && node !== root; node = node.parentElement) {
+      if (node === document.body || node === document.documentElement) break;
+      if (node.matches(EXCLUDE)) return true;
+    }
+    return false;
+  }
+
   function visibleParagraphs(root) {
     const out = [];
     const seen = new Set();
     for (const el of root.querySelectorAll(BLOCK)) {
-      if (el.closest(EXCLUDE)) continue;
+      if (inExcludedRegion(el, root)) continue;
       if (el.closest('.fc-highlight')) continue;
       if (el.querySelector(BLOCK)) continue; // not a leaf block
       if (!el.offsetParent && el.tagName !== 'BODY') continue; // not rendered
@@ -102,31 +115,23 @@
 
   // --- highlighting ---------------------------------------------------------
 
-  function highlight(claim) {
-    const existing = document.querySelector(`[data-fc-id="${claim.id}"]`);
-    if (existing) {
-      existing.dataset.fcStatus = claim.status;
-      return;
-    }
-    if (highlighted.has(claim.id)) return;
-
-    const needle = claim.text.trim();
-    const walker = document.createTreeWalker(contentRoot(), NodeFilter.SHOW_TEXT, {
+  function textNodesIn(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
-        if (!node.nodeValue || node.nodeValue.length < 30) return NodeFilter.FILTER_REJECT;
-        if (node.parentElement?.closest('.fc-highlight, script, style')) return NodeFilter.FILTER_REJECT;
-        return node.nodeValue.includes(needle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement?.closest('script, style, .fc-highlight')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
       },
     });
+    const nodes = [];
+    let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    return nodes;
+  }
 
-    const node = walker.nextNode();
-    if (!node) return;
-
-    const idx = node.nodeValue.indexOf(needle);
-    const range = document.createRange();
-    range.setStart(node, idx);
-    range.setEnd(node, idx + needle.length);
-
+  function makeSpan(claim) {
     const span = document.createElement('span');
     span.className = 'fc-highlight';
     span.dataset.fcId = claim.id;
@@ -137,13 +142,41 @@
         .sendMessage({ type: MSG.HIGHLIGHT_CLICKED, claimId: claim.id })
         .catch(() => {});
     });
+    return span;
+  }
 
-    try {
-      range.surroundContents(span);
-      highlighted.add(claim.id);
-    } catch {
-      // Range crossed element boundaries — skip rather than restructure the page.
+  // A sentence often crosses several text nodes, because links and bold phrases
+  // split it. Wrapping the whole span at once throws in that case, which used to
+  // silently drop the claim; wrap each node's portion separately instead.
+  function highlight(claim) {
+    const existing = document.querySelectorAll(`[data-fc-id="${claim.id}"]`);
+    if (existing.length) {
+      for (const el of existing) el.dataset.fcStatus = claim.status;
+      return true;
     }
+
+    const nodes = textNodesIn(contentRoot());
+    const plan = FCTextMatch.buildMatchPlan(nodes.map((n) => n.nodeValue), claim.text);
+    if (!plan) return false;
+
+    // Back to front, so wrapping one node cannot shift offsets in an earlier one.
+    let wrapped = 0;
+    for (const part of [...plan].reverse()) {
+      const node = nodes[part.nodeIndex];
+      if (!node || part.end > node.nodeValue.length) continue;
+      const range = document.createRange();
+      range.setStart(node, part.start);
+      range.setEnd(node, part.end);
+      try {
+        range.surroundContents(makeSpan(claim));
+        wrapped++;
+      } catch {
+        // A node detached or changed under us; the remaining parts still stand.
+      }
+    }
+
+    if (wrapped) highlighted.add(claim.id);
+    return wrapped > 0;
   }
 
   // --- find-bar navigation --------------------------------------------------
@@ -152,8 +185,22 @@
 
   let currentId = null;
 
+  // One claim can own several spans now, so keep only the first span of each claim.
+  // That first span is also the one to scroll to.
   function orderedHighlights() {
-    return [...document.querySelectorAll('.fc-highlight')];
+    const seen = new Set();
+    const out = [];
+    for (const el of document.querySelectorAll('.fc-highlight')) {
+      const id = el.dataset.fcId;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(el);
+    }
+    return out;
+  }
+
+  function spansOf(claimId) {
+    return document.querySelectorAll(`.fc-highlight[data-fc-id="${claimId}"]`);
   }
 
   function reportPosition(list, el) {
@@ -168,14 +215,17 @@
   }
 
   function setCurrent(el, list = orderedHighlights()) {
-    for (const other of list) other.classList.remove('fc-current');
+    for (const other of document.querySelectorAll('.fc-current')) {
+      other.classList.remove('fc-current');
+    }
     if (!el) {
       currentId = null;
       reportPosition(list, null);
       return;
     }
     currentId = el.dataset.fcId;
-    el.classList.add('fc-current');
+    // Every span belonging to this claim lights up, not only the first fragment.
+    for (const span of spansOf(currentId)) span.classList.add('fc-current');
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     reportPosition(list, el);
   }
@@ -207,7 +257,12 @@
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === MSG.CLAIM_STATUS) {
-      msg.claims.forEach(highlight);
+      // Report which claims could not be placed, so the panel can say so instead of
+      // leaving the user hunting for a highlight that was never drawn.
+      const missing = msg.claims.filter((c) => !highlight(c)).map((c) => c.id);
+      if (missing.length) {
+        chrome.runtime.sendMessage({ type: MSG.UNLOCATED, ids: missing }).catch(() => {});
+      }
       // A newly drawn highlight changes the total shown in the find bar.
       reportPosition(orderedHighlights(), document.querySelector('.fc-current'));
     } else if (msg.type === MSG.FOCUS_SENTENCE) focus(msg.claimId);
