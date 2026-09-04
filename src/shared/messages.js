@@ -22,10 +22,12 @@ export const MSG = {
   PANEL_READY: 'panelReady',        // { } -> reply with current tab's claims
   SET_AUTOCHECK: 'setAutoCheck',    // { autoCheck }
   FOCUS_CLAIM: 'focusClaim',        // { claimId } -> forward to content script
+  CHECK_CLAIM: 'checkClaim',        // { claimId } -> user asked to spend a search call
 };
 
 // Claim: { id, text, ts?, status, score, results?: SearchResult[], summary?, error? }
 export const STATUS = {
+  UNCHECKED: 'unchecked', // flagged, but no search call spent on it yet
   PENDING: 'pending',
   CHECKED: 'checked',
   ERROR: 'error',

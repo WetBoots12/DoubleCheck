@@ -87,7 +87,7 @@ async function handleSentences(tabId, sentences) {
       text: s.text,
       ts: s.ts,
       score: Number(scores[i].toFixed(2)),
-      status: settings.searchApiKey ? STATUS.PENDING : STATUS.NO_KEY,
+      status: settings.searchApiKey ? STATUS.UNCHECKED : STATUS.NO_KEY,
     };
     state.claims.set(claim.id, claim);
     flagged.push(claim);
@@ -97,9 +97,28 @@ async function handleSentences(tabId, sentences) {
   updateBadge(tabId);
   pushPanel(tabId);
   pushHighlights(tabId, flagged);
+  // No search call is made here. Claims stay UNCHECKED until the user asks for one
+  // from the side panel, so a text-heavy page cannot burn through their quota.
+}
 
-  if (!settings.searchApiKey) return;
-  flagged.forEach((claim) => enqueue(() => checkClaim(tabId, claim.id, settings)));
+async function requestCheck(claimId) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id == null) return;
+  const claim = tabs.get(tab.id)?.claims.get(claimId);
+  if (!claim || claim.status === STATUS.PENDING) return;
+
+  const settings = await getSettings();
+  if (!settings.searchApiKey) {
+    claim.status = STATUS.NO_KEY;
+    pushPanel(tab.id);
+    return;
+  }
+
+  claim.status = STATUS.PENDING;
+  claim.error = undefined;
+  pushPanel(tab.id);
+  pushHighlights(tab.id, [claim]);
+  enqueue(() => checkClaim(tab.id, claimId, settings));
 }
 
 function enqueue(job) {
@@ -190,6 +209,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: true });
       });
       return true;
+
+    case MSG.CHECK_CLAIM:
+      requestCheck(msg.claimId);
+      return false;
 
     case MSG.FOCUS_CLAIM:
       chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
