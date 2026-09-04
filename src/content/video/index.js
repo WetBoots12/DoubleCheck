@@ -84,7 +84,7 @@
   const OVERLAY_CSS = `
     :host { all: initial; }
     .box {
-      position: absolute; right: 16px; bottom: 64px; z-index: 2147483000;
+      position: absolute; left: 16px; bottom: 64px; z-index: 2147483000;
       max-width: 320px; font: 12px/1.4 system-ui, sans-serif;
       background: rgba(20, 20, 20, 0.92); color: #f2f2f2;
       border-radius: 8px; padding: 8px 10px; display: none;
@@ -98,6 +98,13 @@
 
   let overlayHost = null;
   let overlayBox = null;
+
+  // YouTube puts the skip button in the player's bottom-right corner during ads.
+  // The overlay lives bottom-left for that reason, and hides outright while an ad
+  // plays so nothing of ours can sit between the viewer and that button.
+  const isAdShowing = () =>
+    Boolean(document.getElementById('movie_player')?.classList.contains('ad-showing'));
+  let lastAdShowing = false;
 
   function overlay() {
     if (overlayHost?.isConnected) return overlayBox;
@@ -136,7 +143,7 @@
   function renderMarkers() {
     const el = overlay();
     const hintText = HINT_TEXT[currentHint];
-    if (!markers.size && !hintText) {
+    if (isAdShowing() || (!markers.size && !hintText)) {
       el.classList.remove('visible');
       return;
     }
@@ -381,6 +388,12 @@
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       onPageChanged();
+    }
+    // Redraw when an ad starts or ends, so the overlay leaves and returns with it.
+    const ad = isAdShowing();
+    if (ad !== lastAdShowing) {
+      lastAdShowing = ad;
+      renderMarkers();
     }
     attachCaptionObserver();
     attachTranscriptObserver();
