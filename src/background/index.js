@@ -21,6 +21,22 @@ import {
 } from '../providers/index.js';
 import { tabStore } from './tabstate.js';
 import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
+import { scoreEvidence } from '../shared/evidence.js';
+
+// The thermometer's number: measured relevance, verbiage and source tier, plus the
+// AI's per-source stances when it ran and any published fact-check. Recomputed
+// whenever one of those inputs changes. See shared/evidence.js.
+function computeEvidence(claim, settings) {
+  const sources = [
+    ...(claim.results || []),
+    ...(claim.scholar || []).map((w) => ({ url: w.url, title: w.title, snippet: w.venue, academic: true })),
+  ];
+  claim.evidence = scoreEvidence(claim.text, sources, {
+    stances: claim.analysis?.stances || null,
+    factChecks: claim.factChecks || [],
+    tiers: { trusted: settings.trustedDomains || [], distrusted: settings.distrustedDomains || [] },
+  });
+}
 import { createQueue } from './queue.js';
 
 const queue = createQueue(3);
@@ -220,6 +236,7 @@ async function summarize(tabId, claim, settings) {
     claim.analysis = null;
     claim.error = `Summary unavailable: ${err.message}`;
   }
+  computeEvidence(claim, settings);
   claim.summarizing = false;
   await tabStore.save(tabId);
   pushPanel(tabId);
@@ -272,6 +289,7 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     claim.factChecks = factChecks;
     claim.scholar = scholar;
     claim.status = STATUS.CHECKED;
+    computeEvidence(claim, settings);
     await tabStore.save(tabId);
 
     if (withAi) await summarize(tabId, claim, settings);
@@ -448,7 +466,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const claim = state?.claims.get(msg.claimId);
         if (!claim) return;
         claim.summarizing = false;
-        if (msg.analysis) claim.analysis = msg.analysis;
+        if (msg.analysis) {
+          claim.analysis = msg.analysis;
+          computeEvidence(claim, await getSettings());
+        }
         if (msg.error) claim.error = `Summary unavailable: ${msg.error}`;
         await tabStore.save(id);
         pushPanel(id);

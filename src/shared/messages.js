@@ -57,6 +57,8 @@ export const DEFAULT_SETTINGS = {
   privateSitesRule: true, // built-in never-scan rules for banks, health, mail, accounts, local addresses
   blockedDomains: [],     // the user's never-scan list; always wins
   allowedDomains: [],     // the user's always-scan list; overrides the built-in rules
+  trustedDomains: [],     // sources the user rates highly; see shared/evidence.js
+  distrustedDomains: [],  // sources the user rates weak
   factCheckProvider: 'google',
   factCheckApiKey: '',
   llmProvider: 'none',
