@@ -143,6 +143,24 @@ the page's `lang`: on YouTube that attribute describes the interface, not what i
 being said. The first sentences are held until there is enough text to judge, then
 released or dropped, and released anyway if a sparse video never provides a sample.
 
+### 3.6d Reading the sources
+
+`src/shared/extract.js`. A search snippet is about 150 characters, usually cut
+mid-sentence, and often missing the number the claim turns on, which reads to both
+the evidence score and the model as a source that says nothing. On a check the user
+asked for, the top two results are fetched and the paragraphs mentioning the claim
+are used instead.
+
+The service worker has no DOM, so the parsing is text work rather than a pretend
+DOM, and every failure falls back to the snippet. Requests omit credentials, so no
+cookies are sent, and carry a timeout, a content-type check and a size cap. The
+excerpt is cached rather than the page, since it is small and it is what is used.
+
+Syndication is handled alongside it: the content script reports the canonical link,
+the Open Graph URL and any wire credit line in the opening paragraph, and all of
+those are excluded from search along with the domain in the address bar. A portal's
+copy of a wire story and the wire's own copy are one source, not two.
+
 ### 3.7 Provider adapter layer
 
 Two small interfaces so vendors are swappable without touching the rest of

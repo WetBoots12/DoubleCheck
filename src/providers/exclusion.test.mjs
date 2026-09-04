@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { originDomain, isSameSite, excludeOrigin } from './index.js';
+import { originDomain, isSameSite, excludeOrigin, domainList } from './index.js';
 
 test('originDomain strips www and lowercases', () => {
   assert.equal(originDomain('https://www.Reuters.com/world/some-article/'), 'reuters.com');
@@ -56,4 +56,36 @@ test('excludeOrigin passes everything through when there is no origin', () => {
 test('excludeOrigin tolerates results with a missing or malformed url', () => {
   const results = [{ url: '' }, { title: 'no url' }, { url: 'garbage' }, { url: 'https://apnews.com/x' }];
   assert.equal(excludeOrigin(results, 'reuters.com').length, 4);
+});
+
+// --- syndication: the portal and the wire that wrote the story are one source ------
+
+test('results from any excluded publisher are dropped, not just the page being read', () => {
+  const results = [
+    { url: 'https://www.yahoo.com/news/jobs-report' },
+    { url: 'https://www.reuters.com/markets/jobs-report' },
+    { url: 'https://apnews.com/article/jobs' },
+    { url: 'https://www.bbc.co.uk/news/business-1' },
+  ];
+  const kept = excludeOrigin(results, ['yahoo.com', 'reuters.com']);
+  assert.deepEqual(kept.map((r) => new URL(r.url).hostname), ['apnews.com', 'www.bbc.co.uk']);
+});
+
+test('subdomains of an excluded publisher go too', () => {
+  const results = [{ url: 'https://uk.reuters.com/x' }, { url: 'https://example.com/y' }];
+  assert.equal(excludeOrigin(results, ['reuters.com']).length, 1);
+});
+
+test('a single domain still works, and empty exclusions keep everything', () => {
+  const results = [{ url: 'https://a.com/1' }, { url: 'https://b.com/2' }];
+  assert.equal(excludeOrigin(results, 'a.com').length, 1);
+  assert.equal(excludeOrigin(results, []).length, 2);
+  assert.equal(excludeOrigin(results, ['', null]).length, 2);
+  assert.equal(excludeOrigin(results, '').length, 2);
+});
+
+test('domainList normalizes, drops blanks and de-duplicates', () => {
+  assert.deepEqual(domainList(['Reuters.com', 'reuters.com', ' ', null, 'ap.org']), ['reuters.com', 'ap.org']);
+  assert.deepEqual(domainList('BBC.co.uk'), ['bbc.co.uk']);
+  assert.deepEqual(domainList(undefined), []);
 });

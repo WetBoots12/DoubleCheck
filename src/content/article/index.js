@@ -16,6 +16,7 @@
     UNLOCATED: 'unlocated',
     PAGE_PRIVATE: 'pagePrivate',
     PAGE_LANGUAGE: 'pageLanguage',
+    PAGE_SOURCES: 'pageSources',
   };
 
   let autoCheck = true;
@@ -114,6 +115,59 @@
   }
 
   // Shared with the video script; see src/content/segment.js.
+  // Who actually wrote this page.
+  //
+  // An article read on a news portal was frequently written by a wire service, and
+  // the wire's own copy of it is not independent corroboration: quoting Reuters back
+  // at a Reuters story that a portal republished is circular. Excluding only the
+  // domain in the address bar misses that entirely.
+  //
+  // Three signals, all of them things publishers put on the page themselves:
+  // the canonical link, the Open Graph URL, and the credit line wire services
+  // require in the opening paragraph.
+  const WIRE_CREDITS = [
+    [/\(Reuters\)|\bReuters\b\s*[—-]/i, 'reuters.com'],
+    [/\(AP\)|\bAssociated Press\b/i, 'apnews.com'],
+    [/\(AFP\)|\bAgence France-Presse\b/i, 'afp.com'],
+    [/\(Bloomberg\)/i, 'bloomberg.com'],
+    [/\(PA Media\)|\bPress Association\b/i, 'pamediagroup.com'],
+  ];
+
+  function hostOf(url) {
+    try {
+      return new URL(url, location.href).hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  }
+
+  function publisherDomains(root) {
+    const found = new Set();
+    const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute('href');
+    const ogUrl = document.querySelector('meta[property="og:url"]')?.getAttribute('content');
+    for (const candidate of [canonical, ogUrl]) {
+      const host = candidate ? hostOf(candidate) : '';
+      if (host && host !== location.hostname.replace(/^www\./, '')) found.add(host);
+    }
+
+    // The credit line, which is only trusted near the top of the article.
+    const opening = (root?.innerText || '').slice(0, 600);
+    for (const [pattern, domain] of WIRE_CREDITS) {
+      if (pattern.test(opening)) found.add(domain);
+    }
+    return [...found];
+  }
+
+  let reportedPublishers = '';
+
+  function reportPublishers(root) {
+    const domains = publisherDomains(root);
+    const key = domains.join(',');
+    if (key === reportedPublishers) return;
+    reportedPublishers = key;
+    chrome.runtime.sendMessage({ type: MSG.PAGE_SOURCES, domains }).catch(() => {});
+  }
+
   function segment(text) {
     return FCSegment.splitSentences(text, 30);
   }
@@ -149,6 +203,8 @@
         return;
       }
     }
+
+    reportPublishers(root);
 
     const batch = [];
     for (const para of visibleParagraphs(root)) {
@@ -354,6 +410,7 @@
     privateFieldsReported = false;
     languageReported = false;
     languageOverride = false;
+    reportedPublishers = '';
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
       .catch(() => {});

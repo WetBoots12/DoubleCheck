@@ -54,12 +54,24 @@ export function isSameSite(url, domain) {
   return host === domain || host.endsWith(`.${domain}`);
 }
 
+// One domain or several. Several matters for syndication: an article read on a
+// portal was often written by a wire service, and the wire's own copy is not
+// independent corroboration of it, however different the two domains look.
+export function domainList(domain) {
+  const list = Array.isArray(domain) ? domain : [domain];
+  return [...new Set(list.map((d) => String(d || '').trim().toLowerCase()).filter(Boolean))];
+}
+
 export function excludeOrigin(results, domain) {
-  return domain ? results.filter((r) => !isSameSite(r.url, domain)) : results;
+  const domains = domainList(domain);
+  if (!domains.length) return results;
+  return results.filter((r) => !domains.some((d) => isSameSite(r.url, d)));
 }
 
 function withExclusion(query, domain) {
-  return domain ? `${query} -site:${domain}` : query;
+  const domains = domainList(domain);
+  if (!domains.length) return query;
+  return `${query} ${domains.map((d) => `-site:${d}`).join(' ')}`;
 }
 
 // Fetch more than are shown, so excluding the origin still leaves a full set.
@@ -156,6 +168,52 @@ const brave = {
     return shapeResults(mapped, opts);
   },
 };
+
+// Fetching a search result's own page, to read more than its snippet.
+//
+// Deliberately careful, because this is the one place the extension reaches out to
+// a site the user did not open:
+//
+//   no credentials  cookies are never sent, so the request is anonymous and cannot
+//                   pick up anything from a session the user has with that site;
+//   a time limit    a slow page must not hold up the panel;
+//   HTML only       anything that is not a web page is dropped unread;
+//   a size limit    a huge document is not worth reading into a worker.
+//
+// Any failure returns '' and the caller keeps the snippet it already had.
+const PAGE_TIMEOUT_MS = 6000;
+const PAGE_MAX_BYTES = 2_000_000;
+
+export async function fetchPageHtml(url, opts = {}) {
+  const timeout = opts.timeoutMs ?? PAGE_TIMEOUT_MS;
+  const maxBytes = opts.maxBytes ?? PAGE_MAX_BYTES;
+  let controller = null;
+  let timer = null;
+  try {
+    if (!/^https?:\/\//i.test(String(url || ''))) return '';
+    controller = typeof AbortController === 'function' ? new AbortController() : null;
+    if (controller) timer = setTimeout(() => controller.abort(), timeout);
+
+    const res = await fetch(url, {
+      credentials: 'omit',
+      redirect: 'follow',
+      signal: controller?.signal,
+    });
+    if (!res.ok) return '';
+
+    const type = res.headers?.get?.('content-type') || '';
+    if (type && !/text\/html|application\/xhtml/i.test(type)) return '';
+    const length = Number(res.headers?.get?.('content-length') || 0);
+    if (length && length > maxBytes) return '';
+
+    const text = await res.text();
+    return text.length > maxBytes ? text.slice(0, maxBytes) : text;
+  } catch {
+    return ''; // an unreachable or slow page is simply one we could not read
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 // --- Keyless source: Wikipedia ------------------------------------------------
 // Works the moment the extension is installed. It will not cover breaking news,
@@ -385,7 +443,7 @@ export function neutralizeTags(text) {
 
 export function crossReferencePrompt(claim, results) {
   const sources = results
-    .map((r, i) => `[${i + 1}] ${neutralizeTags(r.source)} — ${neutralizeTags(r.title)}\n${neutralizeTags(r.snippet)}`)
+    .map((r, i) => `[${i + 1}] ${neutralizeTags(r.source)} — ${neutralizeTags(r.title)}\n${neutralizeTags(r.excerpt || r.snippet)}`)
     .join('\n\n');
   return `A claim was made in something the user is reading or watching. Using ONLY the search results below, assess it and reply with JSON and nothing else.
 

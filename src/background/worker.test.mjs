@@ -62,20 +62,42 @@ globalThis.chrome = {
 // The classifier fetches its model through chrome.runtime.getURL; serve it from disk
 // so the real trained model is what scores the sentences.
 const searchCalls = [];
-globalThis.fetch = async (url) => {
-  if (String(url).endsWith('classifier/model/model.json')) {
+const pageCalls = [];
+
+// The article behind the search result: what "read the source, not the snippet"
+// actually fetches. The number the claim turns on is in the page and not in the
+// one-line description the search returns.
+const ARTICLE_HTML = `<html><body><article>
+  <p>The Labor Department reported that unemployment fell to 4.2 percent in the final
+  quarter of the year, down from 4.4 percent in the preceding three months.</p>
+  <p>Analysts said the housing market was unrelated to this particular release.</p>
+</article></body></html>`;
+
+globalThis.fetch = async (url, init) => {
+  const u = String(url);
+  if (u.endsWith('classifier/model/model.json')) {
     return { ok: true, json: async () => JSON.parse(readFileSync('classifier/model/model.json', 'utf8')) };
   }
   // The default provider, Wikipedia. Counted so the cache can be shown to work.
-  if (String(url).includes('wikipedia.org')) {
-    searchCalls.push(String(url));
+  if (u.includes('/w/rest.php/v1/search/page')) {
+    searchCalls.push(u);
     return {
       ok: true,
       status: 200,
       json: async () => ({ pages: [{ key: 'Unemployment', title: 'Unemployment', description: 'Economic condition' }] }),
     };
   }
-  throw new Error(`unexpected fetch ${url}`);
+  // The result's own page.
+  if (u.includes('/wiki/')) {
+    pageCalls.push({ url: u, init });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (h) => (h.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null) },
+      text: async () => ARTICLE_HTML,
+    };
+  }
+  throw new Error(`unexpected fetch ${u}`);
 };
 
 const settle = () => new Promise((r) => setTimeout(r, 50));
@@ -236,6 +258,21 @@ test('a check spends one search call, and checking the same claim again spends n
   const again = (await send({ type: 'panelReady' }, undefined)).claims.find((c) => c.id === 's1');
   assert.equal(again.status, 'checked');
   assert.deepEqual(again.results, checked.results, 'the reused answer must match the original');
+});
+
+test('the source is read for the paragraph that bears on the claim, without cookies', async () => {
+  const call = pageCalls.at(-1);
+  assert.ok(call, 'the top result page should have been fetched');
+  assert.equal(call.init?.credentials, 'omit', 'page reads must be anonymous');
+
+  const claims = (await send({ type: 'panelReady' }, undefined)).claims;
+  const checked = claims.find((c) => c.results?.length);
+  assert.ok(checked.results[0].excerpt, 'no excerpt was attached to the result');
+  assert.ok(checked.results[0].excerpt.includes('4.2 percent'), checked.results[0].excerpt);
+  assert.ok(
+    !checked.results[0].excerpt.includes('housing market'),
+    'only the paragraphs bearing on the claim belong in the excerpt',
+  );
 });
 
 test('clearing the cache empties it, and the next check pays for a call again', async () => {
