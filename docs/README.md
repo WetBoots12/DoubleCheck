@@ -3,6 +3,10 @@
 - [`architecture.md`](architecture.md) — the full design spec: pipeline,
   components, data flow, error handling, security, testing, and what's
   explicitly out of scope for v1.
+- [`training-data.md`](training-data.md) — where to get labeled data, the domain
+  gap to watch for, and how to choose the flagging threshold.
+- [`testing.md`](testing.md) — automated coverage, the stress fixture, and the
+  manual passes that automation cannot reach.
 - [`prompts/`](prompts/) — one self-contained, agent-ready prompt per
   component. Copy a prompt's contents into a fresh agent session to build
   that piece.
