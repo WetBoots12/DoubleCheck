@@ -17,6 +17,7 @@
 // no network, no chrome.*.
 
 import { temporalFit, isMismatch } from './dates.js';
+import { compareQuantities } from './numbers.js';
 
 const STOPWORDS = new Set(('a an the and or but if then than that this these those of in on at to for with '
   + 'from by as is are was were be been being it its he she they we you i his her their our your not '
@@ -147,6 +148,11 @@ export function scoreEvidence(claim, sources = [], { stances = null, factChecks 
     // "Crime is at an all-time low" was true of some year, and a search will
     // happily return the year it was true of. A page cannot report on a year it
     // predates, and a page from long ago is weak evidence about the present.
+    // Overlap only ever notices agreement: "inflation" and "percent" matching
+    // makes a source look relevant even when its figure flatly contradicts the
+    // claim's. That is the case worth pointing out, so the figures are compared.
+    const figures = compareQuantities(claim, text);
+
     const time = temporalFit(claim, s.date, now ? { now } : {});
     const timePenalty = isMismatch(time.status) ? TEMPORAL_PENALTY : 1;
     const weight = TIER_WEIGHT[tier] * (1 - 0.5 * v.penalty) * rel * timePenalty;
@@ -158,6 +164,7 @@ export function scoreEvidence(claim, sources = [], { stances = null, factChecks 
       verbiage: v,
       stance,
       time,
+      figures,
       weight,
       relevant: rel >= RELEVANT,
     };
@@ -178,6 +185,13 @@ export function scoreEvidence(claim, sources = [], { stances = null, factChecks 
   for (const r of relevant) tierCounts[r.tier] = (tierCounts[r.tier] || 0) + 1;
   if (relevant.length) {
     lines.push('sources: ' + Object.entries(tierCounts).map(([t, n]) => `${n} ${TIER_LABEL[t]}`).join(', '));
+  }
+
+  const conflicting = relevant.filter((r) => r.figures.status === 'conflicts');
+  if (conflicting.length) {
+    // Stated as a disagreement between two texts, never as a verdict: the source
+    // may be about another month or another country, or may itself be wrong.
+    lines.push(`${plural(conflicting.length, 'source')} give a different figure: ${conflicting[0].figures.note}`);
   }
 
   const dated = relevant.filter((r) => isMismatch(r.time.status));

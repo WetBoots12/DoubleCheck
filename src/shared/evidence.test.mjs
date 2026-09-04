@@ -213,3 +213,34 @@ test('the timing note never appears when there is nothing wrong with the timing'
   const out = scoreEvidence(CLAIM, [{ url: 'https://a.com/1', title: 'Jobs', snippet: 'Unemployment fell to 4.2 percent.', date: '2026-08-01' }], { now: NOW });
   assert.ok(!out.lines.some((l) => l.includes('out of step')), out.lines.join(' | '));
 });
+
+// --- figures that disagree ---------------------------------------------------------
+
+test('a source giving a different figure for the same thing is called out', () => {
+  const claim = 'Inflation rose to 8.2 percent in the year to June.';
+  const sources = [{ url: 'https://a.com/1', title: 'Prices', snippet: 'Official figures showed inflation was 2.1 percent over the same period.' }];
+  const out = scoreEvidence(claim, sources, { now: NOW });
+  assert.equal(out.rows[0].figures.status, 'conflicts');
+  assert.ok(out.lines.some((l) => l.includes('different figure')), out.lines.join(' | '));
+  assert.ok(out.rows[0].figures.note.includes('8.2') && out.rows[0].figures.note.includes('2.1'));
+});
+
+test('a source stating the same figure is not called out', () => {
+  const claim = 'Unemployment fell to 4.2 percent last quarter.';
+  const sources = [{ url: 'https://a.com/1', title: 'Jobs', snippet: 'Unemployment fell to 4.2 percent last quarter, the department said.' }];
+  const out = scoreEvidence(claim, sources, { now: NOW });
+  assert.equal(out.rows[0].figures.status, 'agrees');
+  assert.ok(!out.lines.some((l) => l.includes('different figure')), out.lines.join(' | '));
+});
+
+test('the excerpt is what gets compared, so a figure only in the page body counts', () => {
+  const claim = 'Inflation rose to 8.2 percent in the year to June.';
+  const sources = [{
+    url: 'https://a.com/1',
+    title: 'Prices',
+    snippet: 'Inflation continued to be a concern for households, economists said…',
+    excerpt: 'The office reported that inflation was 2.1 percent in the year to June.',
+  }];
+  const out = scoreEvidence(claim, sources, { now: NOW });
+  assert.equal(out.rows[0].figures.status, 'conflicts', 'the body figure should be compared');
+});

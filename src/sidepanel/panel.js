@@ -269,7 +269,14 @@ function render(claims) {
       row.appendChild(src);
       // Say it on the source itself, not only in the explanation lines: a reader
       // looking at a 2019 page needs to see why it counted for less.
-      const timing = c.evidence?.rows?.find((x) => x.url === r.url)?.time;
+      const evidenceRow = c.evidence?.rows?.find((x) => x.url === r.url);
+      if (evidenceRow?.figures?.note) {
+        const fig = document.createElement('div');
+        fig.className = 'figures';
+        fig.textContent = `Different figure: ${evidenceRow.figures.note}`;
+        row.appendChild(fig);
+      }
+      const timing = evidenceRow?.time;
       if (timing?.note) {
         const age = document.createElement('div');
         age.className = 'age';
