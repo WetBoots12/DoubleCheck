@@ -306,11 +306,12 @@
 
   // --- lifecycle ------------------------------------------------------------
 
-  let timer = null;
-  const debouncedCollect = () => {
-    clearTimeout(timer);
-    timer = setTimeout(collect, 800);
-  };
+  // Wait for the page to settle, but never wait forever: a live blog or a ticker
+  // mutates without pause, and a plain debounce would then never scan at all.
+  const debouncedCollect = FCMutations.createScheduler(collect, {
+    quietMs: 800,
+    maxWaitMs: 5000,
+  });
 
   // Same document, new page: reset local state so the new page is scanned from
   // scratch, and tell the worker to drop the old page's claims.
@@ -342,7 +343,18 @@
   // Scanning must not depend on this round trip succeeding. A Manifest V3 service
   // worker that is asleep or mid-restart can reject it, and gating setup on the
   // reply used to kill scanning on the page silently and permanently.
-  new MutationObserver(debouncedCollect).observe(document.body, {
+  // Scanning is the expensive half, so a mutation only schedules one when it
+  // actually brought reading material with it. The observer stays on document.body
+  // rather than narrowing to contentRoot(): the pages that mutate hardest are
+  // infinite feeds that append whole articles as siblings of the one being read,
+  // and an observer scoped to the current article would go quiet exactly there.
+  new MutationObserver((records) => {
+    const worth = FCMutations.worthScanning(records, {
+      isExcluded: (node) => inExcludedRegion(node, document.body),
+      isOurs: (node) => node.classList?.contains('fc-highlight') || Boolean(node.closest?.('.fc-highlight')),
+    });
+    if (worth) debouncedCollect();
+  }).observe(document.body, {
     childList: true,
     subtree: true,
   });
