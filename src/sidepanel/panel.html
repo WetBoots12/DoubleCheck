@@ -4,46 +4,70 @@
     <meta charset="utf-8" />
     <title>FactCheck</title>
     <style>
-      :root { color-scheme: light dark; }
+      /* Colors live in variables so light/dark can't be broken by rule order. */
+      :root {
+        color-scheme: light dark;
+        --bg: #faf9f7;
+        --fg: #1c1b19;
+        --card: #ffffff;
+        --border: #e5e2db;
+        --muted: #6b675f;
+        --link: #2f6ea8;
+        --accent-soft: rgba(200, 150, 62, 0.16);
+        --ok-soft: rgba(61, 122, 90, 0.18);
+        --flat-soft: rgba(154, 154, 154, 0.2);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16150f;
+          --fg: #ece9e2;
+          --card: #1f1e17;
+          --border: #33312a;
+          --muted: #a8a49a;
+          --link: #7fb0dd;
+          --accent-soft: rgba(200, 150, 62, 0.22);
+          --ok-soft: rgba(127, 183, 154, 0.22);
+          --flat-soft: rgba(200, 200, 200, 0.16);
+        }
+      }
       body {
         margin: 0;
         font: 13px/1.5 system-ui, -apple-system, sans-serif;
-        background: #faf9f7;
-        color: #1c1b19;
-      }
-      @media (prefers-color-scheme: dark) {
-        body { background: #16150f; color: #ece9e2; }
-        .claim { background: #1f1e17; border-color: #33312a; }
-        .result { border-color: #33312a; }
-        header { background: #1f1e17; border-color: #33312a; }
+        background: var(--bg);
+        color: var(--fg);
       }
       header {
         position: sticky; top: 0;
         display: flex; align-items: center; justify-content: space-between;
         gap: 8px; padding: 10px 12px;
-        background: #fff; border-bottom: 1px solid #e5e2db;
+        background: var(--card); color: var(--fg);
+        border-bottom: 1px solid var(--border);
       }
-      h1 { font-size: 13px; margin: 0; letter-spacing: 0.01em; }
+      h1 { font-size: 13px; margin: 0; letter-spacing: 0.01em; color: var(--fg); }
       .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
       main { padding: 10px 12px 24px; }
       .claim {
-        background: #fff; border: 1px solid #e5e2db; border-radius: 8px;
+        background: var(--card); color: var(--fg);
+        border: 1px solid var(--border); border-radius: 8px;
         padding: 10px; margin-bottom: 10px;
       }
       .claim.fc-focused { outline: 2px solid #c8963e; }
-      .claim-text { font-weight: 500; cursor: pointer; }
-      .meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 11px; opacity: 0.7; }
-      .badge { padding: 1px 6px; border-radius: 99px; background: rgba(200,150,62,0.18); }
-      .badge.checked { background: rgba(61,122,90,0.18); }
-      .badge.error, .badge.noKey { background: rgba(154,154,154,0.2); }
-      .summary { margin-top: 8px; padding: 8px; border-radius: 6px; background: rgba(200,150,62,0.1); font-size: 12px; }
-      .result { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e2db; }
-      .result a { color: #2f6ea8; text-decoration: none; font-weight: 500; }
+      .claim-text { font-weight: 500; cursor: pointer; color: var(--fg); }
+      .meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
+      .badge { padding: 1px 6px; border-radius: 99px; background: var(--accent-soft); color: var(--fg); }
+      .badge.checked { background: var(--ok-soft); }
+      .badge.error, .badge.noKey { background: var(--flat-soft); }
+      .summary {
+        margin-top: 8px; padding: 8px; border-radius: 6px;
+        background: var(--accent-soft); color: var(--fg); font-size: 12px;
+      }
+      .result { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+      .result a { color: var(--link); text-decoration: none; font-weight: 500; }
       .result a:hover { text-decoration: underline; }
-      .result .src { font-size: 11px; opacity: 0.65; }
-      .result .snip { font-size: 12px; opacity: 0.85; margin-top: 2px; }
-      .empty { opacity: 0.6; padding: 24px 4px; text-align: center; }
-      button.link { background: none; border: none; color: #2f6ea8; cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
+      .result .src { font-size: 11px; color: var(--muted); }
+      .result .snip { font-size: 12px; color: var(--fg); opacity: 0.85; margin-top: 2px; }
+      .empty { color: var(--muted); padding: 24px 4px; text-align: center; }
+      button.link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
     </style>
   </head>
   <body>
