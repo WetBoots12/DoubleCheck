@@ -9,8 +9,8 @@ export const MSG = {
   GET_STATE: 'getState',            // content asks whether to scan at all
   UNLOCATED: 'unlocated',           // { ids } -> claims with no highlight on the page
   CAPTION_HINT: 'captionHint',      // { hint: 'off' | 'none' | null } -> panel banner, video pages only
-  PAGE_PRIVATE: 'pagePrivate',
-  PAGE_LANGUAGE: 'pageLanguage',   // { language } -> the page is not in English, so it was not scanned      // { reason: 'fields' } -> page has a password or card field
+  PAGE_PRIVATE: 'pagePrivate',      // { reason: 'fields' } -> page has a password or card field
+  PAGE_LANGUAGE: 'pageLanguage',    // { language } -> the page is not in English, so it was not scanned
   PAGE_CHANGED: 'pageChanged',      // { url } -> same document, new page (SPA navigation)
 
   // background -> content script

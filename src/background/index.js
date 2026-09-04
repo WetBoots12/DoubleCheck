@@ -28,7 +28,14 @@ import { createCache, cacheKey } from '../shared/cache.js';
 // second article about the same event, or re-opening a page, does not spend another
 // search call or another paid AI call on a question already answered. Nothing about
 // when a call happens changes: a check still runs only when the user clicks.
-const cache = createCache(chrome.storage.local);
+// Guarded the way tabstate.js guards the session store, so importing this module
+// somewhere without a full chrome stub does not throw at load. A cache that stores
+// nothing simply means every check pays for its call, which is the old behaviour.
+const cache = createCache(
+  typeof chrome !== 'undefined' && chrome.storage?.local
+    ? chrome.storage.local
+    : { get: async () => ({}), set: async () => {}, remove: async () => {} },
+);
 
 async function remember(settings, kind, parts, fn) {
   if (!settings.cacheResults) return fn();

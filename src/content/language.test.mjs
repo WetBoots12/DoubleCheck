@@ -84,6 +84,20 @@ test('English peppered with quotes and names is still English', () => {
   assert.equal(detect('', mixed).english, true);
 });
 
+test('text that overrules a declaration names no language, since it cannot know one', () => {
+  // The words say only "not English". Reporting the declared 'en' here would put
+  // "this page looks like it is in English" in the banner as the reason for not
+  // reading it, which reads as a bug to the user.
+  const r = detect('en', FRENCH);
+  assert.equal(r.english, false);
+  assert.equal(r.why, 'text');
+  assert.equal(r.language, null);
+  assert.equal(languageName(r.language), '');
+
+  // A page that declared nothing behaves the same way.
+  assert.equal(detect('', GERMAN).language, null);
+});
+
 test('markerShare reports the sample size so callers can see why', () => {
   const { share, count } = markerShare(ENGLISH);
   assert.ok(count >= MIN_WORDS, `expected a usable sample, got ${count} words`);

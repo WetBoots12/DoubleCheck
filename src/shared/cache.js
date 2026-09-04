@@ -46,6 +46,20 @@ export function createCache(storage, opts = {}) {
   const max = opts.max ?? DEFAULT_MAX;
   const now = opts.now || (() => Date.now());
 
+  // Every index update is a read, a change and a write. Three provider calls
+  // finishing together would each read the same index and write back their own
+  // version of it, losing two of the three entries: the answers would sit in
+  // storage with nothing pointing at them, invisible to eviction and to clearing.
+  // So index updates queue behind one another. Only the index is serialised; the
+  // entries themselves are written straight away, and reads never queue.
+  let indexQueue = Promise.resolve();
+
+  function serialize(work) {
+    const next = indexQueue.then(work, work);
+    indexQueue = next.then(() => {}, () => {});
+    return next;
+  }
+
   async function readIndex() {
     const got = await storage.get(INDEX_KEY);
     const list = got?.[INDEX_KEY];
@@ -74,17 +88,21 @@ export function createCache(storage, opts = {}) {
   async function remove(ids) {
     if (!ids.length) return;
     await storage.remove(ids);
-    const keep = (await readIndex()).filter((i) => !ids.includes(i.id));
-    await writeIndex(keep);
+    return serialize(async () => {
+      const keep = (await readIndex()).filter((i) => !ids.includes(i.id));
+      await writeIndex(keep);
+    });
   }
 
   async function set(key, value) {
     const id = CACHE_PREFIX + hashKey(key);
     await storage.set({ [id]: { k: key, v: value, exp: now() + ttl } });
-    const list = [{ id, at: now() }, ...(await readIndex()).filter((i) => i.id !== id)];
-    const evicted = list.slice(max).map((i) => i.id);
-    await writeIndex(list);
-    if (evicted.length) await storage.remove(evicted);
+    return serialize(async () => {
+      const list = [{ id, at: now() }, ...(await readIndex()).filter((i) => i.id !== id)];
+      const evicted = list.slice(max).map((i) => i.id);
+      await writeIndex(list);
+      if (evicted.length) await storage.remove(evicted);
+    });
   }
 
   // The one call sites use: return what is stored, or run the work and store it.
@@ -98,9 +116,16 @@ export function createCache(storage, opts = {}) {
   }
 
   // Drop everything, for the options page button and for switching caching off.
+  // Swept by prefix rather than through the index, so that an entry the index lost
+  // to a crash or an interrupted write is still deleted. Clearing has to mean
+  // clearing: the entries hold the text of claims the user checked.
   async function clear() {
-    const ids = (await readIndex()).map((i) => i.id);
-    await storage.remove([...ids, INDEX_KEY]);
+    return serialize(async () => {
+      const all = await storage.get(null);
+      const ids = Object.keys(all || {}).filter((k) => k.startsWith(CACHE_PREFIX));
+      if (ids.length) await storage.remove(ids);
+      await storage.remove(INDEX_KEY);
+    });
   }
 
   async function size() {
