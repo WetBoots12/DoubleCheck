@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { evaluateUrl, parseDomainList, normalizeDomain, applySiteRule, hostMatches } from './privacy.js';
+import { evaluateUrl, parseDomainList, normalizeDomain, applySiteRule, hostMatches, httpUrl } from './privacy.js';
 
 const ok = (url, settings) => assert.equal(evaluateUrl(url, settings).blocked, false, `should scan ${url}`);
 const blocked = (url, settings, reason) => {
@@ -136,4 +136,37 @@ test('hostMatches is a suffix match on label boundaries', () => {
   assert.equal(hostMatches('chase.com', 'chase.com'), true);
   assert.equal(hostMatches('notchase.com', 'chase.com'), false);
   assert.equal(hostMatches('chase.com.evil.example', 'chase.com'), false);
+});
+
+// --- addresses the panel is willing to link to ---------------------------------
+
+test('an ordinary web address survives, scheme and all', () => {
+  assert.equal(httpUrl('https://apnews.com/article/abc'), 'https://apnews.com/article/abc');
+  assert.equal(httpUrl('http://example.org/x?y=1'), 'http://example.org/x?y=1');
+});
+
+test('anything that is not http or https is refused', () => {
+  // A provider that returned one of these would otherwise become a link in a panel
+  // whose whole purpose is helping someone judge where a claim came from.
+  for (const bad of [
+    'javascript:alert(1)',
+    'JavaScript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'blob:https://example.com/abc',
+    'file:///C:/Users/alice/Desktop',
+    'chrome-extension://abc/panel.html',
+    'vbscript:msgbox(1)',
+  ]) {
+    assert.equal(httpUrl(bad), '', bad);
+  }
+});
+
+test('a bare DOI, an empty value or a missing one is refused rather than made relative', () => {
+  // OpenAlex hands back w.doi, which is not always an address. Assigned to an href
+  // it would resolve against the panel's own extension origin and go nowhere useful.
+  assert.equal(httpUrl('10.1038/s41586-020-2649-2'), '');
+  assert.equal(httpUrl(''), '');
+  assert.equal(httpUrl(null), '');
+  assert.equal(httpUrl(undefined), '');
+  assert.equal(httpUrl({}), '');
 });

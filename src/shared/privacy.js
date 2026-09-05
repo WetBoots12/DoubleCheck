@@ -64,6 +64,22 @@ export const PATH_KEYWORDS = new Set([
   'admin', 'orders', 'order', 'my', 'me', 'user', 'users', 'secure',
 ]);
 
+// An address that is safe to hand to a link, or '' if it is not one.
+//
+// Every URL the panel links to arrives as JSON from a provider: SerpAPI's link,
+// Brave's url, Google Fact Check's review url, OpenAlex's doi. None of them is ours
+// and none is checked upstream. A panel whose whole job is to help someone judge a
+// source must not offer a link that goes somewhere other than an ordinary web page,
+// so anything that is not http or https comes back empty and is shown as plain text.
+export function httpUrl(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : '';
+  } catch {
+    return ''; // not an address at all
+  }
+}
+
 export function normalizeDomain(entry) {
   let s = String(entry || '').trim().toLowerCase();
   if (!s || s.startsWith('#')) return '';
