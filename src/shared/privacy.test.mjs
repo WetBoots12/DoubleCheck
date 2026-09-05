@@ -170,3 +170,22 @@ test('a bare DOI, an empty value or a missing one is refused rather than made re
   assert.equal(httpUrl(undefined), '');
   assert.equal(httpUrl({}), '');
 });
+
+// --- domains a page chose for us -----------------------------------------------
+//
+// normalizeDomain also cleans the publisher domains a page supplies through its
+// canonical link and Open Graph URL. Those reach a search query as -site: terms on
+// a request the user pays for, so what a page can put there is what this decides.
+
+test('a domain a page invented is refused unless it could be a hostname', () => {
+  assert.equal(normalizeDomain('apnews.com'), 'apnews.com');
+  assert.equal(normalizeDomain('https://www.reuters.com/world/'), 'reuters.com');
+
+  // An attempt to write the query rather than name a site.
+  assert.equal(normalizeDomain('evil.com -site:apnews.com OR secret'), '');
+  assert.equal(normalizeDomain('evil.com"'), '');
+
+  // A hostname is at most 253 characters, and a page can build a longer one.
+  assert.equal(normalizeDomain(`${'a'.repeat(300)}.example`), '');
+  assert.equal(normalizeDomain(`${'a'.repeat(240)}.example`), `${'a'.repeat(240)}.example`);
+});
