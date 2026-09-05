@@ -103,6 +103,72 @@ export function createTabStore(storage) {
   return { get, peek, save, clear, recoverStale };
 }
 
+// --- tabs the page itself reported as private ----------------------------------
+//
+// A password or card field marks a page private whatever its address says, and only
+// the content script can see one. That report has to outlive the moment it arrived,
+// and "the moment" includes the worker being put to sleep thirty seconds later. Held
+// in a plain Set, the report died with the worker and the tab quietly became
+// scannable again: the content script re-checks the form on every pass and so stayed
+// correct, but the right-click menu talks to the worker directly and would have
+// accepted a selection from the page.
+//
+// Kept under its own key rather than inside the tab's claim state, because reporting
+// a private page clears that state and the marker must survive exactly that.
+
+const PRIVATE_PREFIX = 'private:';
+
+export function createPrivateTabs(storage) {
+  const known = new Set(); // read cache; the session store is the real answer
+
+  const keyFor = (tabId) => `${PRIVATE_PREFIX}${tabId}`;
+
+  // Marks in memory before it awaits, so a message arriving in the same turn as the
+  // report already sees the tab as private.
+  async function mark(tabId) {
+    known.add(tabId);
+    await storage.set({ [keyFor(tabId)]: true });
+  }
+
+  async function has(tabId) {
+    if (tabId == null) return false;
+    if (known.has(tabId)) return true;
+    const key = keyFor(tabId);
+    const stored = await storage.get(key);
+    if (!stored?.[key]) return false;
+    known.add(tabId);
+    return true;
+  }
+
+  // The tab navigated or closed: a new page is judged on its own merits.
+  async function forget(tabId) {
+    known.delete(tabId);
+    await storage.remove(keyFor(tabId));
+  }
+
+  return { mark, has, forget };
+}
+
+function memoryArea() {
+  const data = new Map();
+  return {
+    async get(key) {
+      if (key == null) return Object.fromEntries(data);
+      const out = {};
+      for (const k of (Array.isArray(key) ? key : [key])) if (data.has(k)) out[k] = data.get(k);
+      return out;
+    },
+    async set(obj) { for (const [k, v] of Object.entries(obj)) data.set(k, v); },
+    async remove(key) { for (const k of (Array.isArray(key) ? key : [key])) data.delete(k); },
+  };
+}
+
+// Falls back to memory rather than to null: this is a privacy control, and a module
+// that fails to load takes the guard with it.
+export const privateTabs = createPrivateTabs(
+  typeof chrome !== 'undefined' && chrome.storage?.session ? chrome.storage.session : memoryArea(),
+);
+
 // The real store. chrome.storage.session is absent outside an extension context,
 // which is why tests build their own via createTabStore.
 export const tabStore =
