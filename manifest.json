@@ -3,12 +3,10 @@
   "name": "FactCheck Sidebar",
   "version": "0.1.0",
   "description": "Flags check-worthy claims on pages and videos in real time and cross-references them with search results.",
+  "minimum_chrome_version": "116",
   "permissions": [
     "storage",
     "sidePanel",
-    "activeTab",
-    "scripting",
-    "tabs",
     "contextMenus",
     "search"
   ],
@@ -77,16 +75,6 @@
         "src/content/highlight.css"
       ],
       "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "classifier/model/*"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
     }
   ]
 }
