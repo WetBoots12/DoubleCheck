@@ -127,16 +127,31 @@ export function isMismatch(status) {
 // Publication dates as pages actually declare them, in the order they are worth
 // trusting. Used on the pages fetched for their text, so the date comes from the
 // publisher rather than from a search provider's guess.
+// Every scan between a tag name and its attribute is bounded. Unbounded, [^>]+ made
+// each of the many places a document says "<meta" scan to the end of the file and
+// back before failing, which is quadratic in the length of the page. Measured on a
+// 300 KB document of unclosed tags: eight seconds, growing fourfold each time the
+// page doubled, on the one thread the whole extension shares. These run on HTML
+// fetched from search results, so the input is chosen by strangers. A real tag is
+// nowhere near this long; 300 characters is roughly four times the longest of them.
+const ATTR_GAP = '[^>]{1,300}';
 const META_DATE = [
-  /<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/i,
-  /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']article:published_time["']/i,
-  /<meta[^>]+name=["'](?:date|pubdate|publish-date|publication_date|dc\.date)["'][^>]+content=["']([^"']+)["']/i,
-  /<time[^>]+datetime=["']([^"']+)["']/i,
-  /"datePublished"\s*:\s*"([^"]+)"/i,
+  new RegExp(`<meta${ATTR_GAP}property=["']article:published_time["']${ATTR_GAP}content=["']([^"']{1,120})["']`, 'i'),
+  new RegExp(`<meta${ATTR_GAP}content=["']([^"']{1,120})["']${ATTR_GAP}property=["']article:published_time["']`, 'i'),
+  // The dot in dc.date is escaped twice: once for the template literal, once so the
+  // regular expression sees a literal dot rather than "any character".
+  new RegExp(`<meta${ATTR_GAP}name=["'](?:date|pubdate|publish-date|publication_date|dc\\.date)["']${ATTR_GAP}content=["']([^"']{1,120})["']`, 'i'),
+  new RegExp(`<time${ATTR_GAP}datetime=["']([^"']{1,120})["']`, 'i'),
+  /"datePublished"\s*:\s*"([^"]{1,120})"/i,
 ];
 
+// A publication date is declared in the head, so only the start of the document is
+// searched. This is a second bound rather than a substitute for the first: it keeps
+// the cost flat no matter how large a page the search results point at.
+const SEARCH_CHARS = 200000;
+
 export function publishedDateFromHtml(html, opts = {}) {
-  const text = String(html || '');
+  const text = String(html || '').slice(0, SEARCH_CHARS);
   for (const pattern of META_DATE) {
     const m = text.match(pattern);
     const parsed = m ? parseDate(m[1], opts) : null;

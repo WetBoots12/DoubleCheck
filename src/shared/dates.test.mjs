@@ -96,3 +96,32 @@ test('a page with no date, or a broken one, yields no date rather than a wrong o
   assert.equal(publishedDateFromHtml('', at), '');
   assert.equal(publishedDateFromHtml(null, at), '');
 });
+
+// --- a hostile page must not be able to stop the worker ------------------------
+//
+// publishedDateFromHtml runs on pages fetched for their text: third-party HTML, up
+// to the 2 MB cap in fetchPageHtml, chosen by a search provider rather than by us.
+// The patterns it uses are anchored on a tag name and then scan forward with [^>],
+// so a document full of tag openings that never close made every start position
+// scan to the end of the file and back. That is quadratic, and it runs on the one
+// thread the whole extension shares.
+
+test('a page full of unclosed tags is read quickly rather than freezing the worker', () => {
+  for (const opening of ['<time ', '<meta ', '<meta property=']) {
+    const html = opening.repeat(50000); // ~300 KB, well inside the 2 MB fetch cap
+    const started = Date.now();
+    const out = publishedDateFromHtml(html);
+    const elapsed = Date.now() - started;
+
+    assert.equal(out, '', `${opening} declares no date, so none should be found`);
+    assert.ok(elapsed < 1000,
+      `${opening.trim()} took ${elapsed}ms on ${(html.length / 1024) | 0} KB; `
+      + 'the same shape at the 2 MB fetch cap would hang the service worker for minutes');
+  }
+});
+
+test('a real date is still found when it sits behind a lot of markup', () => {
+  const filler = '<div class="wrapper">'.repeat(2000);
+  const html = `<html><head>${filler}<meta property="article:published_time" content="2026-03-04T09:00:00Z"></head></html>`;
+  assert.equal(publishedDateFromHtml(html).slice(0, 10), '2026-03-04');
+});
