@@ -124,3 +124,30 @@ test('the tab is still private after the worker has been evicted and restarted',
     'a tab that reported a password field must stay blocked for the life of that tab, '
     + 'and the worker being put to sleep is not the tab going away');
 });
+
+// --- a handler that fails still answers ----------------------------------------
+//
+// Returning true from an onMessage listener is a promise to reply. A handler that
+// then rejects never does, and the sender waits until Chrome tears the channel down.
+// In the panel that is a button that does nothing; in the content script it is worse,
+// because the reply is what tells the page whether it may be read at all.
+
+test('a message handler whose work fails still sends a reply, and it refuses', async () => {
+  const realQuery = chrome.tabs.query;
+  const realGet = chrome.storage.local.get;
+  chrome.tabs.query = async () => { throw new Error('the tabs API is unavailable'); };
+  chrome.storage.local.get = async () => { throw new Error('storage is unavailable'); };
+  try {
+    const panel = await send({ type: 'panelReady' }, undefined);
+    assert.ok(panel, 'panelReady must answer rather than hang');
+    assert.deepEqual(panel.claims, []);
+
+    const state = await send({ type: 'getState' });
+    assert.ok(state, 'getState must answer rather than hang');
+    assert.equal(state.scanAllowed, false,
+      'a page whose policy could not be read is a page that is not read');
+  } finally {
+    chrome.tabs.query = realQuery;
+    chrome.storage.local.get = realGet;
+  }
+});
