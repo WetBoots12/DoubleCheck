@@ -25,7 +25,7 @@ import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { publishedDateFromHtml } from '../shared/dates.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore, privateTabs } from './tabstate.js';
-import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
+import { evaluateUrl, applySiteRule, normalizeDomain } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
 import { createCache, cacheKey } from '../shared/cache.js';
 // Content scripts are classic scripts and cannot import, so the worker computes the
@@ -596,8 +596,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case MSG.PAGE_SOURCES:
+      // These come from the page's own canonical link and Open Graph URL, so the
+      // page chooses them. They end up inside a search query as -site: terms, which
+      // is a request the user pays for, so they are held to the shape of a hostname
+      // and to a length one could actually be, rather than merely to being truthy.
       if (tabId != null) {
-        const domains = Array.isArray(msg.domains) ? msg.domains.filter(Boolean).slice(0, 5) : [];
+        const domains = (Array.isArray(msg.domains) ? msg.domains : [])
+          .map(normalizeDomain)
+          .filter(Boolean)
+          .slice(0, 5);
         if (domains.length) publishers.set(tabId, domains);
         else publishers.delete(tabId);
       }

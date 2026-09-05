@@ -87,6 +87,10 @@ export function normalizeDomain(entry) {
   s = s.split(/[/?#]/)[0];                       // path, query, fragment
   s = s.replace(/:\d+$/, '');                    // port
   s = s.replace(/^www\./, '');
+  // A hostname is at most 253 characters. The bound matters because this also
+  // normalizes domains a page supplied through its canonical link, which end up in
+  // a search query the user pays for.
+  if (s.length > 253) return '';
   return /^[a-z0-9.-]+$/.test(s) ? s : '';
 }
 

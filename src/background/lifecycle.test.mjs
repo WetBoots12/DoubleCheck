@@ -151,3 +151,4 @@ test('a message handler whose work fails still sends a reply, and it refuses', a
     chrome.storage.local.get = realGet;
   }
 });
+
