@@ -50,11 +50,26 @@ const OPINION = /\b(i think|i believe|in my opinion|we believe|op-ed|opinion|edi
 const SENSATIONAL = /\b(shocking|unbelievable|bombshell|slams|destroys|outrageous|insane|epic|you won't believe|mind-blowing|exposed)\b/i;
 
 // Flags describing how a source talks, plus a penalty 0..1 for the weight.
+// Two capitalised words in a row, with nothing but a space or a mark between them.
+//
+// Counting capitalised words instead marked an agency as shouting: NASA, NOAA,
+// IAEA, OPEC, NATO, FEMA, USAID and UNESCO are simply how government and science
+// reporting is written, so the sources in the highest tiers were the likeliest to
+// be flagged. A NOAA climate report lost quality and was labelled sensational in
+// the panel for the offence of saying "NASA".
+//
+// A share of the words does not separate the two, which was measured rather than
+// assumed: agency prose reaches 0.250 and a tabloid headline sits at 0.250 too.
+// Adjacency does. Acronyms arrive one at a time among ordinary words, while
+// shouting runs together: "TOTAL MELTDOWN", "HUGE WIN". A headline that shouts one
+// word at a time is caught by the word list, which is what the word list is for.
+const SHOUTING = /\b[A-Z]{4,}\b[^A-Za-z0-9]{1,3}\b[A-Z]{4,}\b/;
+
 export function verbiage(text) {
   const t = String(text || '');
   const hedged = HEDGES.test(t);
   const opinion = OPINION.test(t);
-  const shouting = (t.match(/\b[A-Z]{4,}\b/g) || []).length >= 2 || (t.match(/!/g) || []).length >= 2;
+  const shouting = SHOUTING.test(t) || (t.match(/!/g) || []).length >= 2;
   const sensational = SENSATIONAL.test(t) || shouting;
   const penalty = Math.min(1, (hedged ? 0.35 : 0) + (opinion ? 0.35 : 0) + (sensational ? 0.4 : 0));
   return { hedged, opinion, sensational, penalty };
