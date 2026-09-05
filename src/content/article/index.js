@@ -477,16 +477,37 @@
     languageReported = false;
     languageOverride = false;
     reportedPublishers = '';
+
+    // The verdict belonged to the old address. Until the worker has judged the new
+    // one this page has no permission, so it is not read: a reader who clicks from
+    // an article straight into their billing page, which is one history.pushState
+    // and no document load, must not have that page read while the answer is still
+    // in flight. The worker refuses anything sent from a blocked page in any case,
+    // but refusing here means the page is never read at all, which is what the
+    // guide promises and what the first-load path already does.
+    scanAllowed = false;
+
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
       .catch(() => {});
-    // A new URL may fall under a different rule; ask again. Anything collected
-    // before the answer arrives is dropped by the worker if the page is private.
+    askPolicy();
+    setTimeout(() => { if (scanAllowed) collect(); }, 900); // let the new view render first
+  }
+
+  // Ask whether this address may be read, and read it if the answer is yes. Retried
+  // once: the answer is now the only thing that permits any reading, so losing it to
+  // a worker that was asleep when the message arrived would silence the page.
+  function askPolicy(attempt = 0) {
     chrome.runtime
       .sendMessage({ type: MSG.GET_STATE })
-      .then((res) => { scanAllowed = res?.scanAllowed !== false; })
-      .catch(() => {});
-    setTimeout(collect, 900); // let the new view render first
+      .then((res) => {
+        if (!res) throw new Error('no answer');
+        autoCheck = res.autoCheck ?? autoCheck;
+        scanAllowed = res.scanAllowed !== false;
+        applyAppearance(res.appearance);
+        if (scanAllowed && autoCheck) collect();
+      })
+      .catch(() => { if (attempt < 1) setTimeout(() => askPolicy(attempt + 1), 400); });
   }
 
   let lastUrl = location.href;
