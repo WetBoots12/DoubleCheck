@@ -269,6 +269,20 @@ async function requestCheck(claimId, withAi) {
   queue.push(tabId, () => checkClaim(tabId, claimId, settings, withAi));
 }
 
+// Claims left waiting on a summary that nobody is left to produce. Returns whether
+// anything changed, so the caller only writes when there is something to write.
+async function clearStrandedSummaries(tabId, state) {
+  let changed = false;
+  for (const claim of state.claims.values()) {
+    if (claim.summarizing) {
+      claim.summarizing = false;
+      changed = true;
+    }
+  }
+  if (changed) await tabStore.save(tabId);
+  return changed;
+}
+
 async function summarize(tabId, claim, settings) {
   const llm = getLlmProvider(settings.llmProvider);
   if (llm.id === 'none' || !claim.results?.length) return;
@@ -672,6 +686,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return reply(sendResponse, async () => {
         const id = await activeTabId();
         const state = id == null ? null : await tabStore.peek(id);
+        // A panel that has only just opened cannot be running a summary from before
+        // it opened. The built-in model runs in the panel's document, so closing the
+        // panel mid-summary destroys the only thing that could ever answer, and the
+        // claim would sit marked summarizing with its buttons refusing to act. The
+        // panel now answers on every path it can; this covers the one it cannot.
+        if (state && await clearStrandedSummaries(id, state)) pushHighlights(id, []);
         return {
           tabId: id,
           claims: [...(state?.claims.values() || [])],
