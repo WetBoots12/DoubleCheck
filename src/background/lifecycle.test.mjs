@@ -182,3 +182,66 @@ test('a claim is not left summarizing for ever when the panel never answers', as
     'a panel that has just opened cannot be running a summary from before it opened, '
     + 'so the claim must not still be waiting on one');
 });
+
+// --- incognito ------------------------------------------------------------------
+//
+// An extension runs in one shared worker across normal and incognito tabs unless it
+// says otherwise, and the provider cache lives in chrome.storage.local, which
+// outlives the incognito window and the browser itself. So a check run in incognito
+// must leave nothing there, and the same check run normally must still be cached,
+// or the fix would be "switch the cache off" wearing a disguise.
+
+const CLAIM = 'Inflation reached 8.2 percent in the year to June, the statistics office reported.';
+
+// A fresh tab id each time. tabStore keeps an in-memory cache keyed by tab, so
+// writing to session storage under an id the worker has already touched is invisible
+// to it, and the check would find no claim and quietly do nothing.
+let nextTab = 100;
+
+async function runCheckIn(incognito) {
+  const tab = nextTab++;
+  chrome.tabs.get = async (id) => ({ id, url: 'https://www.example.com/article', incognito });
+  chrome.tabs.query = async () => [{ id: tab, url: 'https://www.example.com/article', incognito }];
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.endsWith('classifier/model/model.json')) {
+      return { ok: true, json: async () => JSON.parse(readFileSync('classifier/model/model.json', 'utf8')) };
+    }
+    if (u.includes('wikipedia.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ pages: [{ key: 'Inflation', title: 'Inflation', description: 'Inflation reached 8.2 percent in June.' }] }),
+      };
+    }
+    return { ok: false, status: 404, headers: { get: () => '' }, text: async () => '' };
+  };
+
+  await chrome.storage.local.set({
+    fc_settings: { cacheResults: true, searchProvider: 'wikipedia', readSources: false, llmProvider: 'none' },
+  });
+  for (const k of Object.keys(await chrome.storage.local.get(null))) {
+    if (k.startsWith('fccache:')) await chrome.storage.local.remove(k);
+  }
+  await chrome.storage.session.set({
+    [`tab:${tab}`]: { claims: { c1: { id: 'c1', text: CLAIM, status: 'unchecked', score: 0.9 } }, seen: [] },
+  });
+
+  await send({ type: 'checkClaim', claimId: 'c1' }, undefined);
+  await settle();
+  await settle();
+
+  return Object.keys(await chrome.storage.local.get(null)).filter((k) => k.startsWith('fccache:'));
+}
+
+test('a normal tab caches the answer, so the comparison below means something', async () => {
+  const keys = await runCheckIn(false);
+  assert.ok(keys.length > 0, 'a normal check should have written a cache entry');
+});
+
+test('an incognito tab writes nothing to the cache on disk', async () => {
+  const keys = await runCheckIn(true);
+  assert.deepEqual(keys, [],
+    'a check run in incognito left a day-long record in storage.local, which outlives '
+    + 'the incognito window and the browser');
+});

@@ -247,7 +247,15 @@ async function requestCheck(claimId, withAi) {
   const claim = state?.claims.get(claimId);
   if (!claim || claim.status === STATUS.PENDING || claim.summarizing) return;
 
-  const settings = await getSettings();
+  // Nothing from an incognito tab is written to disk. The cache lives in
+  // chrome.storage.local, which outlives the incognito window and the browser
+  // itself, and the whole point of that window is that nothing does. An extension
+  // runs in one shared worker across normal and incognito tabs unless it says
+  // otherwise, so without this a check run in incognito left a day-long record of
+  // the claim's answer, its AI summary and excerpts of the pages read for it.
+  const stored = await getSettings();
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  const settings = tab?.incognito ? { ...stored, cacheResults: false } : stored;
 
   if (withAi && claim.results?.length) {
     summarize(tabId, claim, settings);
