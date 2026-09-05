@@ -24,7 +24,7 @@ import {
 import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { publishedDateFromHtml } from '../shared/dates.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
-import { tabStore } from './tabstate.js';
+import { tabStore, privateTabs } from './tabstate.js';
 import { evaluateUrl, applySiteRule } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
 import { createCache, cacheKey } from '../shared/cache.js';
@@ -84,7 +84,7 @@ tabStore.recoverStale().catch(() => {});
 chrome.tabs.onRemoved.addListener((tabId) => {
   queue.drop(tabId);
   publishers.delete(tabId);
-  privateTabs.delete(tabId);
+  privateTabs.forget(tabId).catch(() => {});
   tabStore.clear(tabId).catch(() => {});
 });
 
@@ -113,7 +113,7 @@ async function rescanTab(tabId) {
 async function resetTab(tabId) {
   queue.drop(tabId);
   publishers.delete(tabId);
-  privateTabs.delete(tabId); // a new page is judged on its own merits
+  await privateTabs.forget(tabId); // a new page is judged on its own merits
   await tabStore.clear(tabId);
   updateBadge(tabId);
   pushPanel(tabId);
@@ -136,12 +136,15 @@ const NO_TAB = { blocked: true, reason: 'unsupported', domain: '', rule: null };
 // that could read, score, store or send a page's text asks this first.
 async function scanPolicy(tabId) {
   if (tabId == null) return NO_TAB;
-  if (privateTabs.has(tabId)) {
-    // Reported by the page itself, and kept until the tab navigates. A form is
-    // invisible to a URL rule, so the report has to outlive the moment it arrived.
-    return { blocked: true, reason: 'fields', domain: await tabOrigin(tabId), rule: null };
-  }
+  // Every read in here is inside the guard: storage or the tabs API failing must
+  // mean "do not scan", never "no rule found, go ahead".
   try {
+    if (await privateTabs.has(tabId)) {
+      // Reported by the page itself, and kept until the tab navigates. A form is
+      // invisible to a URL rule, so the report has to outlive the moment it arrived,
+      // and outlive the worker being put to sleep; see tabstate.js.
+      return { blocked: true, reason: 'fields', domain: await tabOrigin(tabId), rule: null };
+    }
     const tab = await chrome.tabs.get(tabId);
     return evaluateUrl(tab?.url || '', await getSettings());
   } catch {
@@ -333,12 +336,6 @@ async function tabOrigin(tabId) {
 // wire's own copy are one source, not two, and the content script reports the
 // second from the page's canonical link, Open Graph URL and credit line.
 const publishers = new Map(); // tabId -> domains
-
-// Tabs the content script reported as private for a reason the URL cannot show: a
-// password box, a card field. The URL rules cannot see those, so the report has to
-// be remembered rather than only shown once, or the next thing that asks about this
-// tab would be told it is fine to scan.
-const privateTabs = new Set();
 
 async function excludedDomains(tabId) {
   const origin = await tabOrigin(tabId);
@@ -537,7 +534,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // collected from this page goes: a login screen that appeared after the
       // article must not leave claims from that page sitting in the panel.
       if (tabId != null) {
-        privateTabs.add(tabId);
+        privateTabs.mark(tabId).catch(() => {});
         queue.drop(tabId);
         tabStore.clear(tabId)
           .then(() => {
