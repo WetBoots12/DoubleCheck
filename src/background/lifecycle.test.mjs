@@ -152,3 +152,33 @@ test('a message handler whose work fails still sends a reply, and it refuses', a
   }
 });
 
+
+// --- a summary that never comes back -------------------------------------------
+//
+// The browser's built-in model only exists in a document, so the worker asks the
+// side panel to run it and marks the claim as summarizing until an answer arrives.
+// runCheck refuses to touch a claim while that flag is set, so anything that stops
+// the answer coming leaves the claim's buttons dead. Closing the panel does exactly
+// that: the document is destroyed, and nothing is left to reply.
+
+test('a claim is not left summarizing for ever when the panel never answers', async () => {
+  const claim = {
+    id: 'c-stranded',
+    text: 'The council raised the budget by 12 million dollars this year, records show.',
+    status: 'checked',
+    summarizing: true, // the panel was asked, then closed before it could answer
+    results: [{ url: 'https://apnews.com/a', title: 'Budget report', snippet: 'x' }],
+  };
+  await chrome.storage.session.set({
+    [`tab:${TAB}`]: { claims: { [claim.id]: claim }, seen: [] },
+  });
+
+  // The reader opens the panel again, which is the only way to see the claim at all.
+  const panel = await send({ type: 'panelReady' }, undefined);
+  const back = panel.claims.find((c) => c.id === claim.id);
+
+  assert.ok(back, 'the claim should still be listed');
+  assert.notEqual(back.summarizing, true,
+    'a panel that has just opened cannot be running a summary from before it opened, '
+    + 'so the claim must not still be waiting on one');
+});

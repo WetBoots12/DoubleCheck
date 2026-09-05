@@ -541,17 +541,31 @@ function focusClaim(claimId) {
 
 // The service worker cannot reach the browser's built-in model, so it delegates
 // the call here, where a document context exists.
+// The worker marks the claim as summarizing and will not touch it again until an
+// answer comes back, so every path out of here has to send one. Returning quietly
+// because the provider changed under us left the claim's buttons dead.
 async function runInPageLlm(msg) {
-  const settings = await getSettings();
+  const answer = (payload) =>
+    chrome.runtime.sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, ...payload }).catch(() => {});
+
+  let settings;
+  try {
+    settings = await getSettings();
+  } catch (err) {
+    return answer({ error: err.message });
+  }
+
   const llm = getLlmProvider(settings.llmProvider);
-  if (!llm.runsInPage) return;
+  if (!llm.runsInPage) {
+    // The provider was changed between the worker asking and this running.
+    return answer({ error: 'the AI provider changed before the summary could run' });
+  }
+
   try {
     const analysis = await llm.crossReference(msg.claim, msg.results, settings.llmApiKey);
-    chrome.runtime.sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, analysis }).catch(() => {});
+    return answer({ analysis });
   } catch (err) {
-    chrome.runtime
-      .sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, error: err.message })
-      .catch(() => {});
+    return answer({ error: err.message });
   }
 }
 
