@@ -34,6 +34,29 @@ function emptyState() {
   return { claims: new Map(), seen: new Set() };
 }
 
+// How many judged sentences a tab remembers.
+//
+// seen exists so a sentence is not scored twice, and it holds the sentence itself.
+// On an ordinary article it never reaches a few hundred. On an infinite feed it
+// grows for as long as the reader scrolls, and because the whole state is written
+// on every save, each save costs more than the one before it. Measured: 8,000
+// remembered sentences made twenty saves write 9.5 MB, into a session store whose
+// entire quota is ten. Every read pays it again, and the badge alone reads on each
+// tab switch.
+//
+// Dropping the oldest is the right trade. The cost of forgetting one is that a
+// sentence scrolled past long ago might be scored a second time if the reader
+// scrolls back to it, which costs nothing the user can see and no network call.
+const MAX_SEEN = 3000;
+
+function pruneSeen(state) {
+  if (state.seen.size <= MAX_SEEN) return;
+  // A Set iterates in insertion order, so the tail is what was read most recently.
+  const keep = [...state.seen].slice(-MAX_SEEN);
+  state.seen.clear();
+  for (const k of keep) state.seen.add(k);
+}
+
 export function createTabStore(storage) {
   const cache = new Map(); // tabId -> state, hydrated lazily from storage
 
@@ -63,6 +86,7 @@ export function createTabStore(storage) {
   async function save(tabId) {
     const state = cache.get(tabId);
     if (!state) return;
+    pruneSeen(state);
     await storage.set({ [keyFor(tabId)]: serialize(state) });
   }
 
