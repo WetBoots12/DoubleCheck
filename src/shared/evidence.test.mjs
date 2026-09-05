@@ -244,3 +244,47 @@ test('the excerpt is what gets compared, so a figure only in the page body count
   const out = scoreEvidence(claim, sources, { now: NOW });
   assert.equal(out.rows[0].figures.status, 'conflicts', 'the body figure should be compared');
 });
+
+// --- shouting, and the acronyms that are not shouting --------------------------
+//
+// "Sensational" is meant to catch a tabloid. Counting two runs of four or more
+// capitals catches an agency instead: NASA, NOAA, WHO, OPEC and IAEA are how
+// government and science reporting is written, so the sources in the highest tiers
+// are the ones most likely to be marked as shouting at the reader.
+
+test('an agency report full of acronyms is not called sensational', () => {
+  const cases = [
+    'NASA and NOAA said the year was the warmest on record, with global temperatures 1.2C above the pre-industrial average.',
+    'The IAEA said OPEC production figures were unchanged, and NATO officials confirmed the timetable.',
+    'FEMA and HUD released the funding, while USAID confirmed the shipment had arrived.',
+    'The ONS said inflation reached 8.2 percent; NIESR and the OBR both published revised forecasts.',
+  ];
+  for (const text of cases) {
+    assert.equal(verbiage(text).sensational, false, text);
+  }
+});
+
+test('a tabloid is still called sensational', () => {
+  const cases = [
+    "SHOCKING new evidence EXPOSED! You won't believe what happened next!!",
+    'BREAKING: TOTAL MELTDOWN as officials SLAM the decision',
+    'This is absolutely insane and the bombshell report destroys their case.',
+    'Outrageous! Unbelievable!',
+  ];
+  for (const text of cases) {
+    assert.equal(verbiage(text).sensational, true, text);
+  }
+});
+
+test('an acronym-heavy source keeps its quality score', () => {
+  const claim = 'Global temperatures were 1.2C above the pre-industrial average last year.';
+  const source = (snippet) => [{ url: 'https://www.noaa.gov/x', title: 'Climate report', snippet }];
+  const withAcronyms = 'NASA and NOAA said the year was the warmest on record, with global temperatures 1.2C above the pre-industrial average.';
+  const without = withAcronyms.replace('NASA', 'Nasa').replace('NOAA', 'Noaa');
+
+  const a = scoreEvidence(claim, source(withAcronyms));
+  const b = scoreEvidence(claim, source(without));
+  assert.equal(a.quality, b.quality,
+    'writing an agency name the way the agency writes it should not cost a source anything');
+  assert.ok(!a.lines.some((l) => l.includes('sensational')), JSON.stringify(a.lines));
+});
