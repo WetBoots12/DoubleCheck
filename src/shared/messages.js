@@ -85,9 +85,26 @@ export async function getSettings() {
   return { ...DEFAULT_SETTINGS, ...(stored[SETTINGS_KEY] || {}) };
 }
 
+// Saving is a read, a change and a write, which is three chances for a second save
+// to start before the first has finished. Both of them then read the same settings,
+// and the one that writes last silently discards the other's change. It happens for
+// real: the options page and the side panel are both open, the reader drags the
+// confidence slider while pressing the thumbs-down on a site, and one of the two
+// does nothing. Measured with three concurrent saves, two were lost.
+//
+// So saves are queued. Each one reads only after the one before it has written.
+// This is the same fix, for the same reason, as the serialized index writes in
+// shared/cache.js.
+let settingsQueue = Promise.resolve();
+
 export async function saveSettings(patch) {
-  const current = await getSettings();
-  const next = { ...current, ...patch };
-  await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+  const work = async () => {
+    const current = await getSettings();
+    const next = { ...current, ...patch };
+    await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+    return next;
+  };
+  const next = settingsQueue.then(work, work);
+  settingsQueue = next.then(() => {}, () => {}); // a failed save must not stall the queue
   return next;
 }
