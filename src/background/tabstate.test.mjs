@@ -105,3 +105,48 @@ test('recoverStale ignores keys that are not tab state', async () => {
   assert.equal(await store.recoverStale(), 0);
   assert.equal((await storage.get('unrelated')).unrelated.claims.z.status, 'pending');
 });
+
+// --- the record of what has been read cannot grow for ever ---------------------
+//
+// seen holds one lowercased sentence for every sentence the worker has judged on a
+// tab, and the whole state is serialized and written on every save. On an infinite
+// feed that record keeps growing while the reader scrolls, so each save rewrites
+// more than the one before it. Measured before it was bounded: 8,000 sentences made
+// twenty saves write 9.5 MB into a session store whose whole quota is ten.
+
+test('the seen set is capped, keeping the most recent sentences', async () => {
+  const area = fakeStorage();
+  const store = createTabStore(area);
+  const state = await store.get(1);
+
+  for (let i = 0; i < 6000; i++) state.seen.add(`sentence number ${i} on this endless page`);
+  await store.save(1);
+
+  // A fresh store is what a restarted worker sees.
+  const after = await createTabStore(area).peek(1);
+  assert.ok(after.seen.size <= 3000, `kept ${after.seen.size}`);
+  assert.ok(after.seen.has('sentence number 5999 on this endless page'),
+    'the sentences just read are the ones that matter for not shipping them twice');
+  assert.ok(!after.seen.has('sentence number 0 on this endless page'),
+    'the oldest are the ones to drop');
+});
+
+test('a modest page keeps every sentence it has seen', async () => {
+  const area = fakeStorage();
+  const store = createTabStore(area);
+  const state = await store.get(1);
+  for (let i = 0; i < 120; i++) state.seen.add(`paragraph ${i}`);
+  await store.save(1);
+
+  const after = await createTabStore(area).peek(1);
+  assert.equal(after.seen.size, 120);
+});
+
+test('the in-memory set is pruned too, not only what is written', async () => {
+  const store = createTabStore(fakeStorage());
+  const state = await store.get(1);
+  for (let i = 0; i < 6000; i++) state.seen.add(`line ${i}`);
+  await store.save(1);
+  assert.ok(state.seen.size <= 3000,
+    'pruning only on the way out would leave the worker holding all of them anyway');
+});
