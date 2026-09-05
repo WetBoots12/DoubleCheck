@@ -511,22 +511,38 @@ chrome.commands?.onCommand.addListener((command) => {
 
 // --- messaging --------------------------------------------------------------
 
+// Answering a message asynchronously, without the failure mode that comes with it.
+// Returning true from a listener promises a reply; if the work then rejects, no reply
+// is ever sent, the sender's promise hangs until Chrome tears the channel down, and
+// the user sees a button that does nothing rather than an error. Every asynchronous
+// case below goes through here, so a rejection becomes a definite, safe answer.
+function reply(sendResponse, work, onFailure) {
+  Promise.resolve()
+    .then(work)
+    .then(sendResponse)
+    .catch((err) => {
+      console.warn('[factcheck] message handler failed:', err?.message || err);
+      sendResponse(onFailure);
+    });
+  return true;
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id;
 
   switch (msg.type) {
     case MSG.GET_STATE:
-      (async () => {
+      // The fallback refuses: a page that cannot be judged is a page that is not read.
+      return reply(sendResponse, async () => {
         const [settings, policy] = await Promise.all([getSettings(), scanPolicy(tabId)]);
-        sendResponse({
+        if (tabId != null) pushPageStatus(tabId, policy);
+        return {
           autoCheck: settings.autoCheck,
           scanAllowed: !policy.blocked,
           reason: policy.reason,
           appearance: appearanceOf(settings),
-        });
-        if (tabId != null) pushPageStatus(tabId, policy);
-      })();
-      return true;
+        };
+      }, { autoCheck: false, scanAllowed: false, reason: 'unsupported' });
 
     case MSG.PAGE_PRIVATE:
       // The page itself has a password or card field; say so, whatever the domain,
@@ -568,8 +584,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // does not ship the same sentence twice, and the worker so it does not score
       // it twice. A changed threshold therefore does nothing to a page already on
       // screen until both of those are emptied, which is what this does.
-      activeTabId().then(async (id) => sendResponse({ ok: await rescanTab(id) }));
-      return true;
+      return reply(sendResponse, async () => ({ ok: await rescanTab(await activeTabId()) }), { ok: false });
 
     case MSG.OPEN_TRANSCRIPT:
       // The panel asks; the video script does it, because only a content script can
@@ -589,11 +604,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case MSG.SITE_RULE:
-      (async () => {
+      return reply(sendResponse, async () => {
         const settings = await getSettings();
         await saveSettings(applySiteRule(settings, msg.domain, msg.action));
         const id = await activeTabId();
-        if (id == null) return sendResponse({ ok: false });
+        if (id == null) return { ok: false };
         const policy = await scanPolicy(id);
         chrome.tabs
           .sendMessage(id, {
@@ -617,9 +632,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         await pushPanel(id);
         pushPageStatus(id, policy);
-        sendResponse({ ok: true });
-      })();
-      return true;
+        return { ok: true };
+      }, { ok: false });
 
     case MSG.PAGE_CHANGED:
       if (tabId != null) resetTab(tabId);
@@ -648,18 +662,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case MSG.PANEL_READY:
-      activeTabId().then(async (id) => {
+      return reply(sendResponse, async () => {
+        const id = await activeTabId();
         const state = id == null ? null : await tabStore.peek(id);
-        sendResponse({
+        return {
           tabId: id,
           claims: [...(state?.claims.values() || [])],
           page: id == null ? null : await scanPolicy(id),
-        });
-      });
-      return true;
+        };
+      }, { tabId: null, claims: [], page: null });
 
     case MSG.SET_AUTOCHECK:
-      (async () => {
+      return reply(sendResponse, async () => {
         await saveSettings({ autoCheck: msg.autoCheck });
         const id = await activeTabId();
         const policy = await scanPolicy(id);
@@ -669,9 +683,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           scanAllowed: !policy.blocked,
           appearance: appearanceOf(await getSettings()),
         });
-        sendResponse({ ok: true });
-      })();
-      return true;
+        return { ok: true };
+      }, { ok: false });
 
     case MSG.LLM_RESULT:
       activeTabId().then(async (id) => {
