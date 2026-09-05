@@ -2,6 +2,25 @@ import { MSG, STATUS, getSettings } from '../shared/messages.js';
 import { panelTextSize } from '../shared/appearance.js';
 import { getLlmProvider, getSearchProvider } from '../providers/index.js';
 import { ratingTone } from '../shared/evidence.js';
+import { httpUrl } from '../shared/privacy.js';
+
+// A link to a source, built so that where it goes matches what it says. The
+// address is checked by shared/privacy.js; anything that is not an ordinary web
+// address is shown as plain text rather than as a link that lies about itself.
+function sourceLink(url, label) {
+  const safe = httpUrl(url);
+  if (!safe) {
+    const span = document.createElement('span');
+    span.textContent = label;
+    return span;
+  }
+  const a = document.createElement('a');
+  a.href = safe;
+  a.target = '_blank';
+  a.rel = 'noreferrer';
+  a.textContent = label;
+  return a;
+}
 
 const feed = document.getElementById('feed');
 const toggle = document.getElementById('autocheck');
@@ -280,12 +299,7 @@ function render(claims) {
     for (const r of c.results || []) {
       const row = document.createElement('div');
       row.className = 'result';
-      const a = document.createElement('a');
-      a.href = r.url;
-      a.target = '_blank';
-      a.rel = 'noreferrer';
-      a.textContent = r.title || r.url;
-      row.appendChild(a);
+      row.appendChild(sourceLink(r.url, r.title || r.url));
       const src = document.createElement('div');
       src.className = 'src';
       src.textContent = r.source || '';
@@ -346,12 +360,7 @@ function renderScholar(list) {
     const row = document.createElement('div');
     row.className = 'factcheck';
 
-    const a = document.createElement('a');
-    a.href = w.url;
-    a.target = '_blank';
-    a.rel = 'noreferrer';
-    a.textContent = w.title;
-    row.appendChild(a);
+    row.appendChild(sourceLink(w.url, w.title));
 
     const by = document.createElement('div');
     by.className = 'src';
@@ -396,12 +405,7 @@ function renderFactChecks(list) {
     rating.textContent = f.rating || 'rated';
     row.appendChild(rating);
 
-    const a = document.createElement('a');
-    a.href = f.url;
-    a.target = '_blank';
-    a.rel = 'noreferrer';
-    a.textContent = f.title || f.claim || f.url;
-    row.appendChild(a);
+    row.appendChild(sourceLink(f.url, f.title || f.claim || f.url));
 
     const by = document.createElement('div');
     by.className = 'src';
