@@ -38,6 +38,7 @@ export const MSG = {
   CHECK_CLAIM: 'checkClaim',        // { claimId } -> user asked to spend a search call
   BROWSER_SEARCH: 'browserSearch',  // { claimId } -> open the claim in the browser's default search engine
   CITE_SOURCES: 'citeSources',      // { claimId, url? } -> citable records for one source, or all of a claim's
+  CITE_MATERIAL: 'citeMaterial',    // { claimId, url } -> what a model may read to fill a citation's gaps
   SITE_RULE: 'siteRule',            // { domain, action: 'allow' | 'block' } -> thumbs up / down
 
   // The browser's built-in model needs a document context, so the panel runs it.

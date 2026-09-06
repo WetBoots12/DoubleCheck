@@ -5,6 +5,7 @@ import { ratingTone } from '../shared/evidence.js';
 import { httpUrl } from '../shared/privacy.js';
 import { claimToMarkdown } from '../shared/exportclaim.js';
 import { FORMATS, DEFAULT_FORMAT, isFormat, formatCitation, worksCited, missingFields } from '../shared/citation.js';
+import { AI_DISCLAIMER, applyCitationFacts } from '../shared/citationprompt.js';
 
 // A link to a source, built so that where it goes matches what it says. The
 // address is checked by shared/privacy.js; anything that is not an ordinary web
@@ -157,6 +158,65 @@ async function copyCitation(button, request, { asList = false } = {}) {
   } catch {
     button.textContent = 'Could not copy';
   }
+  button.disabled = false;
+  setTimeout(() => { button.textContent = label; }, 2600);
+}
+
+// Asking a model to find what the page did not say.
+//
+// A separate AI function from the summary, with its own prompt and its own rules;
+// see shared/citationprompt.js. It runs here rather than in the worker because the
+// browser's built-in model needs a document, and putting every provider through one
+// path is worth more than keeping the key on the other side of a message.
+//
+// Only on this press. Only for the fields that are actually missing. What comes back
+// is refused unless it survives the same checks a scraped byline faces, and it can
+// never overwrite something the page itself said.
+async function citeWithAi(button, claimId, url, statusLine) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Asking the AI…';
+  statusLine.textContent = '';
+
+  try {
+    const settings = await getSettings();
+    const llm = getLlmProvider(settings.llmProvider);
+    if (!llm.lookupCitationFacts) throw new Error('this provider cannot look up citations');
+
+    const material = await chrome.runtime.sendMessage({ type: MSG.CITE_MATERIAL, claimId, url });
+    if (!material?.source) throw new Error('nothing to complete');
+    if (!material.missing.length) throw new Error('nothing missing');
+
+    const facts = await llm.lookupCitationFacts(material, settings.llmApiKey, {
+      model: settings.llmModel,
+      url: settings.localLlmUrl,
+    });
+    const filled = applyCitationFacts(material.source, facts);
+
+    const text = filled.aiFilled?.length
+      ? `${formatCitation(filled, citationFormat)}\n\n${AI_DISCLAIMER}`
+      : formatCitation(filled, citationFormat);
+    await navigator.clipboard.writeText(text);
+
+    if (filled.aiFilled?.length) {
+      button.textContent = 'Copied';
+      // The disclaimer is not optional, and it goes on screen as well as into the
+      // clipboard, because the two get read by different people at different times.
+      statusLine.textContent = `${AI_DISCLAIMER} It supplied the ${filled.aiFilled.join(' and ')}.`;
+      statusLine.className = 'ai-note warn';
+    } else {
+      button.textContent = 'Copied';
+      // Being unable to find a byline is the right answer for a page without one.
+      statusLine.textContent = `The AI could not find the ${material.missing.join(' or ')} either. `
+        + 'The citation is correct without it.';
+      statusLine.className = 'ai-note';
+    }
+  } catch (err) {
+    button.textContent = 'Could not copy';
+    statusLine.textContent = err?.message ? `Could not ask the AI: ${err.message}` : '';
+    statusLine.className = 'ai-note';
+  }
+
   button.disabled = false;
   setTimeout(() => { button.textContent = label; }, 2600);
 }
@@ -478,7 +538,25 @@ function render(claims) {
         b.addEventListener('click', () =>
           copyCitation(b, { type: MSG.CITE_SOURCES, claimId: c.id, url: r.url }));
         cite.appendChild(b);
+
+        // Whatever the AI says about a citation is said here, under the buttons that
+        // asked for it.
+        const note = document.createElement('div');
+        note.className = 'ai-note';
+
+        // Offered only when a model is configured. What it fills is checked, and what
+        // it cannot find it is allowed to say.
+        if (llmEnabled) {
+          const ai = document.createElement('button');
+          ai.className = 'check secondary';
+          ai.textContent = 'Complete with AI';
+          ai.title = 'Ask the AI to look for the author and date this page did not state, then copy the citation';
+          ai.addEventListener('click', () => citeWithAi(ai, c.id, r.url, note));
+          cite.appendChild(ai);
+        }
+
         row.appendChild(cite);
+        row.appendChild(note);
       }
 
       el.appendChild(row);

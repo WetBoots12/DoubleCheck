@@ -24,7 +24,7 @@ import {
 import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { publishedDateFromHtml } from '../shared/dates.js';
 import { metadataFromHtml } from '../shared/metadata.js';
-import { sourcesForClaim } from '../shared/citation.js';
+import { sourcesForClaim, missingFields } from '../shared/citation.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore, privateTabs } from './tabstate.js';
 import { evaluateUrl, applySiteRule, normalizeDomain } from '../shared/privacy.js';
@@ -897,6 +897,63 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const all = sourcesForClaim(claim, meta, accessed);
         return { sources: msg.url ? all.filter((x) => x.url === msg.url) : all };
       }, { sources: [] });
+
+    case MSG.CITE_MATERIAL:
+      // Everything a model may read to fill a citation's gaps, gathered here because
+      // fetching and searching are the worker's job. The panel runs the model, since
+      // the browser's built-in one needs a document and this way every provider takes
+      // the same path.
+      //
+      // Only on a press, and only for a citation that is actually incomplete. The web
+      // search spends a search call, so it runs only when the reader has a provider
+      // that can answer and when the page itself did not say enough.
+      return reply(sendResponse, async () => {
+        const nothing = { source: null, missing: [], pageText: '', searchResults: [] };
+        const id = await activeTabId();
+        const state = id == null ? null : await tabStore.peek(id);
+        const claim = state?.claims.get(msg.claimId);
+        if (!claim) return nothing;
+
+        const settings = await getSettings();
+        const meta = await metadataFor([msg.url], settings);
+        const accessed = new Date().toISOString().slice(0, 10);
+        const source = sourcesForClaim(claim, meta, accessed).find((x) => x.url === msg.url) || null;
+        if (!source) return nothing;
+
+        const missing = missingFields(source);
+        if (!missing.length) return { source, missing, pageText: '', searchResults: [] };
+
+        // The page's own text. The excerpt read during the check is the cheap route;
+        // otherwise the page is read now and remembered, exactly as citing does.
+        let pageText = '';
+        const hit = (claim.results || []).find((r) => r?.url === msg.url);
+        if (hit?.excerpt) {
+          pageText = hit.excerpt;
+        } else {
+          try {
+            pageText = await remember(settings, 'pagetext', [msg.url], async () => {
+              const raw = await fetchPageHtml(msg.url);
+              return raw ? extractParagraphs(raw).slice(0, 12).join('\n\n') : '';
+            }) || '';
+          } catch { /* an unreadable page simply gives the model less to read */ }
+        }
+
+        // Looking for the piece elsewhere, which is where a byline this copy omits is
+        // most likely to appear. Uses whichever search provider the reader configured.
+        let searchResults = [];
+        if (searchReady(settings)) {
+          try {
+            const search = getSearchProvider(settings.searchProvider);
+            const query = [source.title, source.siteName].filter(Boolean).join(' ');
+            if (query) {
+              searchResults = await remember(settings, 'citesearch', [search.id, query], () =>
+                search.search(query, settings.searchApiKey, {}));
+            }
+          } catch { /* no results is a smaller loss than a failed citation */ }
+        }
+
+        return { source, missing, pageText, searchResults: (searchResults || []).slice(0, 3) };
+      }, { source: null, missing: [], pageText: '', searchResults: [] });
 
     case MSG.CHECK_CLAIM:
       requestCheck(msg.claimId, Boolean(msg.withAi));
