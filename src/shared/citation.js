@@ -412,3 +412,80 @@ export function missingFields(source) {
   if (!tidy(s.title)) gaps.push('title');
   return gaps;
 }
+
+// --- the extension's own shapes, turned into source records ------------------------
+//
+// Three kinds of thing get cited, and they arrive in three different shapes: a web
+// result from a search provider, a work from OpenAlex, a review from a fact-check
+// API. The mapping lives here, next to the styles that consume it, so a change to
+// what a citation needs is a change in one file.
+//
+// meta is what shared/metadata.js read from the page itself, and it wins wherever
+// it has something, because a publisher's own declaration beats a search provider's
+// summary of it. A truncated title is the visible case: providers cut them and the
+// page does not.
+
+function hostOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+export function sourceFromResult(result, meta = null, accessed = null) {
+  const r = result || {};
+  const m = meta || {};
+  return {
+    kind: 'web',
+    title: tidy(m.title) || tidy(r.title),
+    url: tidy(r.url),
+    // The domain is the last resort. It is not a site name, but it is true, and
+    // every style would rather have it than nothing.
+    siteName: tidy(m.siteName) || tidy(r.source) || hostOf(r.url),
+    authors: m.authors || [],
+    // The publisher's own date beats the provider's guess at it, which is the same
+    // order readSources already uses for the excerpt.
+    date: m.date || r.date || '',
+    accessed,
+  };
+}
+
+export function sourceFromScholar(work, accessed = null) {
+  const w = work || {};
+  return {
+    kind: 'article',
+    title: tidy(w.title),
+    url: tidy(w.url),
+    doi: tidy(w.doi),
+    venue: tidy(w.venue),
+    authors: w.authors || [],
+    date: w.year || '',
+    accessed,
+  };
+}
+
+export function sourceFromFactCheck(check, accessed = null) {
+  const f = check || {};
+  return {
+    kind: 'web',
+    title: tidy(f.title) || tidy(f.claim),
+    url: tidy(f.url),
+    // A fact-checker's name is the site name; it is the one field these always have.
+    siteName: tidy(f.publisher) || hostOf(f.url),
+    authors: [],
+    date: f.reviewDate || '',
+    accessed,
+  };
+}
+
+// Everything a claim found, in the order a reader met it, ready to cite.
+export function sourcesForClaim(claim, metaByUrl = {}, accessed = null) {
+  const c = claim || {};
+  const at = (url) => metaByUrl[url] || null;
+  return [
+    ...(c.results || []).map((r) => sourceFromResult(r, at(r?.url), accessed)),
+    ...(c.scholar || []).map((w) => sourceFromScholar(w, accessed)),
+    ...(c.factChecks || []).map((f) => sourceFromFactCheck(f, accessed)),
+  ].filter((s) => s.url || s.title);
+}
