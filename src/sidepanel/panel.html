@@ -125,6 +125,13 @@
       .result .figures { font-size: 12px; color: var(--fg); margin-top: 3px; padding: 3px 6px; border-left: 2px solid var(--rating-mixed, var(--muted)); }
       .empty { color: var(--muted); padding: 24px 4px; text-align: center; }
       .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+      /* The style sits beside the button that uses it, so the choice is made where
+         the citation is taken rather than in a settings page. */
+      .cite-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+      select.cite-format {
+        font: inherit; font-size: 11px; padding: 3px 4px; border-radius: 5px;
+        border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+      }
       .muted-note { font-size: 12px; color: var(--muted); font-style: italic; }
       /* What the model noticed in the sentence. Quiet, because it explains the
          highlight rather than competing with it. */

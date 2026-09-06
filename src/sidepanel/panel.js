@@ -1,9 +1,10 @@
-import { MSG, STATUS, getSettings } from '../shared/messages.js';
+import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
 import { panelTextSize } from '../shared/appearance.js';
 import { getLlmProvider, getSearchProvider } from '../providers/index.js';
 import { ratingTone } from '../shared/evidence.js';
 import { httpUrl } from '../shared/privacy.js';
 import { claimToMarkdown } from '../shared/exportclaim.js';
+import { FORMATS, DEFAULT_FORMAT, isFormat, formatCitation, worksCited, missingFields } from '../shared/citation.js';
 
 // A link to a source, built so that where it goes matches what it says. The
 // address is checked by shared/privacy.js; anything that is not an ordinary web
@@ -95,6 +96,69 @@ function renderBanner() {
     });
     banner.appendChild(open);
   }
+}
+
+// Which citation style the Cite buttons use. Chosen on the panel next to the button
+// rather than buried in settings, because it is a decision about the essay being
+// written and not about the extension. Remembered so it holds across every source
+// and every tab until the reader changes it.
+let citationFormat = DEFAULT_FORMAT;
+
+// Every dropdown on screen shows the same choice, so changing one changes them all.
+const formatPickers = new Set();
+
+function setCitationFormat(next) {
+  if (!isFormat(next) || next === citationFormat) return;
+  citationFormat = next;
+  for (const el of formatPickers) el.value = next;
+  saveSettings({ citationFormat: next }).catch(() => {});
+}
+
+function formatPicker() {
+  const select = document.createElement('select');
+  select.className = 'cite-format';
+  select.title = 'Which citation style to copy';
+  for (const f of FORMATS) {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.label;
+    select.appendChild(opt);
+  }
+  select.value = citationFormat;
+  select.addEventListener('change', () => setCitationFormat(select.value));
+  formatPickers.add(select);
+  return select;
+}
+
+// A citation, on the clipboard, in the style showing on the dropdown.
+//
+// The lookup can involve reading the source's page, so the button says what it is
+// doing. Where the clipboard refuses, which it does when the panel has lost focus,
+// the text is put on screen to be copied by hand rather than silently lost.
+async function copyCitation(button, request, { asList = false } = {}) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Citing…';
+  try {
+    const res = await chrome.runtime.sendMessage(request);
+    const sources = res?.sources || [];
+    if (!sources.length) throw new Error('nothing to cite');
+
+    // One entry per line, which is what a works cited page is.
+    const text = asList
+      ? worksCited(sources, citationFormat).join('\n')
+      : formatCitation(sources[0], citationFormat);
+
+    await navigator.clipboard.writeText(text);
+    const gaps = asList ? [] : missingFields(sources[0]);
+    button.textContent = gaps.length
+      ? `Copied, no ${gaps.slice(0, 2).join(' or ')}`
+      : 'Copied';
+  } catch {
+    button.textContent = 'Could not copy';
+  }
+  button.disabled = false;
+  setTimeout(() => { button.textContent = label; }, 2600);
 }
 
 // The site the claims came from, so copied text says where it was found. The panel
@@ -306,6 +370,18 @@ function render(claims) {
       actions.appendChild(copy);
     }
 
+    // Everything this claim found, as a works cited list: deduplicated, alphabetised
+    // and ready to paste under the heading.
+    if ((c.results?.length || 0) + (c.scholar?.length || 0) + (c.factChecks?.length || 0) > 1) {
+      const all = document.createElement('button');
+      all.className = 'check secondary';
+      all.textContent = 'Cite all sources';
+      all.title = 'Copy every source found for this claim, as a works cited list';
+      all.addEventListener('click', () =>
+        copyCitation(all, { type: MSG.CITE_SOURCES, claimId: c.id }, { asList: true }));
+      actions.appendChild(all);
+    }
+
     if (actions.childElementCount) el.appendChild(actions);
 
     if (c.status === STATUS.NO_KEY) {
@@ -388,6 +464,23 @@ function render(claims) {
         sn.textContent = r.snippet;
         row.appendChild(sn);
       }
+
+      // The style sits next to the button rather than in settings, so the choice is
+      // made where the citation is taken.
+      if (r.url) {
+        const cite = document.createElement('div');
+        cite.className = 'cite-row';
+        cite.appendChild(formatPicker());
+        const b = document.createElement('button');
+        b.className = 'check secondary';
+        b.textContent = 'Cite this source';
+        b.title = 'Copy a citation for this source in the style shown';
+        b.addEventListener('click', () =>
+          copyCitation(b, { type: MSG.CITE_SOURCES, claimId: c.id, url: r.url }));
+        cite.appendChild(b);
+        row.appendChild(cite);
+      }
+
       el.appendChild(row);
     }
 
@@ -694,6 +787,11 @@ function applyPanelSize(settings) {
 chrome.storage.onChanged.addListener(async () => {
   const s = await getSettings();
   applyPanelSize(s);
+  if (isFormat(s.citationFormat) && s.citationFormat !== citationFormat) {
+    // Changed in another window; follow it without writing it back.
+    citationFormat = s.citationFormat;
+    for (const el of formatPickers) el.value = citationFormat;
+  }
   const next = s.llmProvider !== 'none';
   const keyed = keyedSearch(s);
   toggle.checked = s.autoCheck;
@@ -709,6 +807,7 @@ chrome.storage.onChanged.addListener(async () => {
   applyPanelSize(settings);
   llmEnabled = settings.llmProvider !== 'none';
   searchKeyed = keyedSearch(settings);
+  if (isFormat(settings.citationFormat)) citationFormat = settings.citationFormat;
   toggle.checked = settings.autoCheck;
   const res = await chrome.runtime.sendMessage({ type: MSG.PANEL_READY }).catch(() => null);
   render(res?.claims || []);
