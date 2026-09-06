@@ -6,7 +6,7 @@
 // and falls back to the heuristic scorer when it is missing or fails to load, so the
 // extension keeps working either way.
 
-import { scoreWithModel, heuristicScore } from './scorer.js';
+import { scoreWithModel, heuristicScore, explainFeatures } from './scorer.js';
 
 const MODEL_PATH = 'classifier/model/model.json';
 
@@ -42,4 +42,12 @@ export async function scoreClaimWorthiness(sentences) {
 
 export function isUsingHeuristic() {
   return model === null;
+}
+
+// What about this sentence made it look checkable. Empty when no model is loaded,
+// because the heuristic scorer has no weights to rank its signals by and a guess
+// dressed as an explanation is worse than no explanation.
+export async function explainClaim(text) {
+  const m = await loadModel();
+  return m ? explainFeatures(m, text) : [];
 }
