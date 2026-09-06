@@ -253,3 +253,29 @@ test('the segments flatten to exactly the plain text', () => {
     assert.equal(toPlainText(citationSegments(WEB, f)), formatCitation(WEB, f), f);
   }
 });
+
+// --- what the page itself declared ------------------------------------------------
+
+test('an author the page declared an organisation is never inverted', () => {
+  // "Marshall Project" and "Marshall Kane" look the same to a guess. When the page
+  // said which it is, the guess is not consulted. See shared/metadata.js.
+  const s = { ...WEB, authors: [{ name: 'Marshall Project', organisation: true }] };
+  assert.ok(formatCitation(s, 'mla').startsWith('Marshall Project.'), formatCitation(s, 'mla'));
+  assert.deepEqual(splitName({ name: 'Reuters', organisation: true }), { organisation: 'Reuters' });
+});
+
+test('an author the page declared a person is inverted even if the name reads corporate', () => {
+  assert.deepEqual(splitName({ name: 'Marshall Press', organisation: false }),
+    { surname: 'Press', given: 'Marshall' });
+});
+
+test('a declaration and a plain string can sit in the same list', () => {
+  const s = { ...WEB, authors: [{ name: 'Jane Doe' }, 'John Roe'] };
+  assert.ok(formatCitation(s, 'mla').startsWith('Doe, Jane, and John Roe.'), formatCitation(s, 'mla'));
+});
+
+test('a declared author with no name is dropped rather than printed empty', () => {
+  const s = { ...WEB, authors: [{ name: '' }, { name: '   ' }] };
+  assert.deepEqual(missingFields(s), ['author']);
+  assert.ok(!formatCitation(s, 'mla').includes('undefined'), formatCitation(s, 'mla'));
+});
