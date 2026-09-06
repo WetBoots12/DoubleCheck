@@ -174,6 +174,15 @@ function stop(text) {
   return /[.!?]$/.test(t) ? t : `${t}.`;
 }
 
+// A title going inside quotation marks, with any quotation marks it already carries
+// turned into single ones. News headlines quote things constantly, and MLA and
+// Chicago both ask for single quotes nested inside double. Left alone it reads
+// "Officials call the figure "misleading" in report." and the quoting stops meaning
+// anything.
+function quoted(title) {
+  return '"' + stop(title).replace(/["“”]/g, "'") + '"';
+}
+
 const seg = (text, italic = false) => ({ text, italic });
 
 export function toPlainText(segments) {
@@ -234,7 +243,7 @@ function mla(s) {
   // has no container, so its own title is the italic one. This is the distinction
   // MLA calls container, and getting it wrong is the most visible error a citation
   // can make.
-  if (s.title) out.push(seg(`"${stop(s.title)}" `));
+  if (s.title) out.push(seg(`${quoted(s.title)} `));
 
   const container = s.kind === 'article' ? s.venue : s.siteName;
   if (container) out.push(seg(tidy(container), true), seg(', '));
@@ -309,7 +318,7 @@ function chicago(s) {
   const out = [];
   const authors = chicagoAuthors(s.authors);
   if (authors) out.push(seg(`${authors} `));
-  if (s.title) out.push(seg(`"${stop(s.title)}" `));
+  if (s.title) out.push(seg(`${quoted(s.title)} `));
 
   if (s.kind === 'article') {
     if (s.venue) out.push(seg(tidy(s.venue), true), seg(' '));
