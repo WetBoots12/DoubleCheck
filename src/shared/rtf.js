@@ -15,6 +15,10 @@ function escapeRtf(text) {
   let out = '';
   for (const ch of String(text || '')) {
     const code = ch.codePointAt(0);
+    // Control characters mean nothing in a citation and arrive only from a page's
+    // own markup. They are dropped for the same reason the Word writer drops them:
+    // a document is not the place to pass a stray byte along.
+    if (code < 0x20 && ch !== '\n') continue;
     if (ch === '\\' || ch === '{' || ch === '}') out += `\\${ch}`;
     else if (ch === '\n') out += '\\line ';
     else if (code < 128) out += ch;

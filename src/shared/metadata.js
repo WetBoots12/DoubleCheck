@@ -28,7 +28,18 @@ const SEARCH_CHARS = 200000;
 const ATTR = '[^>]{0,300}';
 
 function tidy(text) {
-  return decodeEntities(String(text || '')).replace(/\s+/g, ' ').trim();
+  // Control characters are dropped here, at the point everything from a page passes
+  // through. Collapsing whitespace does not remove them, because a control byte is
+  // not whitespace, so one in a headline used to travel all the way into an exported
+  // Word document and make it unopenable. The exporters guard themselves as well;
+  // this is so nothing downstream ever sees one, including the panel.
+  let clean = '';
+  for (const ch of decodeEntities(String(text || ''))) {
+    const c = ch.codePointAt(0);
+    if (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) continue;
+    clean += ch;
+  }
+  return clean.replace(/\s+/g, ' ').trim();
 }
 
 function escapeForPattern(text) {

@@ -214,3 +214,14 @@ test('an unclosed JSON-LD script does not make the scan run away', () => {
   metadataFromHtml(html);
   assert.ok(Date.now() - started < 1000);
 });
+
+test('a control character in a meta tag is stripped rather than carried', () => {
+  // Whitespace collapsing does not touch these, so they used to travel all the way
+  // into an exported document and make it unopenable.
+  const m = metadataFromHtml(page(
+    '<meta property="og:title" content="Inflation\u0001 cools">'
+    + '<meta name="author" content="Jane\u0001Doe">',
+  ));
+  assert.equal(m.title, 'Inflation cools');
+  assert.deepEqual(m.authors, [{ name: 'JaneDoe' }]);
+});

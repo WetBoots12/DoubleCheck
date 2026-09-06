@@ -149,7 +149,7 @@ test('the three characters that mean something to RTF are escaped', () => {
 
 test('accents and other letters survive as escapes a word processor understands', () => {
   const rtf = worksCitedRtf([[{ text: 'José García — Müller', italic: false }]]);
-  assert.ok(!/[^\x00-\x7f]/.test(rtf), 'the file should be plain ASCII');
+  assert.ok(![...rtf].some((c) => c.codePointAt(0) > 127), 'the file should be plain ASCII');
   assert.ok(rtf.includes('\\u233?'), 'e-acute');
   assert.ok(rtf.includes('\\u8212?'), 'em dash');
 });
@@ -169,4 +169,10 @@ test('an empty list still produces a file that opens', () => {
 test('the plain text export is the same list under a heading', () => {
   const text = worksCitedText(['Adams, Alan. "One."', 'Young, Zoe. "Two."']);
   assert.equal(text, 'Works Cited\n\nAdams, Alan. "One."\nYoung, Zoe. "Two."');
+});
+
+test('a control character does not reach the rich text file either', () => {
+  const rtf = worksCitedRtf([[{ text: 'Inflation\u0001 cools\u001f now', italic: false }]]);
+  assert.ok(!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(rtf), 'a control character survived');
+  assert.ok(rtf.includes('Inflation cools now'));
 });
