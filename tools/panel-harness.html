@@ -1,0 +1,98 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Side panel harness</title>
+<!--
+  The side panel, rendered outside the browser extension, so it can be looked at.
+
+  panel.js needs chrome.* at module load and gets a stub here. The markup and the
+  styles are fetched from panel.html itself rather than copied, because a copy would
+  drift and a harness that renders something other than the real panel is worse than
+  no harness.
+
+  Serve the repository root over http and open /tools/panel-harness.html. A module
+  cannot be imported from a file:// address, which is the whole reason for the server.
+
+  Development only. Not part of the packaged extension.
+-->
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #444; }
+  .frame { width: 380px; margin: 16px; background: #fff; border-radius: 8px; overflow: hidden;
+           box-shadow: 0 2px 18px rgba(0,0,0,.4); }
+  .note { color: #eee; margin: 16px; font-size: 12px; max-width: 380px; }
+</style>
+<div class="note">The side panel at its real width, fed a claim that has been checked.</div>
+<div class="frame" id="frame"></div>
+
+<script>
+  // Just enough chrome for the panel to load and for a citation press to answer.
+  const stored = {
+    fc_settings: { autoCheck: true, llmProvider: 'none', searchProvider: 'wikipedia', citationFormat: 'mla' },
+  };
+  let panelListener = null;
+
+  window.chrome = {
+    runtime: {
+      onMessage: { addListener: (fn) => { panelListener = fn; } },
+      sendMessage: async (msg) => {
+        if (msg.type === 'panelReady') return { tabId: 1, claims: [], page: null };
+        if (msg.type === 'citeSources') {
+          // What the worker returns once it has read the source's page.
+          return {
+            sources: [{
+              kind: 'web',
+              title: 'Inflation cools to 4.2%',
+              url: 'https://apnews.com/article/x',
+              siteName: 'AP News',
+              authors: [{ name: 'Christopher Rugaber' }],
+              date: '2026-06-14',
+              accessed: '2026-09-06',
+            }],
+          };
+        }
+        return { ok: true };
+      },
+      openOptionsPage: () => {},
+      getURL: (p) => '../' + p,
+    },
+    storage: {
+      local: {
+        async get(key) { return key == null ? { ...stored } : { [key]: stored[key] }; },
+        async set(obj) { Object.assign(stored, obj); },
+      },
+      onChanged: { addListener: () => {} },
+    },
+    tabs: { create: () => {} },
+  };
+</script>
+
+<script type="module">
+  const src = await (await fetch('../src/sidepanel/panel.html')).text();
+  const doc = new DOMParser().parseFromString(src, 'text/html');
+
+  for (const style of doc.querySelectorAll('style')) document.head.appendChild(style.cloneNode(true));
+  document.getElementById('frame').innerHTML = doc.body.innerHTML;
+
+  const panel = await import('../src/sidepanel/panel.js');
+
+  // A claim as it looks after a check: two sources, a fact-check, an evidence score.
+  const claim = {
+    id: 'c1',
+    text: 'Inflation reached 4.2 percent in the year to June, the statistics office reported.',
+    status: 'checked',
+    score: 0.91,
+    signals: ['a percentage', 'a number', 'someone quoted'],
+    results: [
+      { title: 'Inflation cools to 4.2% - The Assoc...', url: 'https://apnews.com/article/x',
+        source: 'apnews.com', snippet: 'Prices rose 4.2 percent in the year to June.' },
+      { title: 'Cost of living: what the figures show', url: 'https://www.bbc.co.uk/news/x',
+        source: 'bbc.co.uk', snippet: 'The figure was the highest since 1982.' },
+    ],
+    factChecks: [{ publisher: 'FullFact', rating: 'True', title: 'Inflation claim checked',
+      url: 'https://fullfact.org/x', reviewDate: '2026-07-01' }],
+    evidence: { quality: 0.78, position: 92, verdict: 'supported', support: 0.8, rows: [],
+      lines: ['2 of 2 sources address the claim', 'sources: 1 wire service, 1 public broadcaster'] },
+  };
+
+  // The panel renders from a PANEL_UPDATE, which is how the worker drives it.
+  panelListener({ type: 'panelUpdate', tabId: 1, claims: [claim] });
+</script>
