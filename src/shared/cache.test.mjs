@@ -195,3 +195,41 @@ test('cacheKey is order-stable and readable', () => {
   assert.equal(cacheKey('search', ['brave', 'q']), 'search|["brave","q"]');
   assert.notEqual(cacheKey('search', ['brave', 'q']), cacheKey('search', ['q', 'brave']));
 });
+
+// --- asking what is already remembered ------------------------------------------
+//
+// The panel asks before the reader presses anything, so a claim whose answer is
+// already stored can say so and cost nothing.
+
+test('hasMany reports which keys have a live answer, in a single read', async () => {
+  let reads = 0;
+  const area = fakeStorage();
+  const counted = { ...area, get: (k) => { reads++; return area.get(k); } };
+  const cache = createCache(counted);
+
+  await cache.set('search|a', ['one']);
+  await cache.set('search|b', ['two']);
+  reads = 0;
+
+  const live = await cache.hasMany(['search|a', 'search|b', 'search|never-asked']);
+  assert.deepEqual([...live].sort(), ['search|a', 'search|b']);
+  assert.equal(reads, 1, 'one read for every key, not one read per key');
+});
+
+test('hasMany treats an expired answer as absent, and does not delete it', async () => {
+  let clock = 1000;
+  const area = fakeStorage();
+  const cache = createCache(area, { ttlMs: 100, now: () => clock });
+  await cache.set('search|a', ['one']);
+
+  clock += 500;
+  assert.deepEqual([...await cache.hasMany(['search|a'])], [],
+    'an expired answer is not an answer');
+  assert.equal(await cache.size(), 1,
+    'asking what is remembered must not quietly rewrite what is remembered');
+});
+
+test('hasMany on nothing asks storage nothing', async () => {
+  const cache = createCache(fakeStorage());
+  assert.deepEqual([...await cache.hasMany([])], []);
+});
