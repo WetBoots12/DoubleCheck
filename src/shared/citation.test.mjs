@@ -348,3 +348,21 @@ test('a claim that found nothing yields no sources rather than empty entries', (
   assert.deepEqual(sourcesForClaim(null, {}, null), []);
   assert.deepEqual(sourcesForClaim({ results: [{}, { url: '' }] }, {}, null), []);
 });
+
+test('a headline that already quotes something does not produce nested double quotes', () => {
+  // News headlines quote things constantly. Left alone this reads
+  // "Officials call the figure "misleading" in report." and the quoting stops
+  // meaning anything. MLA and Chicago both want single quotes nested inside double.
+  const s = { ...WEB, title: 'Officials call the figure "misleading"' };
+  for (const f of ['mla', 'chicago']) {
+    const out = formatCitation(s, f);
+    assert.ok(out.includes(`"Officials call the figure 'misleading'."`), `${f}: ${out}`);
+    assert.equal((out.match(/"/g) || []).length, 2, `${f} should have exactly one pair of double quotes: ${out}`);
+  }
+});
+
+test('curly quotation marks in a headline are handled too', () => {
+  const s = { ...WEB, title: '\u201cRecord\u201d prices, says report' };
+  const out = formatCitation(s, 'mla');
+  assert.ok(out.includes(`"'Record' prices, says report."`), out);
+});
