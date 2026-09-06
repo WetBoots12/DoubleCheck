@@ -103,3 +103,47 @@ export function heuristicScore(text) {
 
   return Math.max(0, Math.min(1, score));
 }
+
+// --- why a sentence scored the way it did --------------------------------------
+//
+// The panel used to show a bare number, which is an oracle: it tells the reader a
+// sentence is worth checking without telling them what about it is checkable. The
+// handcrafted signals are already computed for every sentence scanned and their
+// weights are already loaded, so naming the ones that pushed the score up costs a
+// lookup. It also keeps the promise the extension makes about what the score means,
+// because "a percentage, someone quoted" is a description of the sentence rather
+// than a judgement about the world.
+//
+// Only the signals present in the sentence AND weighted upward are named. A signal
+// the model learned to weigh against, such as hedging, is not the reason a sentence
+// was flagged, so listing it would mislead.
+
+export const FEATURE_LABELS = {
+  has_digit: 'a number',
+  has_percent: 'a percentage',
+  has_year: 'a year',
+  has_big_number: 'a large quantity',
+  has_attribution: 'someone quoted',
+  has_quantifier: 'a superlative or comparison',
+  has_causal: 'a cause and effect',
+  has_hedge: 'hedging language',
+  first_person: 'written in the first person',
+  is_question: 'a question',
+  is_long: 'a long sentence',
+  has_currency: 'an amount of money',
+  has_unit: 'a unit of measurement',
+  has_decimal: 'a precise figure',
+};
+
+export function explainFeatures(model, text, limit = 3) {
+  if (!model?.coef || !model?.idf) return [];
+  const offset = model.idf.length;
+  const present = handcrafted(text);
+
+  return FEATURES
+    .map(([name], i) => ({ name, weight: present[i] ? (model.coef[offset + i] ?? 0) : 0 }))
+    .filter((f) => f.weight > 0)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, limit)
+    .map((f) => FEATURE_LABELS[f.name] || f.name);
+}

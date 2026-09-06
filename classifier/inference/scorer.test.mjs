@@ -4,7 +4,10 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { tokenize, ngrams, handcrafted, heuristicScore, scoreWithModel, FEATURES } from './scorer.js';
+import {
+  tokenize, ngrams, handcrafted, heuristicScore, scoreWithModel,
+  FEATURES, explainFeatures, FEATURE_LABELS,
+} from './scorer.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const modelDir = join(here, '..', 'model');
@@ -78,4 +81,39 @@ test('trained model scores match the Python implementation', { skip: !existsSync
     assert.ok(delta < 1e-6,
       `sentence ${i} scored ${score} in JS vs ${fixture.scores[i]} in Python (delta ${delta})`);
   });
+});
+
+// --- naming what the model noticed ----------------------------------------------
+
+test('the signals named are ones the sentence actually contains', () => {
+  const model = JSON.parse(readFileSync('classifier/model/model.json', 'utf8'));
+
+  const named = explainFeatures(model, 'The Labor Department said unemployment fell to 4.2 percent in 2025.');
+  assert.ok(named.includes('a percentage'), JSON.stringify(named));
+  assert.ok(named.includes('someone quoted'), JSON.stringify(named));
+  assert.ok(named.length <= 3, 'three is enough to explain a highlight');
+
+  const plain = explainFeatures(model, 'The new rules take effect next month.');
+  assert.deepEqual(plain, [], 'nothing checkable in it, so nothing to name');
+});
+
+test('only signals weighted upward are named', () => {
+  // Hedging is a reason the model scores a sentence lower. Listing it as a reason
+  // the sentence was flagged would say the opposite of what the model did.
+  const model = JSON.parse(readFileSync('classifier/model/model.json', 'utf8'));
+  const named = explainFeatures(model, 'I think unemployment might probably be around 4 percent, seems like.');
+  assert.ok(!named.includes('hedging language'), JSON.stringify(named));
+  assert.ok(!named.includes('written in the first person'), JSON.stringify(named));
+});
+
+test('no model means no explanation rather than a guessed one', () => {
+  assert.deepEqual(explainFeatures(null, 'Anything at all.'), []);
+  assert.deepEqual(explainFeatures({}, 'Anything at all.'), []);
+  assert.deepEqual(explainFeatures({ coef: [1] }, 'Anything at all.'), []);
+});
+
+test('every feature has a label, so none can surface as a raw name', () => {
+  for (const [name] of FEATURES) {
+    assert.ok(FEATURE_LABELS[name], `${name} has no reader-facing label`);
+  }
 });
