@@ -260,3 +260,25 @@ test('a long list is written correctly, not just a short one', () => {
   assert.equal((doc.match(/<w:p>/g) || []).length, 201, 'two hundred entries and a heading');
   assert.ok(doc.includes('Article number 199'));
 });
+
+// --- characters XML will not carry ------------------------------------------------
+
+test('a control character from a page does not produce a file Word refuses', () => {
+  // XML 1.0 forbids most characters below 0x20. One of them in a page's title used
+  // to travel from a meta tag into word/document.xml, and Microsoft's own parser
+  // rejected the result: "hexadecimal value 0x01, is an invalid character".
+  //
+  // Asserted inside the XML part, not across the archive: a ZIP's own headers are
+  // sizes, offsets and checksums, so the raw bytes hold control characters by design.
+  const title = `Inflation${String.fromCharCode(1)} cools${String.fromCharCode(31)} now`;
+  const doc = unzip(worksCitedDocx([[{ text: title, italic: false }]]))['word/document.xml'];
+
+  assert.ok(!new RegExp('[\u0000-\u0008\u000b\u000c\u000e-\u001f]').test(doc), 'a forbidden character reached the document');
+  assert.ok(doc.includes('Inflation cools now'), 'and the words survive');
+});
+
+test('the characters XML does allow are kept', () => {
+  // Tab, newline and carriage return are legal in XML and mean something in text.
+  assert.equal(escapeXml('a\tb'), 'a\tb');
+  assert.equal(escapeXml('a\nb'), 'a\nb');
+});

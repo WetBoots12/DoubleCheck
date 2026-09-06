@@ -137,10 +137,35 @@ export function zip(files, { modified = null } = {}) {
 
 // --- the document -----------------------------------------------------------------------
 
+// Characters XML 1.0 will not carry at all, whatever they are escaped as. Tab,
+// newline and carriage return are the three below 0x20 that are legal; the rest are
+// forbidden outright, and a document containing one is rejected by the parser rather
+// than rendered oddly.
+//
+// They reach here from a page's own meta tags. Collapsing whitespace does not remove
+// them, because a control byte is not whitespace, so one in a headline used to travel
+// all the way into word/document.xml. Microsoft's parser was the thing that noticed:
+// "hexadecimal value 0x01, is an invalid character."
+// Legal below 0x20: tab, newline, carriage return. Everything else there is
+// forbidden outright, as are the two non-characters at the end of the plane.
+// Written as a code-point test rather than a character class, because a class of
+// control characters is the kind of thing an editing layer turns into the literal
+// bytes it describes.
+function stripForbidden(text) {
+  let out = '';
+  for (const ch of String(text || '')) {
+    const c = ch.codePointAt(0);
+    if (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) continue;
+    if (c === 0xfffe || c === 0xffff) continue;
+    out += ch;
+  }
+  return out;
+}
+
 // The five characters XML cannot carry literally. Anything else, including every
 // accent and dash a citation contains, goes through as UTF-8.
 export function escapeXml(text) {
-  return String(text || '')
+  return stripForbidden(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

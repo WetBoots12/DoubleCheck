@@ -106,12 +106,20 @@ function renderBanner() {
 let citationFormat = DEFAULT_FORMAT;
 
 // Every dropdown on screen shows the same choice, so changing one changes them all.
-const formatPickers = new Set();
+//
+// Asked of the document rather than kept in a set. A set was the obvious way and was
+// wrong: the panel rebuilds its feed on every update from the worker, so the set
+// filled with dropdowns that had already been thrown away and nothing ever removed
+// them. Measured after fifty updates with two sources: two on screen, a hundred and
+// two still held. The document already knows which ones exist.
+function eachFormatPicker(fn) {
+  for (const el of document.querySelectorAll('select.cite-format')) fn(el);
+}
 
 function setCitationFormat(next) {
   if (!isFormat(next) || next === citationFormat) return;
   citationFormat = next;
-  for (const el of formatPickers) el.value = next;
+  eachFormatPicker((el) => { el.value = next; });
   saveSettings({ citationFormat: next }).catch(() => {});
 }
 
@@ -127,7 +135,6 @@ function formatPicker() {
   }
   select.value = citationFormat;
   select.addEventListener('change', () => setCitationFormat(select.value));
-  formatPickers.add(select);
   return select;
 }
 
@@ -849,6 +856,7 @@ const REFUSALS = {
   local: 'That is a local or private network address, so it is not kept.',
   fields: 'That page has a password or card field, so it is not kept.',
   incognito: 'Nothing from an incognito window is written to disk.',
+  moved: 'That page changed while it was being read, so nothing was kept. Try again.',
   unsupported: 'That page cannot be cited.',
 };
 
@@ -909,7 +917,7 @@ chrome.storage.onChanged.addListener(async () => {
   if (isFormat(s.citationFormat) && s.citationFormat !== citationFormat) {
     // Changed in another window; follow it without writing it back.
     citationFormat = s.citationFormat;
-    for (const el of formatPickers) el.value = citationFormat;
+    eachFormatPicker((el) => { el.value = citationFormat; });
   }
   const next = s.llmProvider !== 'none';
   const keyed = keyedSearch(s);

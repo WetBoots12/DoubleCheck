@@ -25,7 +25,7 @@ import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { publishedDateFromHtml } from '../shared/dates.js';
 import { metadataFromHtml } from '../shared/metadata.js';
 import { sourcesForClaim, missingFields } from '../shared/citation.js';
-import { makeSource } from '../shared/sources.js';
+import { makeSource, sourceKey } from '../shared/sources.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore, privateTabs } from './tabstate.js';
 import { sourceStore } from './sourcestore.js';
@@ -178,11 +178,16 @@ async function citationPolicy(tabId) {
     if (tab?.incognito) return { blocked: true, reason: 'incognito' };
 
     const settings = await getSettings();
-    return evaluateUrl(tab?.url || '', {
-      ...settings,
-      allowedDomains: [],     // no per-site override for a durable record
-      privateSitesRule: true, // and the built-in rules always apply to one
-    });
+    // The address is returned alongside the verdict, so the caller can store the one
+    // that was actually judged rather than whatever the page says a moment later.
+    return {
+      ...evaluateUrl(tab?.url || '', {
+        ...settings,
+        allowedDomains: [],     // no per-site override for a durable record
+        privateSitesRule: true, // and the built-in rules always apply to one
+      }),
+      url: tab?.url || '',
+    };
   } catch {
     return { blocked: true, reason: 'unsupported' };
   }
@@ -192,15 +197,26 @@ async function citationPolicy(tabId) {
 // fetched HTML, because the content script can see what the page actually rendered.
 // Falls back to what the tab itself reports when no content script answers, which is
 // the case on pages the extension does not inject into.
-async function pageCitationRecord(tabId) {
+async function pageCitationRecord(tabId, approvedUrl) {
+  if (!approvedUrl) return null;
+
   let described = null;
   try {
     described = await chrome.tabs.sendMessage(tabId, { type: MSG.PAGE_META });
   } catch { /* no content script here */ }
 
+  // The address the policy judged is the address that gets stored, and if the page
+  // has moved since then nothing is stored at all.
+  //
+  // The check reads the tab's address; the reply comes back a moment later carrying
+  // the page's own. On a single-page app those are not always the same address: one
+  // history.pushState in between and the approval belonged to the page before. Small
+  // window, same shape as every other bug in this extension that let one page's
+  // permission cover another.
+  if (described?.url && sourceKey(described.url) !== sourceKey(approvedUrl)) return null;
+
   const tab = await chrome.tabs.get(tabId).catch(() => null);
-  const url = described?.url || tab?.url || '';
-  if (!url) return null;
+  const url = approvedUrl;
 
   const meta = described?.head ? metadataFromHtml(described.head) : { authors: [], title: '', siteName: '', date: '' };
   return makeSource({
@@ -967,8 +983,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const policy = await citationPolicy(id);
         if (policy.blocked) return { ok: false, blocked: true, reason: policy.reason, domain: policy.domain || '' };
 
-        const record = await pageCitationRecord(id);
-        if (!record) return { ok: false, reason: 'unsupported' };
+        const record = await pageCitationRecord(id, policy.url);
+        if (!record) return { ok: false, reason: 'moved' };
 
         const result = await sourceStore.add(record);
         return { ok: result.added, replaced: result.replaced, title: record.title, url: record.url };

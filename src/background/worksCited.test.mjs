@@ -220,3 +220,41 @@ test('the list survives the worker being put to sleep', async () => {
   await settle();
   assert.equal((await list()).length, 1, 'a bibliography that dies with the worker is no use');
 });
+
+test('a page that moves between the check and the reply is not kept', async () => {
+  // The policy judges the tab's address; the content script answers a moment later
+  // with the page's own. On a single-page app one history.pushState in between means
+  // the approval belonged to the page before. The window is small and the shape is
+  // familiar: it is the same way a navigation used to carry the previous page's
+  // permission into the next one.
+  await reset();
+  const approved = tabUrl;
+
+  const realSend = chrome.tabs.sendMessage;
+  chrome.tabs.sendMessage = async (_id, msg) => {
+    if (msg.type !== 'pageMeta') return undefined;
+    return { head: headHtml, title: 'Somewhere else', url: 'https://www.riverbendgazette.example/account/billing' };
+  };
+
+  const res = await send({ type: 'addSource' }, undefined);
+  chrome.tabs.sendMessage = realSend;
+
+  assert.equal(res.ok, false, 'a page that moved must not be kept');
+  assert.deepEqual(await list(), []);
+  assert.equal(approved, tabUrl, 'and the tab itself never changed');
+});
+
+test('the address stored is the one the policy judged, not the one the page reports', async () => {
+  await reset();
+  const realSend = chrome.tabs.sendMessage;
+  // Same page, but the reply carries a tracking parameter the check never saw.
+  chrome.tabs.sendMessage = async (_id, msg) => (msg.type === 'pageMeta'
+    ? { head: headHtml, title: 'Council raises the budget', url: `${tabUrl}?utm_source=x` }
+    : undefined);
+
+  await send({ type: 'addSource' }, undefined);
+  chrome.tabs.sendMessage = realSend;
+
+  const [saved] = await list();
+  assert.equal(saved.url, tabUrl, 'the judged address is what is written down');
+});
