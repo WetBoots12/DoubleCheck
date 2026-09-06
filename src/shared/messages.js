@@ -39,6 +39,13 @@ export const MSG = {
   BROWSER_SEARCH: 'browserSearch',  // { claimId } -> open the claim in the browser's default search engine
   CITE_SOURCES: 'citeSources',      // { claimId, url? } -> citable records for one source, or all of a claim's
   CITE_MATERIAL: 'citeMaterial',    // { claimId, url } -> what a model may read to fill a citation's gaps
+  ADD_SOURCE: 'addSource',          // {} -> keep the current page in the works cited list
+  LIST_SOURCES: 'listSources',      // {} -> the kept list, for the options page
+  REMOVE_SOURCE: 'removeSource',    // { key } -> drop one
+  CLEAR_SOURCES: 'clearSources',    // {} -> drop them all
+
+  // background -> content script
+  PAGE_META: 'pageMeta',            // {} -> the page describes itself for a citation
   SITE_RULE: 'siteRule',            // { domain, action: 'allow' | 'block' } -> thumbs up / down
 
   // The browser's built-in model needs a document context, so the panel runs it.

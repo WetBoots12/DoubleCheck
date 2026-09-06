@@ -144,7 +144,19 @@
         font-size: 12px;
         margin-top: 6px;
       }
-      .row { display: flex; align-items: center; gap: 10px; }
+      .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      /* One kept source per line: what it is, then a way to drop it. */
+      .sources { margin: 14px 0; }
+      .sources .none { color: var(--muted); font-style: italic; }
+      .sources .entry {
+        display: flex; gap: 10px; align-items: flex-start;
+        padding: 8px 0; border-top: 1px solid var(--border);
+      }
+      .sources .entry .what { flex: 1; min-width: 0; }
+      .sources .entry .cite { font-size: 13px; line-height: 1.5; word-break: break-word; }
+      .sources .entry .gaps { font-size: 11px; color: var(--muted); margin-top: 3px; }
+      .sources .entry button { flex: none; }
+      button.danger { color: var(--rating-false, #b4462d); }
       .row input[type="range"] { flex: 1; }
       .switch { display: flex; align-items: center; gap: 8px; font-weight: 500; }
       .switch input { width: 16px; height: 16px; }
@@ -239,6 +251,7 @@
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button role="tab" id="tab-guide-btn" class="tab" aria-controls="tab-guide" aria-selected="true">How to use it</button>
         <button role="tab" id="tab-settings-btn" class="tab" aria-controls="tab-settings" aria-selected="false">Settings</button>
+        <button role="tab" id="tab-sources-btn" class="tab" aria-controls="tab-sources" aria-selected="false">Works cited</button>
         <button role="tab" id="tab-credits-btn" class="tab" aria-controls="tab-credits" aria-selected="false">Credits and licences</button>
       </nav>
 
@@ -793,6 +806,43 @@
         <button id="save">Save settings</button>
         <span id="saved">Saved</span>
       </footer>
+      </div>
+
+      <div class="tabpanel" id="tab-sources" role="tabpanel" aria-labelledby="tab-sources-btn" hidden>
+        <section>
+          <h2>Your works cited list</h2>
+          <p>
+            Every page you kept with <strong>Add this page as a source</strong> in the side
+            panel. Nothing arrives here on its own: this extension never reads your browsing
+            history and asks for no permission to do so. The list is stored on this computer,
+            in the extension's own storage, where no website can reach it. It stays until you
+            remove it or remove the extension.
+          </p>
+          <p class="hint">
+            Pages that look private are refused outright, and unlike scanning there is no
+            per-site override for that. Nothing from an incognito window is kept either.
+          </p>
+
+          <div class="field">
+            <label for="sourcesFormat">Citation style</label>
+            <select id="sourcesFormat"></select>
+            <div class="hint">The same choice as the Cite buttons in the side panel.</div>
+          </div>
+
+          <div class="row">
+            <button type="button" id="copySources" class="ghost">Copy the list</button>
+            <button type="button" id="saveDocx" class="ghost">Save as Word (.docx)</button>
+            <button type="button" id="saveRtf" class="ghost">Save as .rtf</button>
+            <button type="button" id="saveTxt" class="ghost">Save as .txt</button>
+            <span id="sourcesStatus" class="hint"></span>
+          </div>
+
+          <div id="sourcesList" class="sources"></div>
+
+          <div class="row">
+            <button type="button" id="clearSources" class="ghost danger">Remove every source</button>
+          </div>
+        </section>
       </div>
 
       <div class="tabpanel" id="tab-credits" role="tabpanel" aria-labelledby="tab-credits-btn" hidden>

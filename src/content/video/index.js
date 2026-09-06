@@ -17,6 +17,7 @@
     PAGE_LANGUAGE: 'pageLanguage',
     OPEN_TRANSCRIPT: 'openTranscript',
     RESCAN: 'rescan',
+    PAGE_META: 'pageMeta',
   };
 
   let autoCheck = true;

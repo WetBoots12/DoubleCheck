@@ -25,8 +25,10 @@ import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { publishedDateFromHtml } from '../shared/dates.js';
 import { metadataFromHtml } from '../shared/metadata.js';
 import { sourcesForClaim, missingFields } from '../shared/citation.js';
+import { makeSource } from '../shared/sources.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore, privateTabs } from './tabstate.js';
+import { sourceStore } from './sourcestore.js';
 import { evaluateUrl, applySiteRule, normalizeDomain } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
 import { createCache, cacheKey } from '../shared/cache.js';
@@ -152,6 +154,62 @@ async function scanPolicy(tabId) {
   } catch {
     return NO_TAB;
   }
+}
+
+// Whether a page may be kept in the works cited list, which is a harder question
+// than whether it may be scanned, and deliberately so.
+//
+// Scanning is transient and local: it happens in memory, it is thrown away when the
+// tab navigates, and a reader who presses the thumbs-up on a site has said something
+// reasonable about that site. The list is a record on disk that outlives the browser
+// session, so it does not take that answer. A page the built-in rules flag is refused
+// here even when the reader has allowed that site for scanning, and even when they
+// have switched the built-in rules off altogether, because that switch governs
+// scanning and was not a decision about what to write down.
+//
+// The point of all this is one sentence: a bank statement cannot end up in a file
+// that is still there tomorrow.
+async function citationPolicy(tabId) {
+  if (tabId == null) return { blocked: true, reason: 'unsupported' };
+  try {
+    if (await privateTabs.has(tabId)) return { blocked: true, reason: 'fields' };
+
+    const tab = await chrome.tabs.get(tabId);
+    if (tab?.incognito) return { blocked: true, reason: 'incognito' };
+
+    const settings = await getSettings();
+    return evaluateUrl(tab?.url || '', {
+      ...settings,
+      allowedDomains: [],     // no per-site override for a durable record
+      privateSitesRule: true, // and the built-in rules always apply to one
+    });
+  } catch {
+    return { blocked: true, reason: 'unsupported' };
+  }
+}
+
+// How the page describes itself, read from the live document rather than from
+// fetched HTML, because the content script can see what the page actually rendered.
+// Falls back to what the tab itself reports when no content script answers, which is
+// the case on pages the extension does not inject into.
+async function pageCitationRecord(tabId) {
+  let described = null;
+  try {
+    described = await chrome.tabs.sendMessage(tabId, { type: MSG.PAGE_META });
+  } catch { /* no content script here */ }
+
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  const url = described?.url || tab?.url || '';
+  if (!url) return null;
+
+  const meta = described?.head ? metadataFromHtml(described.head) : { authors: [], title: '', siteName: '', date: '' };
+  return makeSource({
+    url,
+    title: meta.title || described?.title || tab?.title || '',
+    siteName: meta.siteName || originDomain(url),
+    authors: meta.authors,
+    date: meta.date,
+  });
 }
 
 async function pushPageStatus(tabId, policy) {
@@ -897,6 +955,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const all = sourcesForClaim(claim, meta, accessed);
         return { sources: msg.url ? all.filter((x) => x.url === msg.url) : all };
       }, { sources: [] });
+
+    case MSG.ADD_SOURCE:
+      // Keeping the current page. Manual, always: nothing reads browsing history and
+      // no permission to do so is requested. The policy consulted here is the strict
+      // one, because this writes to disk and stays there.
+      return reply(sendResponse, async () => {
+        const id = await activeTabId();
+        if (id == null) return { ok: false, reason: 'unsupported' };
+
+        const policy = await citationPolicy(id);
+        if (policy.blocked) return { ok: false, blocked: true, reason: policy.reason, domain: policy.domain || '' };
+
+        const record = await pageCitationRecord(id);
+        if (!record) return { ok: false, reason: 'unsupported' };
+
+        const result = await sourceStore.add(record);
+        return { ok: result.added, replaced: result.replaced, title: record.title, url: record.url };
+      }, { ok: false, reason: 'unsupported' });
+
+    case MSG.LIST_SOURCES:
+      return reply(sendResponse, async () => ({ sources: await sourceStore.list() }), { sources: [] });
+
+    case MSG.REMOVE_SOURCE:
+      return reply(sendResponse, async () => ({ sources: await sourceStore.remove(msg.key) }), { sources: null });
+
+    case MSG.CLEAR_SOURCES:
+      return reply(sendResponse, async () => ({ sources: await sourceStore.clear() }), { sources: null });
 
     case MSG.CITE_MATERIAL:
       // Everything a model may read to fill a citation's gaps, gathered here because
