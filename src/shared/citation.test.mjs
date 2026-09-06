@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   FORMATS, isFormat, splitName, looksLikeOrganisation, dateParts,
   formatCitation, citationSegments, toPlainText, worksCited, missingFields,
+  sourceFromResult, sourceFromScholar, sourceFromFactCheck, sourcesForClaim,
 } from './citation.js';
 
 // A news article read on the web, with everything a good page declares.
@@ -278,4 +279,72 @@ test('a declared author with no name is dropped rather than printed empty', () =
   const s = { ...WEB, authors: [{ name: '' }, { name: '   ' }] };
   assert.deepEqual(missingFields(s), ['author']);
   assert.ok(!formatCitation(s, 'mla').includes('undefined'), formatCitation(s, 'mla'));
+});
+
+// --- the extension's own shapes ---------------------------------------------------
+
+test('a search result becomes a citable source, with the page winning over the provider', () => {
+  const result = {
+    title: 'Inflation cools to 4.2% - The Associ...',   // providers truncate
+    url: 'https://apnews.com/article/x',
+    source: 'apnews.com',
+    date: '2026-06-01',
+  };
+  const meta = {
+    title: 'Inflation cools to 4.2%',
+    siteName: 'AP News',
+    authors: [{ name: 'Christopher Rugaber' }],
+    date: '2026-06-14',
+  };
+
+  const s = sourceFromResult(result, meta, '2026-09-06');
+  assert.equal(s.title, 'Inflation cools to 4.2%', "the page's own title beats a truncated one");
+  assert.equal(s.siteName, 'AP News', 'a site name beats a domain');
+  assert.equal(s.date, '2026-06-14', "the publisher's date beats the provider's guess");
+  assert.deepEqual(s.authors, [{ name: 'Christopher Rugaber' }]);
+});
+
+test('a search result with no metadata still cites, falling back to the domain', () => {
+  const s = sourceFromResult({ title: 'A story', url: 'https://www.example.com/a' }, null, '2026-09-06');
+  assert.equal(s.siteName, 'example.com');
+  assert.deepEqual(s.authors, []);
+  assert.ok(formatCitation(s, 'mla').includes('example.com'));
+  assert.deepEqual(missingFields(s), ['author', 'date']);
+});
+
+test('a work from OpenAlex cites as a journal article', () => {
+  const s = sourceFromScholar({
+    title: 'Measuring consumer price inflation',
+    url: 'https://doi.org/10.1234/x', doi: 'https://doi.org/10.1234/x',
+    venue: 'Journal of Economics', authors: ['Maria Alvarez'], year: 2025,
+  }, '2026-09-06');
+  assert.equal(s.kind, 'article');
+  assert.ok(formatCitation(s, 'apa').startsWith('Alvarez, M. (2025).'), formatCitation(s, 'apa'));
+});
+
+test('a published fact-check cites with the fact-checker as the site', () => {
+  const s = sourceFromFactCheck({
+    publisher: 'FullFact', title: 'Inflation claim checked',
+    url: 'https://fullfact.org/x', reviewDate: '2026-07-01',
+  }, '2026-09-06');
+  assert.equal(s.siteName, 'FullFact');
+  assert.ok(formatCitation(s, 'mla').includes('FullFact'));
+});
+
+test("every source a claim found comes back in the order the reader met them", () => {
+  const claim = {
+    results: [{ title: 'One', url: 'https://a.example/1' }],
+    scholar: [{ title: 'Two', url: 'https://doi.org/2', authors: ['Ann Poe'], year: 2024 }],
+    factChecks: [{ title: 'Three', url: 'https://fullfact.org/3', publisher: 'FullFact' }],
+  };
+  const sources = sourcesForClaim(claim, { 'https://a.example/1': { siteName: 'A Site' } }, '2026-09-06');
+  assert.deepEqual(sources.map((s) => s.title), ['One', 'Two', 'Three']);
+  assert.equal(sources[0].siteName, 'A Site', 'metadata is matched to its own result by address');
+  assert.equal(sources[1].kind, 'article');
+});
+
+test('a claim that found nothing yields no sources rather than empty entries', () => {
+  assert.deepEqual(sourcesForClaim({}, {}, null), []);
+  assert.deepEqual(sourcesForClaim(null, {}, null), []);
+  assert.deepEqual(sourcesForClaim({ results: [{}, { url: '' }] }, {}, null), []);
 });

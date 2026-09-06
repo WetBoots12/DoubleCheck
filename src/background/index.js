@@ -23,6 +23,8 @@ import {
 } from '../providers/index.js';
 import { extractParagraphs, relevantExcerpt } from '../shared/extract.js';
 import { publishedDateFromHtml } from '../shared/dates.js';
+import { metadataFromHtml } from '../shared/metadata.js';
+import { sourcesForClaim } from '../shared/citation.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore, privateTabs } from './tabstate.js';
 import { evaluateUrl, applySiteRule, normalizeDomain } from '../shared/privacy.js';
@@ -400,6 +402,39 @@ async function excludedDomains(tabId) {
 // of the results themselves: a page that will not load leaves its snippet in place.
 const READ_TOP_N = 2;
 
+// What a page says about itself: its author, its real title, the publisher's name.
+// Read from the same HTML readSources already fetches, but cached by address alone
+// rather than by address and claim, because who wrote a page does not depend on
+// which claim sent us to it. Two claims citing the same source pay for one fetch.
+//
+// Nothing here happens on its own. It runs when a check is already fetching the
+// page, or when the reader presses a Cite button, and the empty answer is a valid
+// one: shared/citation.js cites an unauthored page correctly in all four styles.
+async function pageMetadata(url, settings) {
+  if (!url) return null;
+  try {
+    return await remember(settings, 'meta', [url], async () => {
+      const html = await fetchPageHtml(url);
+      return html ? metadataFromHtml(html) : { authors: [], title: '', siteName: '', date: '' };
+    });
+  } catch {
+    return null; // an unreadable page cites from what the search result gave us
+  }
+}
+
+// Metadata for a set of addresses, as a plain object the citation module can read.
+// Fetched in parallel, and a failure anywhere costs that one source its author and
+// nothing else.
+async function metadataFor(urls, settings) {
+  const wanted = [...new Set(urls.filter(Boolean))];
+  const found = {};
+  await Promise.all(wanted.map(async (url) => {
+    const meta = await pageMetadata(url, settings);
+    if (meta) found[url] = meta;
+  }));
+  return found;
+}
+
 async function readSources(claim, results, settings) {
   if (!settings.readSources) return;
   await Promise.all(results.slice(0, READ_TOP_N).map(async (r) => {
@@ -486,6 +521,15 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     ]);
 
     await readSources(claim, results, settings);
+
+    // Off by default. On, every result's author and real title are read while the
+    // check is already running, so a later Cite press copies instantly instead of
+    // waiting on a fetch. It is a page fetch either way and costs no API quota; the
+    // difference is only whether it happens now for all of them or later for the
+    // one that gets cited.
+    if (settings.autoCitationData) {
+      await metadataFor(results.map((r) => r?.url), settings);
+    }
 
     claim.results = results;
     claim.factChecks = factChecks;
@@ -827,6 +871,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         else Promise.resolve(chrome.search?.query({ text, disposition: 'NEW_TAB' })).catch(() => {});
       });
       return false;
+
+    case MSG.CITE_SOURCES:
+      // The panel asks for the records; it does the formatting, because it is the
+      // panel that knows which style the reader picked. url names one source, and
+      // its absence means all of the claim's.
+      //
+      // This is where a page is fetched for a citation, and it happens because a
+      // button was pressed. Cached by address, so the second claim citing the same
+      // source pays nothing, and an unreadable page still cites from what the
+      // search result gave us.
+      return reply(sendResponse, async () => {
+        const id = await activeTabId();
+        const state = id == null ? null : await tabStore.peek(id);
+        const claim = state?.claims.get(msg.claimId);
+        if (!claim) return { sources: [] };
+
+        const settings = await getSettings();
+        const wanted = msg.url
+          ? (claim.results || []).filter((r) => r?.url === msg.url).map((r) => r.url)
+          : (claim.results || []).map((r) => r?.url);
+        const meta = await metadataFor(wanted, settings);
+
+        const accessed = new Date().toISOString().slice(0, 10);
+        const all = sourcesForClaim(claim, meta, accessed);
+        return { sources: msg.url ? all.filter((x) => x.url === msg.url) : all };
+      }, { sources: [] });
 
     case MSG.CHECK_CLAIM:
       requestCheck(msg.claimId, Boolean(msg.withAi));

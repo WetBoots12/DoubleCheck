@@ -37,6 +37,7 @@ export const MSG = {
   CLEAR_CACHE: 'clearCache',        // {} -> empty the remembered provider answers
   CHECK_CLAIM: 'checkClaim',        // { claimId } -> user asked to spend a search call
   BROWSER_SEARCH: 'browserSearch',  // { claimId } -> open the claim in the browser's default search engine
+  CITE_SOURCES: 'citeSources',      // { claimId, url? } -> citable records for one source, or all of a claim's
   SITE_RULE: 'siteRule',            // { domain, action: 'allow' | 'block' } -> thumbs up / down
 
   // The browser's built-in model needs a document context, so the panel runs it.
@@ -69,6 +70,8 @@ export const DEFAULT_SETTINGS = {
   trustedDomains: [],     // sources the user rates highly; see shared/evidence.js
   distrustedDomains: [],  // sources the user rates weak
   readSources: true,      // read the top results' own pages, not just their snippets
+  citationFormat: 'mla',  // which style the Cite button copies; chosen on the panel, remembered here
+  autoCitationData: false, // read every result's author and title during a check, rather than when cited
   ...DEFAULT_APPEARANCE,  // highlight colour and style, panel text size; see shared/appearance.js
   cacheResults: true,     // remember search, fact-check and AI answers for a day; see shared/cache.js
   factCheckProvider: 'google',
