@@ -5,13 +5,19 @@ import {
   HIGHLIGHT_STYLES, HIGHLIGHT_COLORS, THICKNESS, PANEL_SIZES, applyAppearance,
 } from '../shared/appearance.js';
 import { SEARCH_ENGINES } from '../shared/engines.js';
+import {
+  FORMATS, DEFAULT_FORMAT, isFormat, formatCitation, citationSegments, worksCited, missingFields,
+} from '../shared/citation.js';
+import { citableSources } from '../shared/sources.js';
+import { worksCitedRtf, worksCitedText } from '../shared/rtf.js';
+import { worksCitedDocx } from '../shared/docx.js';
 
 const el = (id) => document.getElementById(id);
 
 // Three panels behind one page: the guide, the settings, and the credits. The guide
 // is first and open by default, because someone opening this page for the first time
 // needs to know what the extension does before changing how it does it.
-const TABS = ['guide', 'settings', 'credits'];
+const TABS = ['guide', 'settings', 'sources', 'credits'];
 
 function showTab(name) {
   for (const id of TABS) {
@@ -198,6 +204,183 @@ async function save() {
   setTimeout(() => el('saved').classList.remove('show'), 1800);
 }
 
+
+// --- the works cited list ------------------------------------------------------
+//
+// The reader's own list, kept one press at a time from the side panel. This page
+// shows it, lets them drop entries, and writes it out in the four ways someone
+// actually wants it: on the clipboard, as a Word document, as rich text, as plain
+// text. Nothing here reaches the network.
+
+let keptSources = [];
+
+function citationStyle() {
+  const chosen = el('sourcesFormat')?.value;
+  return isFormat(chosen) ? chosen : DEFAULT_FORMAT;
+}
+
+// A file the browser saves. An extension page can hand one over with a blob and a
+// download link, which needs no permission; the link is created, clicked and
+// revoked, because a page that leaks object URLs holds the data alive for as long
+// as it is open.
+function saveFile(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function sourcesStatus(text) {
+  const status = el('sourcesStatus');
+  if (!status) return;
+  status.textContent = text;
+  setTimeout(() => { status.textContent = ''; }, 2600);
+}
+
+function renderSources() {
+  const box = el('sourcesList');
+  if (!box) return;
+  box.replaceChildren();
+
+  if (!keptSources.length) {
+    const none = document.createElement('div');
+    none.className = 'none';
+    none.textContent = 'Nothing kept yet. Open the side panel on a page worth citing and '
+      + 'press "Add this page as a source".';
+    box.appendChild(none);
+    return;
+  }
+
+  const style = citationStyle();
+  for (const source of keptSources) {
+    const [citable] = citableSources([source]);
+    const entry = document.createElement('div');
+    entry.className = 'entry';
+
+    const what = document.createElement('div');
+    what.className = 'what';
+
+    const cite = document.createElement('div');
+    cite.className = 'cite';
+    cite.textContent = formatCitation(citable, style);
+    what.appendChild(cite);
+
+    // Say what the entry could not say, because a reader who knows the author is
+    // missing can go and find it, and one who does not will paste it as it is.
+    const gaps = missingFields(citable);
+    if (gaps.length) {
+      const note = document.createElement('div');
+      note.className = 'gaps';
+      note.textContent = `The page did not state the ${gaps.join(' or the ')}.`;
+      what.appendChild(note);
+    }
+    entry.appendChild(what);
+
+    const drop = document.createElement('button');
+    drop.type = 'button';
+    drop.className = 'ghost';
+    drop.textContent = 'Remove';
+    drop.addEventListener('click', async () => {
+      drop.disabled = true;
+      const res = await chrome.runtime.sendMessage({ type: MSG.REMOVE_SOURCE, key: source.key }).catch(() => null);
+      if (Array.isArray(res?.sources)) {
+        keptSources = res.sources;
+        renderSources();
+      } else {
+        drop.disabled = false;
+        sourcesStatus('Could not remove that one; try again.');
+      }
+    });
+    entry.appendChild(drop);
+    box.appendChild(entry);
+  }
+}
+
+function citedEntries() {
+  const style = citationStyle();
+  const citable = citableSources(keptSources);
+  // Deduplicated and alphabetised by worksCited, then re-segmented so the file
+  // formats keep their italics. Sorting on the rendered line is what "alphabetical"
+  // means to the person reading it.
+  const lines = worksCited(citable, style);
+  const byLine = new Map(citable.map((s) => [formatCitation(s, style), s]));
+  return { lines, segments: lines.map((line) => citationSegments(byLine.get(line), style)) };
+}
+
+async function wireSources() {
+  const select = el('sourcesFormat');
+  if (!select) return;
+
+  for (const f of FORMATS) {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.label;
+    select.appendChild(opt);
+  }
+  const settings = await getSettings();
+  select.value = isFormat(settings.citationFormat) ? settings.citationFormat : DEFAULT_FORMAT;
+
+  // The same choice the side panel uses, so changing it in either place changes both.
+  select.addEventListener('change', () => {
+    saveSettings({ citationFormat: select.value }).catch(() => {});
+    renderSources();
+  });
+
+  el('copySources').addEventListener('click', async () => {
+    const { lines } = citedEntries();
+    if (!lines.length) return sourcesStatus('Nothing to copy yet.');
+    try {
+      await navigator.clipboard.writeText(worksCitedText(lines));
+      sourcesStatus(`Copied ${lines.length} ${lines.length === 1 ? 'entry' : 'entries'}.`);
+    } catch {
+      sourcesStatus('The clipboard refused; try saving a file instead.');
+    }
+  });
+
+  el('saveDocx').addEventListener('click', () => {
+    const { segments, lines } = citedEntries();
+    if (!lines.length) return sourcesStatus('Nothing to save yet.');
+    saveFile('works-cited.docx', new Blob([worksCitedDocx(segments)], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }));
+    sourcesStatus('Saved.');
+  });
+
+  el('saveRtf').addEventListener('click', () => {
+    const { segments, lines } = citedEntries();
+    if (!lines.length) return sourcesStatus('Nothing to save yet.');
+    saveFile('works-cited.rtf', new Blob([worksCitedRtf(segments)], { type: 'application/rtf' }));
+    sourcesStatus('Saved.');
+  });
+
+  el('saveTxt').addEventListener('click', () => {
+    const { lines } = citedEntries();
+    if (!lines.length) return sourcesStatus('Nothing to save yet.');
+    saveFile('works-cited.txt', new Blob([worksCitedText(lines)], { type: 'text/plain;charset=utf-8' }));
+    sourcesStatus('Saved.');
+  });
+
+  el('clearSources').addEventListener('click', async () => {
+    if (!keptSources.length) return sourcesStatus('The list is already empty.');
+    const res = await chrome.runtime.sendMessage({ type: MSG.CLEAR_SOURCES }).catch(() => null);
+    if (Array.isArray(res?.sources)) {
+      keptSources = res.sources;
+      renderSources();
+      sourcesStatus('Removed.');
+    } else {
+      sourcesStatus('Could not clear the list; try again.');
+    }
+  });
+
+  const res = await chrome.runtime.sendMessage({ type: MSG.LIST_SOURCES }).catch(() => null);
+  keptSources = res?.sources || [];
+  renderSources();
+}
+
 (async () => {
   fill(fields.searchProvider, Object.values(SEARCH_PROVIDERS));
   fill(fields.factCheckProvider, Object.values(FACTCHECK_PROVIDERS));
@@ -265,6 +448,7 @@ async function save() {
     status.textContent = res?.ok ? 'Cleared.' : 'Could not clear; try again.';
     setTimeout(() => { status.textContent = ''; }, 2500);
   });
+  await wireSources();
   wireTabs();
   el('save').addEventListener('click', save);
 })();

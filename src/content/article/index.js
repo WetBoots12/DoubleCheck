@@ -18,6 +18,7 @@
     PAGE_LANGUAGE: 'pageLanguage',
     PAGE_SOURCES: 'pageSources',
     RESCAN: 'rescan',
+    PAGE_META: 'pageMeta',
   };
 
   // How the highlights look. Computed by the worker, which can import the shared
@@ -390,7 +391,22 @@
     if (el) setCurrent(el, list);
   }
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    // How the page describes itself, for a citation the reader asked to keep.
+    //
+    // The head is where a publisher declares its author, its real title and its own
+    // name, and reading it from the live document beats parsing fetched HTML because
+    // this is what the page actually rendered. Bounded, and only the head: the body
+    // is the article, and the article is not wanted here.
+    if (msg.type === MSG.PAGE_META) {
+      sendResponse({
+        head: (document.head?.outerHTML || '').slice(0, 200000),
+        title: document.title || '',
+        url: location.href,
+      });
+      return true;
+    }
+
     if (msg.type === MSG.CLAIM_STATUS) {
       // Report which claims could not be placed, so the panel can say so instead of
       // leaving the user hunting for a highlight that was never drawn.

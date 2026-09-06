@@ -129,6 +129,8 @@
          the citation is taken rather than in a settings page. */
       .cite-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
       /* What the AI said about a citation, including that it found nothing. */
+      .keep-note { font-size: 11px; color: var(--muted); }
+      .keep-note.refused { color: var(--fg); }
       .ai-note:empty { display: none; }
       .ai-note { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
       .ai-note.warn { color: var(--fg); border-left: 2px solid var(--rating-mixed, var(--muted)); padding-left: 6px; }
@@ -246,6 +248,10 @@
       <span class="site-name" id="siteName"></span>
       <button id="siteAllow" class="thumb" title="Always scan this site">&#128077;</button>
       <button id="siteBlock" class="thumb" title="Never scan this site">&#128078;</button>
+    </div>
+    <div class="siterow" id="keeprow">
+      <button id="addSource" class="check secondary" title="Keep this page in your works cited list">Add this page as a source</button>
+      <span class="keep-note" id="keepNote"></span>
     </div>
     <div class="banner" id="banner" hidden></div>
     <main id="feed"><div class="empty">Nothing flagged yet on this page.<br>Highlight a sentence, then right-click it and choose "Fact-check the highlighted text".</div></main>

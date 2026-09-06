@@ -836,6 +836,47 @@ document.getElementById('guideLink')?.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('src/options/options.html#guide') });
 });
 
+// Keeping the page the reader is on, for the works cited list.
+//
+// Manual, one press at a time. Nothing reads browsing history and no permission to
+// do so is requested; this button is the only way a page enters the list. The worker
+// applies a stricter rule here than it does for scanning, and when it refuses the
+// reason is said plainly rather than the press appearing to do nothing.
+const REFUSALS = {
+  builtin: 'That page looks private (banking, health, email, accounts), so it is not kept. '
+    + 'This one rule has no override, because the list is a file that outlives the browser.',
+  user: 'That site is on your never-scan list, so it is not kept.',
+  local: 'That is a local or private network address, so it is not kept.',
+  fields: 'That page has a password or card field, so it is not kept.',
+  incognito: 'Nothing from an incognito window is written to disk.',
+  unsupported: 'That page cannot be cited.',
+};
+
+const addSourceBtn = document.getElementById('addSource');
+const keepNote = document.getElementById('keepNote');
+
+addSourceBtn?.addEventListener('click', async () => {
+  addSourceBtn.disabled = true;
+  const label = addSourceBtn.textContent;
+  addSourceBtn.textContent = 'Keeping…';
+  keepNote.textContent = '';
+  keepNote.className = 'keep-note';
+
+  const res = await chrome.runtime.sendMessage({ type: MSG.ADD_SOURCE }).catch(() => null);
+
+  if (res?.ok) {
+    addSourceBtn.textContent = res.replaced ? 'Updated' : 'Kept';
+    keepNote.textContent = res.title ? `“${res.title}” is in your works cited list.` : '';
+  } else {
+    addSourceBtn.textContent = 'Not kept';
+    keepNote.textContent = REFUSALS[res?.reason] || REFUSALS.unsupported;
+    keepNote.className = 'keep-note refused';
+  }
+
+  addSourceBtn.disabled = false;
+  setTimeout(() => { addSourceBtn.textContent = label; }, 2600);
+});
+
 const rescanBtn = document.getElementById('rescan');
 rescanBtn?.addEventListener('click', async () => {
   rescanBtn.disabled = true;

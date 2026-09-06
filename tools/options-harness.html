@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Options harness</title>
+<!--
+  The options page, rendered outside the extension so it can be looked at.
+
+  Same idea as panel-harness.html: the markup and styles are fetched from
+  options.html itself rather than copied, so the harness cannot drift from the page
+  it claims to show. options.js needs chrome.* at module load and gets a stub here,
+  seeded with a works cited list so the fourth tab has something in it.
+
+  Serve the repository root over http and open /tools/options-harness.html. A module
+  cannot be imported from a file:// address, which is the reason for the server.
+
+  Open it in a NEW TAB after editing anything under src/. A browser keeps an
+  evaluated module against its address for the life of a tab, and that survives a
+  reload, so a reloaded harness will show the page as it was several edits ago.
+
+  Development only. Not part of the packaged extension.
+-->
+<style>
+  body { margin: 0; }
+</style>
+<div id="page"></div>
+
+<script>
+  const KEPT = [
+    {
+      key: 'https://apnews.com/article/inflation', url: 'https://apnews.com/article/inflation',
+      kind: 'web', title: 'Inflation cools to 4.2%', siteName: 'AP News',
+      authors: [{ name: 'Christopher Rugaber' }], date: '2026-06-14', accessed: '2026-09-06',
+      addedAt: 1757000000000,
+    },
+    {
+      key: 'https://www.bbc.co.uk/news/cost-of-living', url: 'https://www.bbc.co.uk/news/cost-of-living',
+      kind: 'web', title: 'Cost of living: what the figures show', siteName: 'BBC News',
+      authors: [], date: '', accessed: '2026-09-06', addedAt: 1756900000000,
+    },
+    {
+      key: 'https://doi.org/10.1234/jecon', url: 'https://doi.org/10.1234/jecon',
+      kind: 'article', title: 'Measuring consumer price inflation', doi: 'https://doi.org/10.1234/jecon',
+      venue: 'Journal of Economics', authors: ['Maria Alvarez', 'John Roe'], date: '2025',
+      accessed: '2026-09-06', addedAt: 1756800000000,
+    },
+  ];
+
+  let sources = KEPT.slice();
+  const stored = { fc_settings: { citationFormat: 'mla' } };
+
+  window.chrome = {
+    runtime: {
+      sendMessage: async (msg) => {
+        if (msg.type === 'listSources') return { sources };
+        if (msg.type === 'removeSource') { sources = sources.filter((s) => s.key !== msg.key); return { sources }; }
+        if (msg.type === 'clearSources') { sources = []; return { sources }; }
+        if (msg.type === 'clearCache') return { ok: true };
+        return { ok: true };
+      },
+      getURL: (p) => '../' + p,
+      openOptionsPage: () => {},
+    },
+    storage: {
+      local: {
+        async get(key) { return key == null ? { ...stored } : { [key]: stored[key] }; },
+        async set(obj) { Object.assign(stored, obj); },
+      },
+      onChanged: { addListener: () => {} },
+    },
+    tabs: { create: () => {} },
+  };
+</script>
+
+<script type="module">
+  const src = await (await fetch('../src/options/options.html')).text();
+  const doc = new DOMParser().parseFromString(src, 'text/html');
+  for (const style of doc.querySelectorAll('style')) document.head.appendChild(style.cloneNode(true));
+  document.getElementById('page').innerHTML = doc.body.innerHTML;
+  location.hash = '#sources';
+  await import('../src/options/options.js');
+</script>
