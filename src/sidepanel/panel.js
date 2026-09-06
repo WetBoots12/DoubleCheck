@@ -3,6 +3,7 @@ import { panelTextSize } from '../shared/appearance.js';
 import { getLlmProvider, getSearchProvider } from '../providers/index.js';
 import { ratingTone } from '../shared/evidence.js';
 import { httpUrl } from '../shared/privacy.js';
+import { claimToMarkdown } from '../shared/exportclaim.js';
 
 // A link to a source, built so that where it goes matches what it says. The
 // address is checked by shared/privacy.js; anything that is not an ordinary web
@@ -96,9 +97,15 @@ function renderBanner() {
   }
 }
 
+// The site the claims came from, so copied text says where it was found. The panel
+// is told the domain and not the full address, which is enough to name the source
+// and is the least it could carry.
+let pageDomain = '';
+
 function renderPageStatus(msg) {
   pageStatus = msg;
   bannerTabId = msg.tabId;
+  pageDomain = msg.domain || '';
   const usable = msg.domain && msg.reason !== 'unsupported' && msg.reason !== 'local';
   siteRow.hidden = !usable;
   if (usable) {
@@ -205,6 +212,17 @@ function render(claims) {
     if (c.userAdded) meta.innerHTML += '<span title="You added this by highlighting the sentence and right-clicking it.">added by you</span>';
     el.appendChild(meta);
 
+    // What about the sentence made it look checkable. The score on its own is an
+    // oracle; this says what the model actually noticed, which is a description of
+    // the sentence and not a judgement about whether it is true.
+    if (Array.isArray(c.signals) && c.signals.length) {
+      const why = document.createElement('div');
+      why.className = 'signals';
+      why.textContent = `Flagged for: ${c.signals.join(', ')}`;
+      why.title = 'What this sentence contains that makes it checkable. It says nothing about whether the sentence is correct.';
+      el.appendChild(why);
+    }
+
     // Search and AI calls both cost the user something, so each is its own button
     // and nothing runs until they ask.
     const actions = document.createElement('div');
@@ -257,6 +275,36 @@ function render(claims) {
     });
     if (searchKeyed) actions.appendChild(browse);
     else actions.insertBefore(browse, actions.firstChild);
+
+    // An answer already stored costs nothing to look at again, and saying so before
+    // the button is pressed is the point: the whole design is that the reader
+    // decides when to spend, so they should know when there is nothing to spend.
+    if (c.cached && (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR)) {
+      const free = document.createElement('div');
+      free.className = 'muted-note';
+      free.textContent = 'You looked this one up recently, so the answer is already saved. No call will be made.';
+      actions.appendChild(free);
+    }
+
+    // Out of the panel and into wherever the reader is actually writing. Nothing
+    // leaves the machine: this is the clipboard.
+    if (c.status === STATUS.CHECKED || c.results?.length || c.factChecks?.length) {
+      const copy = document.createElement('button');
+      copy.className = 'check secondary';
+      copy.textContent = 'Copy';
+      copy.title = 'Copy this claim and what was found about it, as text you can paste';
+      copy.addEventListener('click', async () => {
+        const label = copy.textContent;
+        try {
+          await navigator.clipboard.writeText(claimToMarkdown(c, { pageTitle: pageDomain }));
+          copy.textContent = 'Copied';
+        } catch {
+          copy.textContent = 'Could not copy';
+        }
+        setTimeout(() => { copy.textContent = label; }, 1500);
+      });
+      actions.appendChild(copy);
+    }
 
     if (actions.childElementCount) el.appendChild(actions);
 
