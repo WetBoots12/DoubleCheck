@@ -25,6 +25,22 @@ const ENTITIES = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–',
   mdash: '—', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
   hellip: '…', deg: '°', pound: '£', euro: '€', middot: '·',
+
+  // Accented letters, because the names of the people who write things have them.
+  // An undecoded &eacute; is not merely ugly: it ends in a semicolon, and anything
+  // downstream that treats a semicolon as a separator will cut a name in half. That
+  // is a citation with an author called "Jos" in it.
+  aacute: 'á', agrave: 'à', acirc: 'â', atilde: 'ã', auml: 'ä', aring: 'å', aelig: 'æ',
+  ccedil: 'ç', eacute: 'é', egrave: 'è', ecirc: 'ê', euml: 'ë',
+  iacute: 'í', igrave: 'ì', icirc: 'î', iuml: 'ï', ntilde: 'ñ',
+  oacute: 'ó', ograve: 'ò', ocirc: 'ô', otilde: 'õ', ouml: 'ö', oslash: 'ø',
+  uacute: 'ú', ugrave: 'ù', ucirc: 'û', uuml: 'ü', yacute: 'ý', yuml: 'ÿ',
+  szlig: 'ß', ccaron: 'č', scaron: 'š', zcaron: 'ž',
+  Aacute: 'Á', Agrave: 'À', Acirc: 'Â', Atilde: 'Ã', Auml: 'Ä', Aring: 'Å', AElig: 'Æ',
+  Ccedil: 'Ç', Eacute: 'É', Egrave: 'È', Ecirc: 'Ê', Euml: 'Ë',
+  Iacute: 'Í', Igrave: 'Ì', Icirc: 'Î', Iuml: 'Ï', Ntilde: 'Ñ',
+  Oacute: 'Ó', Ograve: 'Ò', Ocirc: 'Ô', Otilde: 'Õ', Ouml: 'Ö', Oslash: 'Ø',
+  Uacute: 'Ú', Ugrave: 'Ù', Ucirc: 'Û', Uuml: 'Ü', Yacute: 'Ý',
 };
 
 export function decodeEntities(text) {
@@ -40,7 +56,11 @@ export function decodeEntities(text) {
         return whole;
       }
     }
-    const named = ENTITIES[body.toLowerCase()];
+    // Case matters for the accented names: &Aring; is A-ring and &aring; is a-ring,
+    // so the exact spelling is tried first. The lowercase fallback is for the ones
+    // where case carries no meaning, which pages write every way imaginable
+    // (&AMP;, &Nbsp;).
+    const named = ENTITIES[body] ?? ENTITIES[body.toLowerCase()];
     return named === undefined ? whole : named;
   });
 }

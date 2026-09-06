@@ -55,9 +55,25 @@ export function looksLikeOrganisation(name) {
 }
 
 // "Jane Doe" -> { surname: 'Doe', given: 'Jane' }. Organisations come back whole.
+//
+// Accepts either a plain string or { name, organisation }. A page that declares in
+// its JSON-LD that the author is an Organization has told us something the words
+// alone cannot: "Marshall Project" and "Marshall Kane" look identical to a guess.
+// Where the page said, the guess is not consulted. See shared/metadata.js.
 export function splitName(name) {
-  const raw = String(name || '').replace(/\s+/g, ' ').trim();
+  const declared = name && typeof name === 'object' ? name : null;
+  const raw = String(declared ? declared.name : (name || '')).replace(/\s+/g, ' ').trim();
   if (!raw) return null;
+  if (declared && declared.organisation) return { organisation: raw };
+  if (declared && declared.organisation === false) {
+    // Declared a person, so an organisational-looking name is still inverted.
+    const parts = raw.split(' ');
+    if (parts.length > 1) {
+      let j = parts.length - 1;
+      while (j > 1 && PARTICLES.has(parts[j - 1].toLowerCase())) j--;
+      return { surname: parts.slice(j).join(' '), given: parts.slice(0, j).join(' ') };
+    }
+  }
   if (looksLikeOrganisation(raw)) return { organisation: raw };
 
   // Already inverted by the source: "Doe, Jane".
@@ -166,8 +182,16 @@ export function toPlainText(segments) {
 
 // --- author lists per style -------------------------------------------------------
 
+// An author is a string or { name, organisation }; keep whichever it is, because
+// splitName reads the declaration when there is one.
+function usableNames(authors) {
+  return (authors || [])
+    .map((a) => (a && typeof a === 'object' ? (tidy(a.name) ? a : null) : tidy(a)))
+    .filter(Boolean);
+}
+
 function mlaAuthors(authors) {
-  const names = (authors || []).map(tidy).filter(Boolean);
+  const names = usableNames(authors);
   if (!names.length) return '';
   if (names.length === 1) return stop(inverted(names[0]));
   if (names.length === 2) return stop(`${inverted(names[0])}, and ${natural(names[1])}`);
@@ -175,7 +199,7 @@ function mlaAuthors(authors) {
 }
 
 function apaAuthors(authors) {
-  const names = (authors || []).map(tidy).filter(Boolean);
+  const names = usableNames(authors);
   if (!names.length) return '';
   const listed = names.slice(0, 20).map((n) => inverted(n, 'initials'));
   if (listed.length === 1) return stop(listed[0]);
@@ -183,7 +207,7 @@ function apaAuthors(authors) {
 }
 
 function chicagoAuthors(authors) {
-  const names = (authors || []).map(tidy).filter(Boolean);
+  const names = usableNames(authors);
   if (!names.length) return '';
   if (names.length === 1) return stop(inverted(names[0]));
   const rest = names.slice(1).map(natural);
@@ -191,7 +215,7 @@ function chicagoAuthors(authors) {
 }
 
 function harvardAuthors(authors) {
-  const names = (authors || []).map(tidy).filter(Boolean);
+  const names = usableNames(authors);
   if (!names.length) return '';
   const listed = names.slice(0, 3).map((n) => inverted(n, 'initials'));
   if (names.length > 3) return `${listed[0]} et al.`;
@@ -382,7 +406,7 @@ export function worksCited(sources, format = DEFAULT_FORMAT) {
 export function missingFields(source) {
   const s = source || {};
   const gaps = [];
-  if (!(s.authors || []).filter(Boolean).length) gaps.push('author');
+  if (!usableNames(s.authors).length) gaps.push('author');
   if (!dateParts(s.date)) gaps.push('date');
   if (s.kind !== 'article' && !tidy(s.siteName)) gaps.push('site name');
   if (!tidy(s.title)) gaps.push('title');

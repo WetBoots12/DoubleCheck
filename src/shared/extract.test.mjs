@@ -47,7 +47,12 @@ test('markup inside a paragraph is stripped, not left in the text', () => {
 });
 
 test('entities are decoded, including numeric and hex forms', () => {
-  assert.equal(decodeEntities('caf&eacute; &amp; bar'), 'caf&eacute; & bar', 'unknown names are left alone');
+  // &eacute; used to stand here as the example of a name we did not know. It is
+  // known now, because author names carry accents and a half-decoded one breaks a
+  // citation. The rule it was demonstrating still holds, so it needs a name that is
+  // genuinely not in the table.
+  assert.equal(decodeEntities('caf&eacute; &amp; bar'), 'café & bar');
+  assert.equal(decodeEntities('a &frac34; b'), 'a &frac34; b', 'unknown names are left alone');
   assert.equal(decodeEntities('4.2&nbsp;percent'), '4.2 percent');
   assert.equal(decodeEntities('it&#39;s &#x27;quoted&#x27;'), "it's 'quoted'");
   assert.equal(decodeEntities('&lt;p&gt;'), '<p>');
@@ -114,4 +119,21 @@ test('keywords drop filler and keep short numbers', () => {
   const k = keywords('It was 15 percent of the total in 2024');
   assert.ok(k.has('15') && k.has('2024') && k.has('percent'));
   assert.ok(!k.has('the') && !k.has('was') && !k.has('of'));
+});
+
+test('accented names decode, and their case is kept', () => {
+  // An undecoded entity ends in a semicolon, and anything downstream that splits on
+  // one turns "José García" into three authors, the last of them called "a".
+  assert.equal(decodeEntities('Jos&eacute; Garc&iacute;a'), 'José García');
+  assert.equal(decodeEntities('M&uuml;ller'), 'Müller');
+  assert.equal(decodeEntities('&Aring;ngstr&ouml;m'), 'Ångström');
+  assert.equal(decodeEntities('&Ccedil;elik'), 'Çelik');
+});
+
+test('an entity whose case carries no meaning still decodes', () => {
+  assert.equal(decodeEntities('a &AMP; b'), 'a & b');
+});
+
+test('an entity that is not one is left exactly as it was', () => {
+  assert.equal(decodeEntities('&notanentity;'), '&notanentity;');
 });
