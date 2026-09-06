@@ -38,6 +38,7 @@ const TAB = 7;
 // the URL rules cannot cover, and exactly why the report has to be remembered.
 const PRIVATE_PAGE = 'https://www.riverbendgazette.example/2026/03/city-budget-vote';
 
+const installHandlers = {};
 let messageListener = null;
 let menuClickListener = null;
 
@@ -48,7 +49,10 @@ globalThis.chrome = {
     onClicked: { addListener: (fn) => { menuClickListener = fn; } },
   },
   runtime: {
-    onInstalled: { addListener: (fn) => { fn(); } },
+    // Captured rather than only invoked, so the install path can be driven with the
+    // details the browser actually passes. Called once with no details first, which
+    // is what every other test in this file needs and what creates the menu.
+    onInstalled: { addListener: (fn) => { installHandlers.onInstalled = fn; fn(); } },
     onMessage: { addListener: (fn) => { messageListener = fn; } },
     sendMessage: async () => {},
     getURL: (p) => `chrome-extension://fake/${p}`,
@@ -244,4 +248,75 @@ test('an incognito tab writes nothing to the cache on disk', async () => {
   assert.deepEqual(keys, [],
     'a check run in incognito left a day-long record in storage.local, which outlives '
     + 'the incognito window and the browser');
+});
+
+// --- the four small things ------------------------------------------------------
+
+test('the guide opens once on install, and not on an update', async () => {
+  const opened = [];
+  const realCreate = chrome.tabs.create;
+  chrome.tabs.create = async (o) => { opened.push(o.url); };
+
+  const { onInstalled } = installHandlers;
+  onInstalled({ reason: 'update' });
+  onInstalled({ reason: 'chrome_update' });
+  assert.deepEqual(opened, [], 'an upgrade must not reopen the guide every time');
+
+  onInstalled({ reason: 'install' });
+  assert.equal(opened.length, 1, 'a first install should open the guide');
+  assert.ok(opened[0].includes('options.html#guide'), opened[0]);
+
+  chrome.tabs.create = realCreate;
+});
+
+test('a flagged claim says what made it look checkable', async () => {
+  const tab = 200;
+  chrome.tabs.get = async (id) => ({ id, url: 'https://www.example.com/article', incognito: false });
+  chrome.tabs.query = async () => [{ id: tab, url: 'https://www.example.com/article', incognito: false }];
+  await chrome.storage.local.set({ fc_settings: { threshold: 0.5, searchProvider: 'wikipedia' } });
+
+  await send({
+    type: 'sentences',
+    sentences: [{ id: 's1', text: 'The Labor Department said unemployment fell to 4.2 percent in 2025, the lowest in decades.' }],
+  }, tab);
+  await settle();
+
+  const { claims } = await send({ type: 'panelReady' }, undefined);
+  const claim = claims.find((c) => c.id === 's1');
+  assert.ok(claim, 'the sentence should have been flagged');
+  assert.ok(Array.isArray(claim.signals) && claim.signals.length,
+    'a score with no explanation is an oracle');
+  assert.ok(claim.signals.every((sig) => typeof sig === 'string' && sig.length > 2), JSON.stringify(claim.signals));
+});
+
+test('a claim whose answer is already stored is marked free before anything is pressed', async () => {
+  // The whole design is that the reader decides when to spend. Which means they have
+  // to be told when there is nothing to spend, before they decide.
+  const first = await runCheckIn(false);
+  assert.ok(first.length > 0, 'the first check should have stored an answer');
+
+  // A second tab, same claim, same settings: the stored answer applies to it too.
+  const tab = nextTab++;
+  chrome.tabs.get = async (id) => ({ id, url: 'https://www.example.com/article', incognito: false });
+  chrome.tabs.query = async () => [{ id: tab, url: 'https://www.example.com/article', incognito: false }];
+  await chrome.storage.session.set({
+    [`tab:${tab}`]: { claims: { c1: { id: 'c1', text: CLAIM, status: 'unchecked', score: 0.9 } }, seen: [] },
+  });
+
+  const { claims } = await send({ type: 'panelReady' }, undefined);
+  assert.equal(claims.find((c) => c.id === 'c1')?.cached, true,
+    'the panel was not told the answer is already saved');
+});
+
+test('the free-answer flag is a view of the cache, not something written to the claim', async () => {
+  const tab = nextTab++;
+  chrome.tabs.query = async () => [{ id: tab, url: 'https://www.example.com/article', incognito: false }];
+  await chrome.storage.session.set({
+    [`tab:${tab}`]: { claims: { c1: { id: 'c1', text: 'Something never looked up at all.', status: 'unchecked' } }, seen: [] },
+  });
+
+  await send({ type: 'panelReady' }, undefined);
+  const raw = (await chrome.storage.session.get(`tab:${tab}`))[`tab:${tab}`];
+  assert.equal('cached' in raw.claims.c1, false,
+    'what is true of the cache right now must not be saved as though it were true of the claim');
 });

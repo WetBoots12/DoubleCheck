@@ -9,7 +9,7 @@
 // no search call is spent on a page nobody is reading any more.
 
 import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
-import { scoreClaimWorthiness } from '../../classifier/inference/classifier.js';
+import { scoreClaimWorthiness, explainClaim } from '../../classifier/inference/classifier.js';
 import {
   getSearchProvider,
   getLlmProvider,
@@ -171,12 +171,27 @@ async function updateBadge(tabId) {
 
 // Only the active tab may drive the panel, otherwise a background tab navigating
 // blanks whatever the user is currently reading.
+// The claims as the panel should see them. Both the push and the panel's own first
+// read go through here, or the flag would be missing from exactly the moment the
+// panel opens, which is when a reader is most likely to press something.
+//
+// cached is a view of the cache at this instant, not a property of the claim, so it
+// is added to the copy that goes out and never to what is stored.
+async function panelClaims(tabId, state) {
+  const stored = [...(state?.claims.values() || [])];
+  if (!stored.length) return stored;
+  let cached = new Set();
+  try {
+    cached = await cachedClaims(tabId, stored, await getSettings());
+  } catch { /* the panel is still worth sending without it */ }
+  return stored.map((c) => (cached.has(c.id) ? { ...c, cached: true } : c));
+}
+
 async function pushPanel(tabId) {
   if ((await activeTabId()) !== tabId) return;
   const state = await tabStore.peek(tabId);
-  const claims = [...(state?.claims.values() || [])];
   chrome.runtime
-    .sendMessage({ type: MSG.PANEL_UPDATE, tabId, claims })
+    .sendMessage({ type: MSG.PANEL_UPDATE, tabId, claims: await panelClaims(tabId, state) })
     .catch(() => {}); // no panel open — fine
 }
 
@@ -228,6 +243,18 @@ async function handleSentences(tabId, sentences) {
     state.claims.set(claim.id, claim);
     flagged.push(claim);
   });
+
+  // What about each sentence made it look checkable. A bare score tells a reader
+  // that a sentence is worth checking without telling them what about it is
+  // checkable, which is the difference between a description and an oracle. Only
+  // for the ones that were flagged, and only local arithmetic on signals already
+  // computed while scoring.
+  for (const claim of flagged) {
+    try {
+      const signals = await explainClaim(claim.text);
+      if (signals.length) claim.signals = signals;
+    } catch { /* an unexplained claim is still a claim */ }
+  }
   await tabStore.save(tabId);
   if (!flagged.length) return;
 
@@ -397,6 +424,32 @@ async function readSources(claim, results, settings) {
   }));
 }
 
+// The key a claim's search answer is stored under. Written once and used both by
+// the check that stores the answer and by the panel that asks whether one is already
+// there. Two copies of this would drift, and a drifted copy tells the reader a check
+// is free when it is not.
+function searchCacheParts(claim, settings, search, excludeDomain) {
+  const query = settings.distillQueries ? searchQuery(claim.text) : claim.text;
+  return [search.id, query, excludeDomain.join(','), Boolean(settings.academicMode)];
+}
+
+// Which unchecked claims already have an answer stored, so the panel can say the
+// button costs nothing before the reader presses it. One storage read for all of
+// them, and only when there is something to ask about.
+async function cachedClaims(tabId, claims, settings) {
+  if (!settings.cacheResults) return new Set();
+  const waiting = claims.filter((c) => c.status === STATUS.UNCHECKED);
+  if (!waiting.length) return new Set();
+
+  const search = getSearchProvider(settings.searchProvider);
+  const excludeDomain = await excludedDomains(tabId);
+  const byKey = new Map(
+    waiting.map((c) => [cacheKey('search', searchCacheParts(c, settings, search, excludeDomain)), c.id]),
+  );
+  const live = await cache.hasMany([...byKey.keys()]);
+  return new Set([...live].map((k) => byKey.get(k)));
+}
+
 async function checkClaim(tabId, claimId, settings, withAi = false) {
   const state = await tabStore.peek(tabId);
   const claim = state?.claims.get(claimId);
@@ -407,14 +460,14 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     const factCheck = getFactCheckProvider(settings.factCheckProvider);
     const excludeDomain = await excludedDomains(tabId);
     // Verbatim by default. Distillation is an opt-in until it has been measured.
-    const query = settings.distillQueries ? searchQuery(claim.text) : claim.text;
 
     // Published fact-checks and, in academic mode, peer-reviewed work come back with
     // the search results, from the same button. A failure in either must not lose
     // the search results, so each is caught apart.
     const academic = Boolean(settings.academicMode);
+    const query = settings.distillQueries ? searchQuery(claim.text) : claim.text;
     const [results, factChecks, scholar] = await Promise.all([
-      remember(settings, 'search', [search.id, query, excludeDomain.join(','), academic], () =>
+      remember(settings, 'search', searchCacheParts(claim, settings, search, excludeDomain), () =>
         search.search(query, settings.searchApiKey, { excludeDomain, academic })),
       settings.factCheckApiKey
         ? remember(settings, 'factcheck', [factCheck.id, claim.text], () =>
@@ -461,7 +514,16 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
 
 const MENU_ID = 'fc-check-selection';
 
-chrome.runtime.onInstalled?.addListener(() => {
+chrome.runtime.onInstalled?.addListener((details) => {
+  // First install only. A reader who has just added this sees sentences light up on
+  // the next page they open with no idea what the colour means, that a side panel
+  // exists, or that nothing has been searched. The guide answers all three and is
+  // already the first tab of the options page; it just needed opening once. Not on
+  // an update, which would reopen it every time the extension is upgraded.
+  if (details?.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/options/options.html#guide') }).catch(() => {});
+  }
+
   chrome.contextMenus?.create(
     // contexts: ['selection'] means the item only exists once text is highlighted,
     // which is why every instruction says to highlight the sentence first.
@@ -702,7 +764,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (state && await clearStrandedSummaries(id, state)) pushHighlights(id, []);
         return {
           tabId: id,
-          claims: [...(state?.claims.values() || [])],
+          claims: await panelClaims(id, state),
           page: id == null ? null : await scanPolicy(id),
         };
       }, { tabId: null, claims: [], page: null });
