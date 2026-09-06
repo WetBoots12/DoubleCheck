@@ -35,6 +35,25 @@
       onMessage: { addListener: (fn) => { panelListener = fn; } },
       sendMessage: async (msg) => {
         if (msg.type === 'panelReady') return { tabId: 1, claims: [], page: null };
+        if (msg.type === 'citeMaterial') {
+          // What the worker gathers for the model: an incomplete source, the page's
+          // own text, and web search results.
+          window.__material = msg;
+          return {
+            source: {
+              kind: 'web',
+              title: 'Inflation cools to 4.2%',
+              url: 'https://apnews.com/article/x',
+              siteName: 'apnews.com',
+              authors: [],
+              date: '',
+              accessed: '2026-09-06',
+            },
+            missing: ['author', 'date'],
+            pageText: 'By Christopher Rugaber. Published 14 June 2026. Prices rose 4.2 percent.',
+            searchResults: [{ title: 'Same piece, elsewhere', url: 'https://x.example', snippet: 'By Christopher Rugaber' }],
+          };
+        }
         if (msg.type === 'citeSources') {
           // What the worker returns once it has read the source's page.
           return {
@@ -63,6 +82,23 @@
     },
     tabs: { create: () => {} },
   };
+
+  // A stub model. It records the prompt it was given, so the harness can show what
+  // actually reaches a provider, and answers the way a well-behaved one would.
+  window.__prompts = [];
+  window.__aiReply = JSON.stringify({
+    authors: ['Christopher Rugaber'], date: '2026-06-14', siteName: null, title: null, notFound: [],
+  });
+  window.LanguageModel = {
+    async availability() { return 'available'; },
+    async create() {
+      return {
+        async prompt(text) { window.__prompts.push(text); return window.__aiReply; },
+        destroy() {},
+      };
+    },
+  };
+  stored.fc_settings.llmProvider = 'builtin';
 </script>
 
 <script type="module">
@@ -72,7 +108,12 @@
   for (const style of doc.querySelectorAll('style')) document.head.appendChild(style.cloneNode(true));
   document.getElementById('frame').innerHTML = doc.body.innerHTML;
 
-  const panel = await import('../src/sidepanel/panel.js');
+  // Open this in a NEW TAB after editing anything under src/. A browser keeps an
+  // evaluated module against its address for the life of the tab, and that survives
+  // reloading the page, so a reloaded harness will happily render the panel as it was
+  // several edits ago and report a bug that no longer exists. Busting the address of
+  // this one import does not help, because its own imports come from the same map.
+  await import('../src/sidepanel/panel.js');
 
   // A claim as it looks after a check: two sources, a fact-check, an evidence score.
   const claim = {

@@ -128,6 +128,10 @@
       /* The style sits beside the button that uses it, so the choice is made where
          the citation is taken rather than in a settings page. */
       .cite-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+      /* What the AI said about a citation, including that it found nothing. */
+      .ai-note:empty { display: none; }
+      .ai-note { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+      .ai-note.warn { color: var(--fg); border-left: 2px solid var(--rating-mixed, var(--muted)); padding-left: 6px; }
       select.cite-format {
         font: inherit; font-size: 11px; padding: 3px 4px; border-radius: 5px;
         border: 1px solid var(--border); background: var(--bg); color: var(--fg);

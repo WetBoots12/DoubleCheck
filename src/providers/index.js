@@ -8,6 +8,7 @@
 // Quantities are pulled out by the same code the evidence score uses, so the
 // figure the panel talks about is the figure the search box gets.
 import { extractQuantities } from '../shared/numbers.js';
+import { citationFactsPrompt, parseCitationFacts } from '../shared/citationprompt.js';
 
 export class ProviderError extends Error {
   constructor(kind, message) {
@@ -536,6 +537,30 @@ export function parseAnalysis(raw) {
   };
 }
 
+// Finding the missing pieces of a citation.
+//
+// A separate AI function from crossReference, with its own prompt, its own rules and
+// its own parser, and it changes nothing about how that one works. Every provider
+// below builds its request through these two helpers, which means the guardrails in
+// shared/citationprompt.js are not something a caller can forget: the method takes
+// facts and builds the prompt itself. There is no argument through which a prompt
+// could be passed instead.
+function citationRequestBody(material, model, extra = {}) {
+  return {
+    model,
+    max_tokens: 500,
+    // Zero temperature because this is extraction, not writing. A model asked to be
+    // creative about a byline is being asked for the wrong thing.
+    temperature: 0,
+    messages: [{ role: 'user', content: citationFactsPrompt(material) }],
+    ...extra,
+  };
+}
+
+function citationAnswer(text, material) {
+  return parseCitationFacts(text, { missing: material?.missing || [] });
+}
+
 const noLlm = {
   id: 'none',
   label: 'None (search results only)',
@@ -544,6 +569,9 @@ const noLlm = {
   },
   async crossReference() {
     return null;
+  },
+  async lookupCitationFacts() {
+    return null; // no provider chosen: the citation stands as the page left it
   },
 };
 
@@ -571,6 +599,20 @@ const anthropic = {
     });
     return parseAnalysis((data.content || []).map((b) => b.text || '').join(''));
   },
+  async lookupCitationFacts(material, apiKey, opts = {}) {
+    if (!apiKey) throw new ProviderError('noKey', 'No LLM API key configured');
+    const data = await fetchJson('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify(citationRequestBody(material, opts.model || ANTHROPIC_DEFAULT_MODEL)),
+    });
+    return citationAnswer((data.content || []).map((b) => b.text || '').join(''), material);
+  },
 };
 
 const openai = {
@@ -591,6 +633,15 @@ const openai = {
       }),
     });
     return parseAnalysis(data.choices?.[0]?.message?.content || '');
+  },
+  async lookupCitationFacts(material, apiKey, opts = {}) {
+    if (!apiKey) throw new ProviderError('noKey', 'No LLM API key configured');
+    const data = await fetchJson('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(citationRequestBody(material, opts.model || OPENAI_DEFAULT_MODEL)),
+    });
+    return citationAnswer(data.choices?.[0]?.message?.content || '', material);
   },
 };
 
@@ -636,6 +687,20 @@ const builtin = {
       session?.destroy?.();
     }
   },
+  async lookupCitationFacts(material) {
+    if (typeof LanguageModel === 'undefined') {
+      throw new ProviderError('unknown', 'This browser has no built-in AI model');
+    }
+    let session;
+    try {
+      session = await LanguageModel.create(BUILTIN_LANGUAGE_OPTS);
+      return citationAnswer(await session.prompt(citationFactsPrompt(material)), material);
+    } catch (err) {
+      throw new ProviderError('unknown', err.message);
+    } finally {
+      session?.destroy?.();
+    }
+  },
 };
 
 // Any OpenAI-compatible endpoint running on the user's own machine (Ollama, LM Studio,
@@ -659,6 +724,15 @@ const local = {
       }),
     });
     return parseAnalysis(data.choices?.[0]?.message?.content || '');
+  },
+  async lookupCitationFacts(material, _apiKey, opts = {}) {
+    const base = (opts.url || 'http://localhost:11434/v1').replace(/\/+$/, '');
+    const data = await fetchJson(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(citationRequestBody(material, opts.model || 'llama3.1')),
+    });
+    return citationAnswer(data.choices?.[0]?.message?.content || '', material);
   },
 };
 
