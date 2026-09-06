@@ -159,9 +159,11 @@ async function copyCitation(button, request, { asList = false } = {}) {
 
     await navigator.clipboard.writeText(text);
     const gaps = asList ? [] : missingFields(sources[0]);
+    // Saved as well as copied: citing something is what puts it in the works cited
+    // list, which is on the Works cited tab of the options page.
     button.textContent = gaps.length
-      ? `Copied, no ${gaps.slice(0, 2).join(' or ')}`
-      : 'Copied';
+      ? `Saved, no ${gaps.slice(0, 2).join(' or ')}`
+      : 'Copied and saved';
   } catch {
     button.textContent = 'Could not copy';
   }

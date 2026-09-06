@@ -29,7 +29,7 @@ import { makeSource, sourceKey } from '../shared/sources.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore, privateTabs } from './tabstate.js';
 import { sourceStore } from './sourcestore.js';
-import { evaluateUrl, applySiteRule, normalizeDomain } from '../shared/privacy.js';
+import { evaluateUrl, applySiteRule, normalizeDomain, httpUrl } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
 import { createCache, cacheKey } from '../shared/cache.js';
 // Content scripts are classic scripts and cannot import, so the worker computes the
@@ -729,6 +729,25 @@ function reply(sendResponse, work, onFailure) {
   return true;
 }
 
+// Sources the reader has just cited, added to the works cited list.
+//
+// Refused only for the two reasons that apply to a third party's page: an address
+// that is not an ordinary web address, and a reader who is browsing privately.
+async function keepCitedSources(tabId, sources) {
+  if (!sources.length) return;
+  try {
+    const tab = tabId == null ? null : await chrome.tabs.get(tabId).catch(() => null);
+    if (tab?.incognito) return;
+
+    for (const source of sources) {
+      if (!httpUrl(source.url)) continue;
+      if (evaluateUrl(source.url, { privateSitesRule: false }).blocked) continue; // local addresses
+      const record = makeSource(source);
+      if (record) await sourceStore.add(record);
+    }
+  } catch { /* a citation the reader already has is worth more than the bookkeeping */ }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id;
 
@@ -969,7 +988,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         const accessed = new Date().toISOString().slice(0, 10);
         const all = sourcesForClaim(claim, meta, accessed);
-        return { sources: msg.url ? all.filter((x) => x.url === msg.url) : all };
+        const cited = msg.url ? all.filter((x) => x.url === msg.url) : all;
+
+        // Citing something is the moment it belongs in the works cited list, and for
+        // a while it was not put there: one path stored the page the reader was on
+        // and the other only copied text, so a source found by a check never reached
+        // the list at all.
+        //
+        // The test applied here is lighter than the one guarding "add this page", and
+        // deliberately. That rule exists because the page a reader is looking at may
+        // hold their own private data. These are results a search provider returned
+        // for a claim, fetched because a button was pressed; the reader never visited
+        // them, so they cannot carry anything of the reader's. What still applies is
+        // that the address is an ordinary web address, and that nothing at all is
+        // written to disk from an incognito window.
+        await keepCitedSources(id, cited);
+        return { sources: cited };
       }, { sources: [] });
 
     case MSG.ADD_SOURCE:

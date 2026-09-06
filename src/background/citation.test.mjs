@@ -247,3 +247,60 @@ test('turning it on does not change what a citation says, only when it is ready'
   assert.deepEqual(auto.authors, [{ name: 'Christopher Rugaber' }]);
   assert.equal(auto.siteName, 'AP News');
 });
+
+// --- citing a source is what puts it in the works cited list --------------------
+//
+// Two paths were built and only one of them wrote anything down. "Add this page as
+// a source" stored the page the reader was on; "Cite this source" formatted a search
+// result and copied it, and the works cited page never heard about it. Citing
+// something is exactly the moment it belongs in the list.
+
+const list = async () => (await send({ type: 'listSources' }, undefined)).sources;
+
+test('citing one source puts that source in the works cited list', async () => {
+  await seedChecked();
+  await chrome.storage.local.remove('fc_sources');
+
+  await send({ type: 'citeSources', claimId: 'c1', url: AP }, undefined);
+  const kept = await list();
+
+  assert.equal(kept.length, 1, 'the source that was cited should be in the list');
+  assert.equal(kept[0].url, AP);
+  assert.equal(kept[0].siteName, 'AP News', 'with what was read from its own page');
+  assert.deepEqual(kept[0].authors, [{ name: 'Christopher Rugaber' }]);
+});
+
+test('citing every source of a claim keeps every one of them', async () => {
+  await seedChecked();
+  await chrome.storage.local.remove('fc_sources');
+
+  await send({ type: 'citeSources', claimId: 'c1' }, undefined);
+  assert.deepEqual((await list()).map((s) => s.url).sort(), [AP, BBC].sort());
+});
+
+test('citing the same source twice leaves one entry, freshly read', async () => {
+  await seedChecked();
+  await chrome.storage.local.remove('fc_sources');
+
+  await send({ type: 'citeSources', claimId: 'c1', url: AP }, undefined);
+  await send({ type: 'citeSources', claimId: 'c1', url: AP }, undefined);
+  assert.equal((await list()).length, 1);
+});
+
+test('nothing is written down when citing from an incognito tab', async () => {
+  const tab = await useTab({});
+  chrome.tabs.get = async (id) => ({ id, url: PAGE, incognito: true });
+  chrome.tabs.query = async () => [{ id: tab, url: PAGE, incognito: true }];
+  await chrome.storage.session.set({
+    ['tab:' + tab]: {
+      claims: { c1: { id: 'c1', text: 'A claim.', status: 'checked',
+        results: [{ title: 'One', url: AP, source: 'apnews.com' }] } },
+      seen: [],
+    },
+  });
+  await chrome.storage.local.remove('fc_sources');
+
+  const res = await send({ type: 'citeSources', claimId: 'c1', url: AP }, undefined);
+  assert.equal(res.sources.length, 1, 'the citation is still produced');
+  assert.deepEqual(await list(), [], 'but nothing from incognito reaches the disk');
+});
