@@ -9,6 +9,7 @@
 // figure the panel talks about is the figure the search box gets.
 import { extractQuantities } from '../shared/numbers.js';
 import { citationFactsPrompt, parseCitationFacts } from '../shared/citationprompt.js';
+import { refsForClaim } from './wikirefs.js';
 
 export class ProviderError extends Error {
   constructor(kind, message) {
@@ -247,13 +248,53 @@ const wikipedia = {
   id: 'wikipedia',
   label: 'Wikipedia (free, no key)',
   requiresKey: false,
+
+  // What Wikipedia is asked for is not the article: it is the sources the article
+  // cites for the thing being checked.
+  //
+  // Handing back the article called Inflation to someone checking "inflation reached
+  // 8.2 percent in June" is true and useless. It says nothing about the figure, and
+  // a reader deciding whether to believe a number needs whoever published the number.
+  // Wikipedia knows: its references sit inline, right after the sentence they support,
+  // and most of them are {{cite}} templates carrying a title, an address, a publisher,
+  // a date and the authors.
+  //
+  // So: find the article, read it, and return what it cites for the passages that bear
+  // on the claim. Measured on the Inflation article, a claim about a UK figure went
+  // from a textbook chapter on how inflation is measured to the Office for National
+  // Statistics series itself.
+  //
+  // Two requests instead of one, both free and keyless, both on a button press. If the
+  // article cannot be read, or cites nothing that bears on the claim, the articles are
+  // returned as before rather than nothing.
   async search(query, _apiKey, opts = {}) {
     // Encyclopedia search matches titles and lead text; the distinctive words of a
     // sentence find the article where the whole sentence would not.
     const q = keywordQuery(query) || query;
     if (!q.trim()) return [];
+
     const url = `https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(q)}&limit=${FETCH_COUNT}`;
-    return shapeResults(mapWikipedia(await fetchJson(url), FETCH_COUNT), opts);
+    const found = await fetchJson(url);
+    const articles = mapWikipedia(found, FETCH_COUNT);
+
+    const best = (Array.isArray(found?.pages) ? found.pages : [])[0];
+    if (best?.key) {
+      try {
+        const page = await fetchJson(
+          `https://en.wikipedia.org/w/rest.php/v1/page/${encodeURIComponent(best.key)}`,
+        );
+        const refs = refsForClaim(query, page?.source || '', {
+          limit: SHOW_COUNT - 1,
+          article: best.title || best.key,
+        });
+        // The article itself comes last, as somewhere to read the surrounding
+        // discussion, rather than first as the answer.
+        if (refs.length) return shapeResults([...refs, articles[0]].filter(Boolean), opts);
+      } catch {
+        // Unreadable article: the search results are still worth something.
+      }
+    }
+    return shapeResults(articles, opts);
   },
 };
 
