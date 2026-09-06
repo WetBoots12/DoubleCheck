@@ -128,9 +128,28 @@ export function createCache(storage, opts = {}) {
     });
   }
 
+  // Which of these keys already have a live answer, in one read.
+  //
+  // The panel asks before the reader presses anything, so that a claim whose answer
+  // is already remembered can say so and cost nothing. Per-key get() would be one
+  // storage read per claim; storage.get takes a list, so this is one read for all of
+  // them. Expired entries are reported as absent but not deleted here, because a
+  // question about the cache should not quietly rewrite it.
+  async function hasMany(keys) {
+    const live = new Set();
+    if (!keys.length) return live;
+    const ids = keys.map((k) => CACHE_PREFIX + hashKey(k));
+    const got = (await storage.get(ids)) || {};
+    keys.forEach((key, i) => {
+      const entry = got[ids[i]];
+      if (entry && entry.k === key && entry.exp > now()) live.add(key);
+    });
+    return live;
+  }
+
   async function size() {
     return (await readIndex()).length;
   }
 
-  return { get, set, wrap, clear, size };
+  return { get, set, wrap, hasMany, clear, size };
 }
