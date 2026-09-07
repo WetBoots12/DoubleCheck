@@ -338,6 +338,8 @@ function render(claims) {
       chrome.runtime.sendMessage({ type: MSG.FOCUS_CLAIM, claimId: c.id }).catch(() => {});
     });
     el.appendChild(text);
+    // A re-render rebuilds every card, so the outline goes back on the one it was on.
+    if (c.id === focusedId) el.classList.add('fc-focused');
 
     const meta = document.createElement('div');
     meta.className = 'meta';
@@ -764,12 +766,23 @@ function renderEvidence(c) {
   return box;
 }
 
+// The claim the reader is on. The outline used to fade after a second and a half,
+// which meant that after pressing next the reader had to find the claim again in
+// the list. It now stays on the current claim until another takes its place, the
+// same way the page keeps its own marker on the current highlight.
+let focusedId = null;
+
+function markFocused(claimId) {
+  focusedId = claimId;
+  for (const other of feed.querySelectorAll('.fc-focused')) other.classList.remove('fc-focused');
+  const el = claimId ? feed.querySelector(`[data-claim-id="${claimId}"]`) : null;
+  if (el) el.classList.add('fc-focused');
+  return el;
+}
+
 function focusClaim(claimId) {
-  const el = feed.querySelector(`[data-claim-id="${claimId}"]`);
-  if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  el.classList.add('fc-focused');
-  setTimeout(() => el.classList.remove('fc-focused'), 1600);
+  const el = markFocused(claimId);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // The service worker cannot reach the browser's built-in model, so it delegates
@@ -813,7 +826,9 @@ function renderNavState({ index, total, claimId }) {
   counter.textContent = `${index || 0} of ${total || 0}`;
   prevBtn.disabled = !total;
   nextBtn.disabled = !total;
+  // No current highlight on the page means no current claim here either.
   if (claimId) focusClaim(claimId);
+  else markFocused(null);
 }
 
 prevBtn.addEventListener('click', () => step('prev'));
