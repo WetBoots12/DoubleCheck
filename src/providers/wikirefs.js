@@ -163,8 +163,16 @@ export function passages(wikitext) {
 // Ordered by how well the passage matches, then deduplicated by address, so the
 // first few are the ones the article offers for this particular sentence rather
 // than for the topic in general.
-export function refsForClaim(claim, wikitext, { limit = 6, article = '' } = {}) {
+//
+// avoid holds the addresses already shown under other claims on the same page. Two
+// flags about one conflict find one article, and the article offers the same few
+// references for both, so the panel showed the same sources twice. A source that
+// is already on the page gives way to the next one that bears on the claim, and
+// is shown again only when nothing else does: a repeat is still worth more than a
+// blank.
+export function refsForClaim(claim, wikitext, { limit = 6, article = '', avoid = [] } = {}) {
   const candidates = [];
+  const shown = new Set(avoid);
   let parsed = 0;
 
   for (const passage of passages(wikitext)) {
@@ -193,9 +201,13 @@ export function refsForClaim(claim, wikitext, { limit = 6, article = '' } = {}) 
 
   candidates.sort((a, b) => (b.score - a.score) || (Number(b.hasUrl) - Number(a.hasUrl)));
 
+  // Best first, but anything already on the page after everything that is not.
+  const fresh = candidates.filter((c) => !shown.has(c.source.url));
+  const repeats = candidates.filter((c) => shown.has(c.source.url));
+
   const seen = new Set();
   const out = [];
-  for (const { source, passage } of candidates) {
+  for (const { source, passage } of [...fresh, ...repeats]) {
     const key = source.url || source.title.toLowerCase();
     if (!key || seen.has(key)) continue;
     seen.add(key);
