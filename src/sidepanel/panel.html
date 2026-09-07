@@ -107,6 +107,10 @@
         padding: 10px; margin-bottom: 10px;
       }
       .claim.fc-focused { outline: 2px solid #c8963e; }
+      /* A faint flag: dashed and dimmed, the same card with the same buttons. */
+      .claim.faint { border-style: dashed; opacity: 0.72; }
+      .claim.faint:hover, .claim.faint.fc-focused { opacity: 1; }
+      .faint-tag { font-style: italic; }
       .claim-text { font-weight: 500; cursor: pointer; color: var(--fg); }
       .meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
       .badge { padding: 1px 6px; border-radius: 99px; background: var(--accent-soft); color: var(--fg); }

@@ -23,6 +23,22 @@
   --fc-unchecked: #9a9a9a;
 }
 
+/* A faint mark: the sentence scored within a band below the flagging threshold.
+   Dashed, thinner and paler than a flag, whatever style the reader chose, so the
+   two are never mistaken for each other. */
+.fc-highlight[data-fc-band="faint"] {
+  border-bottom-style: dashed;
+  border-bottom-width: max(1px, calc(var(--fc-thickness) - 1px));
+  background: color-mix(in srgb, var(--fc-unchecked) 5%, transparent);
+}
+.fc-highlight[data-fc-band="faint"]:hover {
+  background: color-mix(in srgb, var(--fc-unchecked) 16%, transparent);
+}
+:root[data-fc-style="background"] .fc-highlight[data-fc-band="faint"] {
+  background: color-mix(in srgb, var(--fc-unchecked) 9%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--fc-unchecked) 50%, transparent);
+}
+
 /* Underline only: no wash behind the text, for reading long articles. */
 :root[data-fc-style="underline"] .fc-highlight,
 :root[data-fc-style="underline"] .fc-highlight:hover {

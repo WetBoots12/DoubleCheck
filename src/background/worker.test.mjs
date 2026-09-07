@@ -437,3 +437,76 @@ test('re-sending the same sentences does not duplicate claims', async () => {
   const after = (await send({ type: 'panelReady' }, undefined)).claims.length;
   assert.equal(after, before);
 });
+
+// --- the faint band -----------------------------------------------------------------
+// A sentence scoring within 0.20 below the threshold becomes a claim marked faint:
+// listed, highlighted and checkable, but not counted on the badge. With the option
+// off it is not a claim at all.
+
+import { scoreWithModel } from '../../classifier/inference/scorer.js';
+import { DEFAULT_SETTINGS, faintThreshold } from '../shared/messages.js';
+
+const FAINT_CANDIDATES = [
+  'Wolves returned to the park in 1995 and now number about 100.',
+  'The study followed 12,000 adults for a median of 8.4 years.',
+  'Children who were breastfed scored three points higher on average.',
+  'The device measured heart rate to within two beats per minute of the clinical monitor.',
+  'The hospital has closed two of its emergency wards because of staff shortages.',
+  'The prison is holding almost twice as many inmates as it was designed for.',
+  'Crime in the city has fallen to its lowest level in three decades.',
+  'The show was cancelled after two seasons.',
+  'The bridge was completed in 1932 and remains the longest of its kind in Europe.',
+  'The comedian was paid 20 million dollars for the special.',
+];
+
+function bandSentence() {
+  const model = JSON.parse(readFileSync('classifier/model/model.json', 'utf8'));
+  const scores = scoreWithModel(model, FAINT_CANDIDATES);
+  const lo = faintThreshold(DEFAULT_SETTINGS.threshold);
+  const i = scores.findIndex((s) => s >= lo && s < DEFAULT_SETTINGS.threshold);
+  return i === -1 ? null : { text: FAINT_CANDIDATES[i], score: scores[i] };
+}
+
+test('a sentence just under the threshold is a faint claim, and the badge does not count it', async (t) => {
+  const pick = bandSentence();
+  if (!pick) return t.skip('no candidate sentence scores in the faint band under the shipped model');
+  const tab = 940;
+  chrome.tabs.query = async () => [{ id: tab, url: 'https://news.example/faint', incognito: false }];
+  chrome.tabs.get = async (id) => ({ id, url: 'https://news.example/faint', incognito: false });
+  sent.runtime.length = 0; sent.tabs.length = 0; sent.badge.length = 0;
+
+  await send({ type: 'sentences', sentences: [
+    { id: 'f1', text: pick.text },
+    { id: 'f2', text: 'Unemployment fell to 4.2 percent last quarter, according to the Labor Department.' },
+  ] }, tab);
+  await settle();
+
+  const stored = chrome.storage.session._data.get(`tab:${tab}`);
+  assert.ok(stored?.claims.f1, `expected the faint sentence (${pick.score.toFixed(2)}) to be a claim`);
+  assert.equal(stored.claims.f1.band, 'faint');
+  assert.equal(stored.claims.f2.band, 'flag');
+
+  const hl = sent.tabs.find((m) => m.msg.type === 'claimStatus' && m.tabId === tab);
+  assert.ok(hl.msg.claims.find((c) => c.id === 'f1')?.band === 'faint', 'the page is told which mark is faint');
+
+  const badge = sent.badge.filter((b) => b.tabId === tab).at(-1);
+  assert.equal(badge.text, '1', 'only the full flag counts on the badge');
+});
+
+test('with faint flags off, the same sentence is not a claim', async (t) => {
+  const pick = bandSentence();
+  if (!pick) return t.skip('no candidate sentence scores in the faint band under the shipped model');
+  const tab = 941;
+  chrome.tabs.query = async () => [{ id: tab, url: 'https://news.example/nofaint', incognito: false }];
+  chrome.tabs.get = async (id) => ({ id, url: 'https://news.example/nofaint', incognito: false });
+  const before = await chrome.storage.local.get('fc_settings');
+  await chrome.storage.local.set({ fc_settings: { ...(before.fc_settings || {}), faintFlags: false } });
+  try {
+    await send({ type: 'sentences', sentences: [{ id: 'g1', text: pick.text }] }, tab);
+    await settle();
+    const stored = chrome.storage.session._data.get(`tab:${tab}`);
+    assert.ok(!stored?.claims?.g1, 'the option is off, so the band does not exist');
+  } finally {
+    await chrome.storage.local.set({ fc_settings: before.fc_settings || {} });
+  }
+});

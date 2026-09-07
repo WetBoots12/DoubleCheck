@@ -8,7 +8,7 @@
 // it completes, and a tab that navigates or closes has its queued jobs dropped so
 // no search call is spent on a page nobody is reading any more.
 
-import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
+import { MSG, STATUS, getSettings, saveSettings, faintThreshold } from '../shared/messages.js';
 import { scoreClaimWorthiness, explainClaim } from '../../classifier/inference/classifier.js';
 import {
   getSearchProvider,
@@ -238,9 +238,11 @@ async function activeTabId() {
   return tab?.id ?? null;
 }
 
+// The badge counts the flags, not the faint marks: it is the loud signal, and a
+// sentence the classifier was unsure about should not add to it.
 async function updateBadge(tabId) {
   const state = await tabStore.peek(tabId);
-  const count = state?.claims.size || 0;
+  const count = [...(state?.claims.values() || [])].filter((c) => c.band !== 'faint').length;
   chrome.action.setBadgeText({ tabId, text: count ? String(count) : '' }).catch(() => {});
   chrome.action.setBadgeBackgroundColor({ tabId, color: '#b4462d' }).catch(() => {});
 }
@@ -275,7 +277,7 @@ function pushHighlights(tabId, claims) {
   chrome.tabs
     .sendMessage(tabId, {
       type: MSG.CLAIM_STATUS,
-      claims: claims.map((c) => ({ id: c.id, text: c.text, status: c.status })),
+      claims: claims.map((c) => ({ id: c.id, text: c.text, status: c.status, band: c.band })),
     })
     .catch(() => {});
 }
@@ -306,14 +308,20 @@ async function handleSentences(tabId, sentences) {
   }
 
   const scores = await scoreClaimWorthiness(fresh.map((s) => s.text));
+  // Two bars. At or above the threshold a sentence is flagged. Within a band just
+  // below it, when the reader has the option on, it is marked faintly: the same
+  // claim with the same buttons, drawn so that it does not shout. A score is a
+  // probability, and a probability of 0.6 deserves something other than silence.
+  const faint = settings.faintFlags ? faintThreshold(settings.threshold) : settings.threshold;
   const flagged = [];
   fresh.forEach((s, i) => {
-    if (scores[i] < settings.threshold) return;
+    if (scores[i] < faint) return;
     const claim = {
       id: s.id,
       text: s.text,
       ts: s.ts,
       score: Number(scores[i].toFixed(2)),
+      band: scores[i] >= settings.threshold ? 'flag' : 'faint',
       status: searchReady(settings) ? STATUS.UNCHECKED : STATUS.NO_KEY,
     };
     state.claims.set(claim.id, claim);

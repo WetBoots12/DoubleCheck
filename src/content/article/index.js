@@ -272,7 +272,11 @@
     span.className = 'fc-highlight';
     span.dataset.fcId = claim.id;
     span.dataset.fcStatus = claim.status;
-    span.title = 'FactCheck: click to open this claim in the side panel';
+    // A faint mark is drawn dashed and lighter: the classifier was not sure.
+    if (claim.band === 'faint') span.dataset.fcBand = 'faint';
+    span.title = claim.band === 'faint'
+      ? 'FactCheck: possibly a claim. Click to open it in the side panel'
+      : 'FactCheck: click to open this claim in the side panel';
     span.addEventListener('click', () => {
       chrome.runtime
         .sendMessage({ type: MSG.HIGHLIGHT_CLICKED, claimId: claim.id })

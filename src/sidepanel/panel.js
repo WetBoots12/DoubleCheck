@@ -325,7 +325,7 @@ function render(claims) {
   // order of the text, so keeping that order keeps the two in step.
   for (const c of claims) {
     const el = document.createElement('div');
-    el.className = 'claim';
+    el.className = c.band === 'faint' ? 'claim faint' : 'claim';
     el.dataset.claimId = c.id;
 
     const text = document.createElement('div');
@@ -350,6 +350,8 @@ function render(claims) {
     if (c.located === false) meta.innerHTML += '<span title="This sentence could not be located in the page text, so it has no highlight to jump to.">not on page</span>';
     if (c.score != null) meta.innerHTML += `<span>score ${c.score}</span>`;
     if (c.userAdded) meta.innerHTML += '<span title="You added this by highlighting the sentence and right-clicking it.">added by you</span>';
+    // Said plainly, so a dimmed card reads as "unsure" and not as "broken".
+    if (c.band === 'faint') meta.innerHTML += '<span class="faint-tag" title="This sentence scored just below your flagging threshold. It may be a claim; the classifier was not sure.">possibly a claim</span>';
     el.appendChild(meta);
 
     // What about the sentence made it look checkable. The score on its own is an
