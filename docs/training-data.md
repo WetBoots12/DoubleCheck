@@ -1,9 +1,15 @@
 # Training data for the claim-worthiness classifier
 
-> **Status: trained.** The shipped model uses ClaimBuster's `2.5xNCS.json`
-> combined with `groundtruth.csv`: 10,706 sentences, average precision 0.863,
-> ROC AUC 0.935, precision 0.873 at the 0.70 default threshold. Attribution
-> requirements are in [`ATTRIBUTION.md`](../ATTRIBUTION.md).
+> **Status: trained, second model.** The shipped model uses ClaimBuster's
+> `2.5xNCS.json` and `groundtruth.csv` together with 2,793 English Wikinews
+> sentences labelled by ClaimBuster's scheme: 12,542 sentences in all. Five-fold
+> cross-validation gives average precision 0.828 and ROC AUC 0.909; on the
+> multi-domain benchmark's evaluation half (`classifier/eval/benchmark.csv`),
+> ROC AUC 0.970 and precision 0.955 at the 0.70 default threshold. The current
+> numbers and how to reproduce them are in
+> [`classifier/README.md`](../classifier/README.md); attribution requirements for
+> both corpora are in [`ATTRIBUTION.md`](../ATTRIBUTION.md). The sections below
+> record how the first, debate-only model was chosen and are kept as history.
 
 ## Which ClaimBuster files to train on
 

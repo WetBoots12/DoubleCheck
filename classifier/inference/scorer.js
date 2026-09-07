@@ -48,10 +48,12 @@ function sigmoid(z) {
   return 1 / (1 + Math.exp(-z));
 }
 
-// Replicates TfidfVectorizer(sublinear_tf=False, smooth_idf=True, norm='l2'):
-// tf is the raw count, idf comes from the model, then the tf-idf block is L2
-// normalized on its own before the binary features are appended.
+// Replicates TfidfVectorizer(smooth_idf=True, norm='l2'): tf is the raw count, or
+// 1 + ln(count) when the model file says it was fitted with sublinear tf; idf comes
+// from the model; then the tf-idf block is L2 normalized on its own before the
+// binary features are appended.
 function tfidfContribution(model, text) {
+  const sublinear = Boolean(model.tfidf?.sublinear);
   const counts = new Map();
   for (const gram of ngrams(tokenize(text))) {
     const idx = model.vocabulary[gram];
@@ -62,7 +64,8 @@ function tfidfContribution(model, text) {
   let norm = 0;
   const weighted = [];
   for (const [idx, count] of counts) {
-    const value = count * model.idf[idx];
+    const tf = sublinear ? 1 + Math.log(count) : count;
+    const value = tf * model.idf[idx];
     weighted.push([idx, value]);
     norm += value * value;
   }
@@ -86,6 +89,10 @@ export function scoreWithModel(model, sentences) {
     for (let i = 0; i < extra.length; i++) {
       if (extra[i]) z += model.coef[offset + i];
     }
+    // Platt scaling, fitted in train.py on news sentences the model never saw, so
+    // that a probability means the same on a web page as it did in training. It
+    // never reorders sentences; it moves where the thresholds fall.
+    if (model.calibration) z = model.calibration.a * z + model.calibration.b;
     return sigmoid(z);
   });
 }

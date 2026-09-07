@@ -1,7 +1,8 @@
 # The exported model
 
-`model.json` is the trained claim-worthiness classifier: 20,000 tf-idf terms,
-fourteen hand-written features, and the logistic regression weights over them,
+`model.json` is the trained claim-worthiness classifier: about 9,300 tf-idf
+terms, fourteen hand-written features, the logistic regression weights over them,
+and the two Platt-scaling numbers that calibrate its probabilities to news prose,
 written by `classifier/train/train.py`. `classifier/inference/classifier.js` fetches
 it from the extension package at startup and scores against it in plain
 JavaScript. There is no runtime, no TensorFlow.js and no ONNX; the file is the

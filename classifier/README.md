@@ -17,31 +17,55 @@ TensorFlow.js or ONNX and tens of megabytes of weights. If the metrics turn out
 to be too weak, a heavier model can replace it behind the same
 `scoreClaimWorthiness()` interface without touching the rest of the extension.
 
-A trained model ships in `model/model.json` (1.2 MB, 20,000 terms). The
+A trained model ships in `model/model.json` (0.3 MB, 9,270 terms). The
 hand-written heuristic scorer remains as the fallback for when the model fails to
 load.
 
+Before the weights see a sentence, a pre-pass rewrites number words as digits and
+collapses runs of capitalised words into one token (`train/textprep.py`,
+`inference/textprep.js`, identical by construction and checked against each other
+by a fixture). Words the training data treats as names, capitalised nearly every
+time they appear, are kept out of the vocabulary altogether, so the model learns
+that "ENTITY raised rates by 0.25 point" is a claim whoever ENTITY is, rather than
+learning the names of the people in the debate room.
+
 ## Trained model, current numbers
 
-Trained on ClaimBuster's `2.5xNCS.json` combined with `groundtruth.csv`: 10,706
-sentences, 25% check-worthy. `compare_datasets.py` documents why that combination
-beat the alternatives, including why the largest file was the worst.
+Trained on ClaimBuster's `2.5xNCS.json` and `groundtruth.csv` together with 2,793
+sentences of English Wikinews labelled by ClaimBuster's own scheme
+(`train/LABELLING.md`): 12,542 sentences, 29% check-worthy. A further 493 Wikinews
+sentences and the calibration half of the benchmark were held out and used only to
+calibrate the probabilities.
+
+Five-fold cross-validation over the training data:
 
 | Metric | Value |
 |---|---|
-| Average precision | 0.864 |
-| ROC AUC | 0.935 |
-| Precision at 0.70 | 0.870 |
-| Recall at 0.70 | 0.646 |
+| Average precision | 0.828 ± 0.008 |
+| ROC AUC | 0.909 ± 0.006 |
+| Average precision, debate rows | 0.860 |
+| Average precision, Wikinews rows | 0.738 |
+
+On the evaluation half of the multi-domain benchmark (`eval/benchmark.csv`), 185
+sentences of news, entertainment, scientific prose, captions and page furniture the
+model never saw, against the previous model:
+
+| Metric | Previous | Current |
+|---|---|---|
+| ROC AUC | 0.940 | 0.970 |
+| Average precision | 0.926 | 0.947 |
+| Precision at 0.70 | 0.875 | 0.955 |
+| Recall at 0.70 | 0.843 | 0.759 |
+| False flags among 45 hard negatives, at 0.70 | 9 | 3 |
+| Model file | 1,125 KB | ~300 KB |
+
+The probabilities are calibrated on news sentences, so 0.70 is a stricter bar than
+it was and recall at that threshold fell while precision rose. At 0.50 the current
+model reaches recall 0.855 at precision 0.922, where the previous one had precision
+0.700. Run `node classifier/eval/benchmark.mjs` to reproduce any of this.
 
 The extension's default threshold is **0.70**, chosen for precision: every flagged
 claim is a search call the user may spend.
-
-Despite training on political debate transcripts, it separates real-world news
-prose cleanly. News and encyclopedia claims score 0.77 to 0.99, while chatter,
-opinion, questions and navigation text score 0.05 to 0.30. The heuristic scored
-the same Wikipedia claim 0.15, so the model is a real improvement on general prose
-rather than only on debates.
 
 ## The data, and crediting it
 
@@ -70,14 +94,30 @@ column. Check the licence of whatever you add, and record it in `ATTRIBUTION.md`
 ```bash
 pip install -r train/requirements.txt
 
-# Normalize whatever CSV you have into text,label columns
-python classifier/train/prepare_data.py   --input classifier/train/raw/ClaimBuster_Datasets/datasets/3xNCS.json   --output classifier/train/data/dataset.csv
+# Blend the corpora into text,label,domain columns, holding a Wikinews slice out
+# for calibration so that it can never overlap the training rows
+cd classifier/train
+python prepare_data.py \
+  --input raw/ClaimBuster_Datasets/datasets/2.5xNCS.json --domain debate \
+  --input raw/ClaimBuster_Datasets/datasets/groundtruth.csv --domain debate \
+  --input wikinews/labelled.csv --domain wikinews \
+  --holdout-domain wikinews --holdout 0.15 \
+  --output data/dataset.csv
 
-# Train, evaluate, and export model.json + the parity fixture
-cd train && python train.py --data data/dataset.csv
+# Cross-validate, fit, calibrate on the held-out news sentences, and export
+# model.json + the parity fixture
+python train.py --data data/dataset.csv --max-features 10000 \
+  --calibrate data/holdout.csv --calibrate ../eval/benchmark.csv --calibrate-split calib
 
-# Confirm the JavaScript scorer reproduces the Python model exactly
+# Confirm the JavaScript scorer reproduces the exported model exactly, then
+# measure it on the benchmark's evaluation half, which nothing above has seen
+cd ../..
 node --test classifier/inference/scorer.test.mjs
+node classifier/eval/benchmark.mjs --split eval
+
+# To add more Wikinews: fetch, label by train/LABELLING.md, merge
+python classifier/train/fetch_wikinews.py --articles 240
+python classifier/train/merge_wikinews.py
 ```
 
 Training prints a threshold table. Pick the extension's default threshold from it

@@ -88,6 +88,15 @@ def main():
     ap.add_argument("--label-column", help="Override label column detection")
     ap.add_argument("--min-length", type=int, default=25,
                     help="Drop sentences shorter than this many characters")
+    # Calibration has to happen on sentences the model never trained on, in the
+    # domain it runs in. This carves a random slice out of one domain before the
+    # training file is written, so the two can never overlap by accident.
+    ap.add_argument("--holdout-domain", default=None,
+                    help="Domain to hold a calibration slice out of, e.g. wikinews")
+    ap.add_argument("--holdout", type=float, default=0.15,
+                    help="Fraction of --holdout-domain to hold out")
+    ap.add_argument("--holdout-output", default="data/holdout.csv",
+                    help="Where the held-out slice is written")
     args = ap.parse_args()
 
     domains = args.domain or []
@@ -131,6 +140,19 @@ def main():
     out = out.drop_duplicates(subset="text", keep="first")
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+
+    if args.holdout_domain:
+        pool = out[out["domain"] == args.holdout_domain]
+        if pool.empty:
+            sys.exit(f"No rows in domain '{args.holdout_domain}' to hold out from")
+        held = pool.sample(frac=args.holdout, random_state=args.seed)
+        out = out.drop(held.index)
+        os.makedirs(os.path.dirname(args.holdout_output) or ".", exist_ok=True)
+        held.to_csv(args.holdout_output, index=False)
+        print(f"Held out {len(held)} {args.holdout_domain} rows "
+              f"({int(held['label'].sum())} check-worthy) to {args.holdout_output}; "
+              "they are not in the training file")
+
     out.to_csv(args.output, index=False)
 
     positives = int(out["label"].sum())
