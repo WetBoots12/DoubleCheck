@@ -1,6 +1,6 @@
 import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
 import { panelTextSize } from '../shared/appearance.js';
-import { getLlmProvider, getSearchProvider } from '../providers/index.js';
+import { getLlmProvider, getSearchProvider, partialSummary, LLM_PROVIDERS } from '../providers/index.js';
 import { ratingTone } from '../shared/evidence.js';
 import { httpUrl } from '../shared/privacy.js';
 import { claimToMarkdown } from '../shared/exportclaim.js';
@@ -36,6 +36,7 @@ const siteRow = document.getElementById('site');
 const siteName = document.getElementById('siteName');
 const siteAllow = document.getElementById('siteAllow');
 const siteBlock = document.getElementById('siteBlock');
+const foldAll = document.getElementById('foldAll');
 
 // The video script explains an idle state that has a cause the viewer can fix.
 const CAPTION_HINTS = {
@@ -310,11 +311,25 @@ function keyedSearch(settings) {
 }
 let lastClaims = [];
 
-function render(claims) {
+// Which claims are folded shut, and which tab the feed was last drawn for.
+const folded = new Set();
+let renderedTabId = null;
+
+function render(claims, { keepScroll = true } = {}) {
   lastClaims = claims;
+
+  // Rebuilding the feed empties the document, and the browser then clamps the
+  // scroll to the top. So pressing Check sources on the tenth claim answered by
+  // throwing the reader back to the first. The position is taken before the wipe
+  // and put back after, which holds because the cards above the one being checked
+  // do not change height.
+  const scroller = document.scrollingElement || document.documentElement;
+  const wasAt = scroller.scrollTop;
+
   feed.innerHTML = '';
   if (!claims.length) {
     feed.innerHTML = '<div class="empty">Nothing flagged yet on this page.<br>Highlight a sentence, then right-click it and choose &quot;Fact-check the highlighted text&quot;.</div>';
+    foldAll.hidden = true;
     return;
   }
 
@@ -375,6 +390,8 @@ function render(claims) {
       b.className = primary ? 'check' : 'check secondary';
       b.textContent = label;
       b.addEventListener('click', () => {
+        // Asking for sources and then not being shown them would be absurd.
+        folded.delete(c.id);
         for (const other of actions.querySelectorAll('button')) other.disabled = true;
         b.textContent = busyLabel;
         chrome.runtime
@@ -385,8 +402,10 @@ function render(claims) {
     }
 
     if (c.summarizing) {
+      // Its own class, not just the shared muted style: this is the one note that
+      // gets rewritten from outside render, as the model writes.
       const note = document.createElement('div');
-      note.className = 'muted-note';
+      note.className = 'muted-note ai-progress';
       note.textContent = 'Asking the AI…';
       actions.appendChild(note);
     } else if (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR) {
@@ -462,6 +481,11 @@ function render(claims) {
 
     if (actions.childElementCount) el.appendChild(actions);
 
+    // Everything a check produced goes in here, so one press can fold it away and
+    // leave the sentence, its badges and its buttons behind.
+    const body = document.createElement('div');
+    body.className = 'claim-body';
+
     if (c.status === STATUS.NO_KEY) {
       const p = document.createElement('div');
       p.className = 'summary';
@@ -471,31 +495,31 @@ function render(claims) {
       b.textContent = 'Open settings';
       b.addEventListener('click', () => chrome.runtime.openOptionsPage());
       p.appendChild(b);
-      el.appendChild(p);
+      body.appendChild(p);
     }
 
     // Verdicts from real fact-checking organisations sit above the AI summary and
     // the raw results, because a human verdict outranks both.
-    if (c.factChecks?.length) el.appendChild(renderFactChecks(c.factChecks));
+    if (c.factChecks?.length) body.appendChild(renderFactChecks(c.factChecks));
 
     // Peer-reviewed work, when academic mode asked for it. Placed above the web
     // results because a journal article outranks a news snippet for this purpose.
-    if (c.scholar?.length) el.appendChild(renderScholar(c.scholar));
+    if (c.scholar?.length) body.appendChild(renderScholar(c.scholar));
     else if (c.scholarError) {
       const e = document.createElement('div');
       e.className = 'muted-note';
       e.textContent = `Peer-reviewed lookup failed: ${c.scholarError}`;
-      el.appendChild(e);
+      body.appendChild(e);
     }
 
-    if (c.evidence) el.appendChild(renderEvidence(c));
-    if (c.analysis) el.appendChild(renderAnalysis(c.analysis));
+    if (c.evidence) body.appendChild(renderEvidence(c));
+    if (c.analysis) body.appendChild(renderAnalysis(c.analysis));
 
     if (c.error && c.status === STATUS.ERROR) {
       const e = document.createElement('div');
       e.className = 'summary';
       e.textContent = c.error;
-      el.appendChild(e);
+      body.appendChild(e);
     }
 
     for (const r of c.results || []) {
@@ -577,11 +601,59 @@ function render(claims) {
         row.appendChild(note);
       }
 
-      el.appendChild(row);
+      body.appendChild(row);
+    }
+
+
+    // A long list of checked claims is unreadable, so each one folds. The state
+    // lives in the panel rather than in storage: it is how the reader is looking at
+    // this page right now, not a preference about every page.
+    if (body.childElementCount) {
+      const shut = folded.has(c.id);
+      const found = (c.results?.length || 0) + (c.scholar?.length || 0) + (c.factChecks?.length || 0);
+      const fold = document.createElement('button');
+      fold.className = 'fold';
+      fold.setAttribute('aria-expanded', String(!shut));
+      fold.textContent = shut
+        ? `\u25b8 ${found ? `${found} source${found === 1 ? '' : 's'}` : 'show'}`
+        : '\u25be hide';
+      fold.title = shut
+        ? 'Show what was found for this claim'
+        : 'Fold this away and keep the list short';
+      fold.addEventListener('click', () => {
+        if (folded.has(c.id)) folded.delete(c.id); else folded.add(c.id);
+        render(lastClaims);
+      });
+      meta.appendChild(fold);
+      if (!shut) el.appendChild(body);
     }
 
     feed.appendChild(el);
   }
+
+  renderFoldAll(claims);
+  // A new page starts at the top; the same page keeps the reader where they were.
+  scroller.scrollTop = keepScroll ? wasAt : 0;
+}
+
+// One press to fold every claim that has anything to fold, and one to open them
+// again. Only offered once there is more than one, since below that the per-claim
+// control is the whole story.
+function renderFoldAll(claims) {
+  const holders = claims.filter((c) => (c.results?.length || c.scholar?.length || c.factChecks?.length || c.analysis));
+  foldAll.hidden = holders.length < 2;
+  if (foldAll.hidden) return;
+  const anyOpen = holders.some((c) => !folded.has(c.id));
+  foldAll.textContent = anyOpen ? 'Fold all' : 'Open all';
+  foldAll.title = anyOpen
+    ? 'Fold every checked claim, leaving the sentences and their buttons'
+    : 'Show what was found for every claim';
+  foldAll.onclick = () => {
+    for (const c of holders) {
+      if (anyOpen) folded.add(c.id); else folded.delete(c.id);
+    }
+    render(lastClaims);
+  };
 }
 
 function renderScholar(list) {
@@ -810,11 +882,23 @@ async function runInPageLlm(msg) {
   }
 
   try {
-    const analysis = await llm.crossReference(msg.claim, msg.results, settings.llmApiKey);
+    // An on-device model writes at reading speed, and a note that never changes
+    // looks like a hang. The summary it is composing is shown as it arrives, so
+    // the wait is spent reading rather than wondering.
+    const analysis = await llm.crossReference(msg.claim, msg.results, settings.llmApiKey, {
+      onProgress: (text) => showProgress(msg.claimId, text),
+    });
     return answer({ analysis });
   } catch (err) {
     return answer({ error: err.message });
   }
+}
+
+function showProgress(claimId, text) {
+  const note = feed.querySelector(`[data-claim-id="${claimId}"] .ai-progress`);
+  if (!note) return;
+  const written = partialSummary(text).trim();
+  note.textContent = written ? `Asking the AI… ${written}` : 'Asking the AI…';
 }
 
 // --- find bar ---------------------------------------------------------------
@@ -850,7 +934,12 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === MSG.PANEL_UPDATE) {
     // Banners and the site row belong to one tab; switching clears them.
     if (bannerTabId != null && msg.tabId !== bannerTabId) clearTabBanners();
-    render(msg.claims || []);
+    // So does what is folded and where the reader had scrolled to. A new page
+    // starts at the top with everything open.
+    const sameTab = renderedTabId != null && msg.tabId === renderedTabId;
+    if (!sameTab) folded.clear();
+    renderedTabId = msg.tabId;
+    render(msg.claims || [], { keepScroll: sameTab });
   } else if (msg.type === MSG.CAPTION_HINT) renderCaptionHint(msg);
   else if (msg.type === MSG.PAGE_STATUS) renderPageStatus(msg);
   else if (msg.type === MSG.NAV_STATE) renderNavState(msg);
@@ -949,6 +1038,7 @@ chrome.storage.onChanged.addListener(async () => {
   if (next !== llmEnabled || keyed !== searchKeyed) {
     llmEnabled = next;
     searchKeyed = keyed;
+    warmUpLlm(s); // the reader just chose a model; start loading it now
     render(lastClaims);
   }
 });
@@ -960,7 +1050,23 @@ chrome.storage.onChanged.addListener(async () => {
   searchKeyed = keyedSearch(settings);
   if (isFormat(settings.citationFormat)) citationFormat = settings.citationFormat;
   toggle.checked = settings.autoCheck;
+
+  // The on-device model has to be loaded before it can write a word, and that load
+  // used to happen on the first press. Starting it as the panel opens moves the
+  // wait to a moment when nobody is waiting.
+  warmUpLlm(settings);
+
   const res = await chrome.runtime.sendMessage({ type: MSG.PANEL_READY }).catch(() => null);
-  render(res?.claims || []);
+  renderedTabId = res?.tabId ?? null;
+  render(res?.claims || [], { keepScroll: false });
   if (res?.page) renderPageStatus({ ...res.page, tabId: res.tabId });
 })();
+
+function warmUpLlm(settings) {
+  try {
+    for (const p of Object.values(LLM_PROVIDERS)) {
+      if (p.id !== settings.llmProvider) p.release?.();
+    }
+    getLlmProvider(settings.llmProvider).warmUp?.();
+  } catch { /* a model that will not warm up still answers when asked */ }
+}
