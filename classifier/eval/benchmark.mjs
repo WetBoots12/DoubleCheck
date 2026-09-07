@@ -101,6 +101,9 @@ export function averagePrecision(labels, scores) {
 
 export function evaluate(rows, scores) {
   const labels = rows.map((r) => r.label);
+  // The band between the two thresholds: what a faint mark would cover, and how
+  // much of it is really a claim.
+  const inBand = rows.filter((_, i) => scores[i] >= FAINT && scores[i] < FLAG);
   return {
     n: rows.length,
     positives: labels.filter((l) => l === 1).length,
@@ -108,6 +111,7 @@ export function evaluate(rows, scores) {
     ap: averagePrecision(labels, scores),
     flag: atThreshold(rows, scores, FLAG),
     faint: atThreshold(rows, scores, FAINT),
+    band: { n: inBand.length, positives: inBand.filter((r) => r.label === 1).length },
   };
 }
 
@@ -126,13 +130,15 @@ const f3 = (x) => (x == null ? '  n/a' : x.toFixed(3));
 
 export function printTable(report) {
   console.log(`${'domain'.padEnd(15)}${'n'.padStart(5)}${'pos'.padStart(5)}${'AUC'.padStart(8)}${'AP'.padStart(8)}`
-    + `${'P@.70'.padStart(8)}${'R@.70'.padStart(8)}${'P@.50'.padStart(8)}${'R@.50'.padStart(8)}`);
+    + `${'P@.70'.padStart(8)}${'R@.70'.padStart(8)}${'P@.50'.padStart(8)}${'R@.50'.padStart(8)}${'faint band'.padStart(12)}`);
   for (const [name, m] of Object.entries(report)) {
     console.log(`${name.padEnd(15)}${String(m.n).padStart(5)}${String(m.positives).padStart(5)}`
       + `${f3(m.auc).padStart(8)}${f3(m.ap).padStart(8)}`
       + `${f3(m.flag.precision).padStart(8)}${f3(m.flag.recall).padStart(8)}`
-      + `${f3(m.faint.precision).padStart(8)}${f3(m.faint.recall).padStart(8)}`);
+      + `${f3(m.faint.precision).padStart(8)}${f3(m.faint.recall).padStart(8)}`
+      + `${`${m.band.positives}/${m.band.n}`.padStart(12)}`);
   }
+  console.log('faint band: sentences scoring from 0.50 up to 0.70, shown as claims/total');
 }
 
 function printMisses(rows, scores, limit) {

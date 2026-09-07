@@ -522,6 +522,7 @@
             <tr><th>Sign-up boxes get marked</th><td>Raise the threshold slider a little in Settings, then press Rescan.</td></tr>
             <tr><th>A video is not being read</th><td>Turn on subtitles, or press "Open the transcript" in the panel.</td></tr>
             <tr><th>Too many marks</th><td>Raise the threshold. Too few, lower it. Move it a little at a time.</td></tr>
+            <tr><th>Some marks are dashed and pale</th><td>Those sentences scored just below your threshold. They are "possibly a claim" and can be checked like any other. Turn them off in Settings if you would rather not see them.</td></tr>
           </table>
         </section>
       </div>
@@ -548,6 +549,13 @@
             <span class="hint">fewer claims</span>
           </div>
           <div class="hint">How confident the classifier must be before a sentence gets flagged.</div>
+        </div>
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" id="faintFlags" />
+            Also mark sentences just below the threshold, faintly
+          </label>
+          <div class="hint">A dashed, paler mark for sentences scoring within 0.20 below the threshold. They are listed in the panel as "possibly a claim" and do not count on the badge.</div>
         </div>
       </section>
 

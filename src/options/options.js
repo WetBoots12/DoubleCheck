@@ -50,6 +50,7 @@ const fields = {
   browserSearchEngine: el('browserSearchEngine'),
   distillQueries: el('distillQueries'),
   cacheResults: el('cacheResults'),
+  faintFlags: el('faintFlags'),
   highlightStyle: el('highlightStyle'),
   highlightColor: el('highlightColor'),
   highlightThickness: el('highlightThickness'),
@@ -176,6 +177,7 @@ async function save() {
     searchApiKey: fields.searchApiKey.value.trim(),
     distillQueries: fields.distillQueries.checked,
     cacheResults: fields.cacheResults.checked,
+    faintFlags: fields.faintFlags.checked,
     highlightStyle: fields.highlightStyle.value,
     highlightColor: fields.highlightColor.value,
     highlightThickness: fields.highlightThickness.value,
@@ -402,6 +404,7 @@ async function wireSources() {
   fields.searchProvider.value = s.searchProvider;
   fields.searchApiKey.value = s.searchApiKey;
   fields.distillQueries.checked = Boolean(s.distillQueries);
+  fields.faintFlags.checked = Boolean(s.faintFlags);
   fields.cacheResults.checked = s.cacheResults !== false;
   fill(fields.highlightStyle, HIGHLIGHT_STYLES);
   fill(fields.highlightColor, HIGHLIGHT_COLORS);

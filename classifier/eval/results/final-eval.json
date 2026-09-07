@@ -1,0 +1,174 @@
+{
+  "model": "C:\\Users\\johns\\OneDrive\\Desktop\\FactCheck Browser extension\\classifier\\model\\model.json",
+  "split": "eval",
+  "report": {
+    "all": {
+      "n": 185,
+      "positives": 83,
+      "auc": 0.9699976376092606,
+      "ap": 0.947323173531179,
+      "flag": {
+        "tp": 63,
+        "fp": 3,
+        "fn": 20,
+        "tn": 99,
+        "precision": 0.9545454545454546,
+        "recall": 0.7590361445783133,
+        "f1": 0.8456375838926175
+      },
+      "faint": {
+        "tp": 71,
+        "fp": 6,
+        "fn": 12,
+        "tn": 96,
+        "precision": 0.922077922077922,
+        "recall": 0.8554216867469879,
+        "f1": 0.8875
+      },
+      "band": {
+        "n": 11,
+        "positives": 8
+      }
+    },
+    "news": {
+      "n": 50,
+      "positives": 30,
+      "auc": 1,
+      "ap": 1,
+      "flag": {
+        "tp": 26,
+        "fp": 0,
+        "fn": 4,
+        "tn": 20,
+        "precision": 1,
+        "recall": 0.8666666666666667,
+        "f1": 0.9285714285714286
+      },
+      "faint": {
+        "tp": 28,
+        "fp": 0,
+        "fn": 2,
+        "tn": 20,
+        "precision": 1,
+        "recall": 0.9333333333333333,
+        "f1": 0.9655172413793104
+      },
+      "band": {
+        "n": 2,
+        "positives": 2
+      }
+    },
+    "entertainment": {
+      "n": 35,
+      "positives": 18,
+      "auc": 0.9934640522875817,
+      "ap": 0.9939896036387262,
+      "flag": {
+        "tp": 14,
+        "fp": 0,
+        "fn": 4,
+        "tn": 17,
+        "precision": 1,
+        "recall": 0.7777777777777778,
+        "f1": 0.8750000000000001
+      },
+      "faint": {
+        "tp": 16,
+        "fp": 1,
+        "fn": 2,
+        "tn": 16,
+        "precision": 0.9411764705882353,
+        "recall": 0.8888888888888888,
+        "f1": 0.9142857142857143
+      },
+      "band": {
+        "n": 3,
+        "positives": 2
+      }
+    },
+    "science": {
+      "n": 40,
+      "positives": 25,
+      "auc": 0.9946666666666667,
+      "ap": 0.9968615384615385,
+      "flag": {
+        "tp": 15,
+        "fp": 0,
+        "fn": 10,
+        "tn": 15,
+        "precision": 1,
+        "recall": 0.6,
+        "f1": 0.7499999999999999
+      },
+      "faint": {
+        "tp": 19,
+        "fp": 0,
+        "fn": 6,
+        "tn": 15,
+        "precision": 1,
+        "recall": 0.76,
+        "f1": 0.8636363636363636
+      },
+      "band": {
+        "n": 4,
+        "positives": 4
+      }
+    },
+    "hardneg": {
+      "n": 45,
+      "positives": 0,
+      "auc": null,
+      "ap": null,
+      "flag": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 0,
+        "tn": 42,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "faint": {
+        "tp": 0,
+        "fp": 5,
+        "fn": 0,
+        "tn": 40,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "band": {
+        "n": 2,
+        "positives": 0
+      }
+    },
+    "captions": {
+      "n": 15,
+      "positives": 10,
+      "auc": 1,
+      "ap": 1,
+      "flag": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 2,
+        "tn": 5,
+        "precision": 1,
+        "recall": 0.8,
+        "f1": 0.888888888888889
+      },
+      "faint": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 2,
+        "tn": 5,
+        "precision": 1,
+        "recall": 0.8,
+        "f1": 0.888888888888889
+      },
+      "band": {
+        "n": 0,
+        "positives": 0
+      }
+    }
+  }
+}
