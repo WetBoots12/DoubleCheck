@@ -91,3 +91,47 @@ test('an empty query makes no request', async () => {
     globalThis.fetch = realFetch;
   }
 });
+
+// Two flags on one page about the same subject find the same article, and the
+// article offers the same references for both. Sources already under another flag
+// on the page are handed in, and the provider prefers ones the reader has not seen.
+const conflict = {
+  pages: [{ id: 1, key: 'Coral_reef', title: 'Coral reef', excerpt: 'Reefs.', description: 'Reefs' }],
+};
+const wikitext = [
+  'Coral cover fell by half.<ref>{{cite news |title=Reef lost half its coral |url=https://news.example/a |work=A}}</ref><ref>{{cite news |title=Half of reef coral gone |url=https://news.example/b |work=B}}</ref>',
+  '',
+  'Coral cover fell by half again.<ref>{{cite news |title=Coral cover halved |url=https://news.example/c |work=C}}</ref>',
+].join('\n');
+
+async function checkTwice(avoidUrls) {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    json: async () => (String(url).includes('/page/') ? { source: wikitext } : conflict),
+  });
+  try {
+    return await SEARCH_PROVIDERS.wikipedia.search('coral cover fell by half', '', { avoidUrls });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+test('sources already shown under another claim on the page come after ones not yet shown', async () => {
+  const first = await checkTwice([]);
+  assert.ok(first.length >= 3, JSON.stringify(first.map((r) => r.url)));
+  const shown = first.slice(0, 2).map((r) => r.url);
+  const second = await checkTwice(shown);
+  const urls = second.map((r) => r.url);
+  // The unseen one leads; the seen ones, if there is room, follow.
+  assert.ok(!shown.includes(urls[0]), JSON.stringify(urls));
+});
+
+test('the article itself is left off when it is already under another claim', async () => {
+  const first = await checkTwice([]);
+  const article = first.find((r) => r.url.includes('en.wikipedia.org'));
+  assert.ok(article, 'the article is offered the first time');
+  const second = await checkTwice([article.url]);
+  assert.ok(!second.some((r) => r.url === article.url), JSON.stringify(second.map((r) => r.url)));
+});

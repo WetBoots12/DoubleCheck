@@ -304,3 +304,26 @@ test('nothing is written down when citing from an incognito tab', async () => {
   assert.equal(res.sources.length, 1, 'the citation is still produced');
   assert.deepEqual(await list(), [], 'but nothing from incognito reaches the disk');
 });
+
+// --- two claims on one page ---------------------------------------------------------------
+
+test('a check is told what the other claims on the page already show, and puts those last', async () => {
+  const tab = await useTab({ cacheResults: false });
+  await chrome.storage.session.set({
+    ['tab:' + tab]: {
+      claims: {
+        c1: { id: 'c1', text: 'Prices rose 4.2 percent.', status: 'checked',
+          results: [{ title: 'Already here', url: AP, source: 'apnews.com' }] },
+        c2: { id: 'c2', text: 'Inflation reached 4.2 percent in the year to June.', status: 'unchecked', score: 0.9 },
+      },
+      seen: [],
+    },
+  });
+  await send({ type: 'checkClaim', claimId: 'c2' }, undefined);
+  await settle();
+  await settle();
+  const stored = (await chrome.storage.session.get('tab:' + tab))['tab:' + tab];
+  const urls = stored.claims.c2.results.map((r) => r.url);
+  // The engine returned AP first; AP is already under c1, so BBC leads for c2.
+  assert.deepEqual(urls, [BBC, AP], JSON.stringify(urls));
+});

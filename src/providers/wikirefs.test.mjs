@@ -150,3 +150,26 @@ test('a very long article is read in a reasonable time', () => {
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started}ms`);
   assert.ok(refs.length > 0);
 });
+
+// --- across the claims on one page ---------------------------------------------------
+// Two flags on one page about one conflict both find the same article, and the article
+// offers the same few references for both, so the panel showed the same sources twice.
+// A source already under another flag gives way to the next one that bears on the
+// claim, and is only shown again when nothing else does.
+
+test('a source already shown under another claim gives way to the next one that fits', () => {
+  const claim = 'The Great Barrier Reef has lost half its coral cover since 1995.';
+  const first = refsForClaim(claim, ARTICLE, { limit: 1 });
+  assert.equal(first.length, 1);
+  const second = refsForClaim(claim, ARTICLE, { limit: 1, avoid: [first[0].url] });
+  assert.equal(second.length, 1);
+  assert.notEqual(second[0].url, first[0].url, JSON.stringify(second));
+  assert.ok(/bbc\.com|washingtonpost\.com/.test(second[0].url), 'still one the article cites for this claim');
+});
+
+test('when nothing else bears on the claim, the shown source is shown again rather than nothing', () => {
+  const claim = 'Reef tourism is worth billions to the regional economy.';
+  const [only] = refsForClaim(claim, ARTICLE, { limit: 1 });
+  const again = refsForClaim(claim, ARTICLE, { limit: 1, avoid: [only.url] });
+  assert.ok(again.length >= 1);
+});

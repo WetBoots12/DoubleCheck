@@ -462,6 +462,17 @@ async function tabOrigin(tabId) {
 // second from the page's canonical link, Open Graph URL and credit line.
 const publishers = new Map(); // tabId -> domains
 
+// The addresses under every other claim on the tab: what the reader can already
+// see, which is what a new check should try not to repeat.
+function shownUrls(state, exceptClaimId) {
+  const urls = new Set();
+  for (const other of state?.claims.values() || []) {
+    if (other.id === exceptClaimId) continue;
+    for (const r of other.results || []) if (r?.url) urls.add(r.url);
+  }
+  return [...urls];
+}
+
 async function excludedDomains(tabId) {
   const origin = await tabOrigin(tabId);
   const extra = publishers.get(tabId) || [];
@@ -575,9 +586,13 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     // the search results, so each is caught apart.
     const academic = Boolean(settings.academicMode);
     const query = settings.distillQueries ? searchQuery(claim.text) : claim.text;
+    // What is already on the panel for this page. Two claims about one subject
+    // otherwise come back with the same sources, and the provider can prefer ones
+    // the reader has not seen when it is told which those are.
+    const avoidUrls = shownUrls(state, claimId);
     const [results, factChecks, scholar] = await Promise.all([
       remember(settings, 'search', searchCacheParts(claim, settings, search, excludeDomain), () =>
-        search.search(query, settings.searchApiKey, { excludeDomain, academic })),
+        search.search(query, settings.searchApiKey, { excludeDomain, academic, avoidUrls })),
       settings.factCheckApiKey
         ? remember(settings, 'factcheck', [factCheck.id, claim.text], () =>
             factCheck.lookup(claim.text, settings.factCheckApiKey)).catch((err) => {

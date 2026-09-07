@@ -128,7 +128,17 @@ export function rankAcademic(results) {
 function shapeResults(mapped, opts) {
   const flagged = mapped.map((r) => ({ ...r, academic: isAcademicSource(r.url) }));
   const kept = excludeOrigin(flagged, opts.excludeDomain);
-  return (opts.academic ? rankAcademic(kept) : kept).slice(0, SHOW_COUNT);
+  const ranked = opts.academic ? rankAcademic(kept) : kept;
+
+  // Sources already under another claim on the same page go after the ones the
+  // reader has not seen, and drop off the end when there are enough of those. Two
+  // claims about one subject otherwise show the same list twice, and the second
+  // copy tells the reader nothing the first did not.
+  const shown = new Set(opts.avoidUrls || []);
+  const ordered = shown.size
+    ? [...ranked.filter((r) => !shown.has(r.url)), ...ranked.filter((r) => shown.has(r.url))]
+    : ranked;
+  return ordered.slice(0, SHOW_COUNT);
 }
 
 // --- Search providers -------------------------------------------------------
@@ -283,13 +293,17 @@ const wikipedia = {
         const page = await fetchJson(
           `https://en.wikipedia.org/w/rest.php/v1/page/${encodeURIComponent(best.key)}`,
         );
-        const refs = refsForClaim(query, page?.source || '', {
-          limit: SHOW_COUNT - 1,
-          article: best.title || best.key,
-        });
         // The article itself comes last, as somewhere to read the surrounding
-        // discussion, rather than first as the answer.
-        if (refs.length) return shapeResults([...refs, articles[0]].filter(Boolean), opts);
+        // discussion, rather than first as the answer. Unless it is already under
+        // another claim on the page, in which case its place goes to one more source.
+        const shown = new Set(opts.avoidUrls || []);
+        const tail = articles[0] && !shown.has(articles[0].url) ? [articles[0]] : [];
+        const refs = refsForClaim(query, page?.source || '', {
+          limit: SHOW_COUNT - tail.length,
+          article: best.title || best.key,
+          avoid: shown,
+        });
+        if (refs.length) return shapeResults([...refs, ...tail], opts);
       } catch {
         // Unreadable article: the search results are still worth something.
       }
