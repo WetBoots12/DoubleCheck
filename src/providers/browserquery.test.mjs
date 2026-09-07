@@ -71,3 +71,44 @@ test('the same phrase is never repeated in one query', () => {
   const q = browserQuery('New York City said New York City spending rose 12 percent.', { maxPhrases: 2 });
   assert.equal(q.split('"New York City"').length - 1, 1, q);
 });
+
+// --- what the query keeps of the claim -----------------------------------------------
+// A reader compared the query with the sentence it came from and found it "a little
+// off": words in a scrambled order, a bare year in quotation marks as if it were the
+// figure, and the words that say what the claim is about dropped in favour of the
+// words that say where it was published.
+
+test('the words go to the engine in the order the claim said them', () => {
+  // Engines reward proximity and order; a keyword list sorted by length reads as
+  // "coral cover since lost half", which no one wrote.
+  const q = browserQuery('The Great Barrier Reef has lost half its coral cover since 1995.');
+  const at = (w) => q.indexOf(w);
+  assert.ok(at('lost') < at('coral') && at('coral') < at('cover') && at('cover') < at('1995'), q);
+});
+
+test('a figure carries the word that says what it counts', () => {
+  assert.ok(browserQuery('Officials said the new rail line will cut journey times to under 30 minutes.').includes('"30 minutes"'));
+  assert.ok(browserQuery('People who walk 8,000 steps a day live longer.').includes('"8,000 steps"'));
+  assert.ok(browserQuery('Tesla delivered 1.8 million vehicles in 2023.').includes('"1.8 million vehicles"'));
+  // A figure that already says what it is does not take the next word as well.
+  assert.ok(browserQuery('Unemployment fell to 4.2 percent last quarter.').includes('"4.2 percent"'));
+});
+
+test('a year is context, not the figure, so it is not what gets quoted', () => {
+  const q = browserQuery('The Federal Reserve raised interest rates by a quarter point, its tenth increase since March 2022.');
+  assert.ok(!q.includes('"2022"'), q);
+  assert.ok(q.includes('2022'), q);
+  assert.ok(q.includes('"Federal Reserve"'), q);
+  assert.ok(/rates/.test(q) && /quarter/.test(q), q);
+});
+
+test('punctuation after a figure never ends up inside the quotation marks', () => {
+  const q = browserQuery('Tesla delivered 1.8 million vehicles in 2023, up 38 percent on the year.', { maxPhrases: 2 });
+  assert.ok(!/[,.]"/.test(q), q);
+});
+
+test('what the claim is about outranks where it was published and when it was said', () => {
+  const q = browserQuery('The study, published in The Lancet on Wednesday, found that people who walk 8,000 steps a day had a 50 percent lower risk of early death.', { maxPhrases: 2 });
+  for (const w of ['steps', 'risk', 'death', 'walk']) assert.ok(q.includes(w), `${w} missing from: ${q}`);
+  assert.ok(!/published|found|wednesday/.test(q), q);
+});

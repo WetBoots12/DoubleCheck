@@ -805,12 +805,19 @@ export function getLlmProvider(id) {
 // Quotation marks mean "these words, in this order" to every major engine, which
 // is exactly the guarantee a figure or a name needs.
 
-const BROWSER_TERM_BUDGET = 8;
+// Twelve terms, where a quoted phrase counts as two. Eight was what a researcher
+// would type and it was too few: on a claim of ordinary length the words that
+// said what the claim was about were the ones cut, and a reader comparing the
+// query with the sentence found context missing. Google reads up to 32 words.
+const BROWSER_TERM_BUDGET = 12;
 
 const ATTRIBUTION_WORDS = new Set(('said says say claimed claims claim reported reports announced announce '
   + 'stated states told tells according alleged alleges denied denies wrote writes added adds '
-  + 'mayor governor senator president spokesman spokeswoman spokesperson official officials minister')
-  .split(' '));
+  + 'mayor governor senator president spokesman spokeswoman spokesperson official officials minister '
+  // Where and when it was said describe the reporting, not the claim, and they were
+  // outranking the words that did: "published" is longer than "steps" or "death".
+  + 'published publishes found finds reporters yesterday today tonight '
+  + 'monday tuesday wednesday thursday friday saturday sunday').split(' '));
 
 // Runs of capitalised words: names of people, agencies, companies, places.
 //
@@ -825,7 +832,7 @@ const SENTENCE_OPENERS = new Set(('the a an this that these those many some most
 export function properNounPhrases(sentence) {
   const text = String(sentence || '');
   const out = [];
-  const re = /\b[A-Z][a-z'\u2019]+(?:\s+(?:of|for|the|and|de|van)\s+[A-Z][a-z'\u2019]+|\s+[A-Z][a-z'\u2019]+)+/g;
+  const re = /\b[A-Z][a-z'’]+(?:\s+(?:of|for|the|and|de|van)\s+[A-Z][a-z'’]+|\s+[A-Z][a-z'’]+)+/g;
   let m;
   while ((m = re.exec(text)) !== null) {
     let words = m[0].trim().split(/\s+/);
@@ -833,6 +840,40 @@ export function properNounPhrases(sentence) {
     if (words.length >= 2) out.push(words.join(' '));
   }
   return [...new Set(out)];
+}
+
+const WORD = /[a-z0-9]+(?:[.'-][a-z0-9]+)*/g;
+
+function searchable(word) {
+  return (/\d/.test(word) || word.length > 2) && !STOPWORDS.has(word) && !ATTRIBUTION_WORDS.has(word);
+}
+
+// The figures in a claim, each as the phrase an engine should be asked for.
+//
+// A figure on its own is not a phrase: "30" matches every page on the web and
+// "30 minutes" matches the ones about journey times. So a bare count takes the
+// word after it, which is what it counts, while a figure that already says what it
+// is, "4.2 percent" or "40 million dollars", is left as it is.
+//
+// A year is not a figure. "2022" in quotation marks is what the query used to lead
+// with, and it found pages from 2022 rather than pages about the claim. The year
+// still goes out, as an ordinary word, because it does narrow the search.
+function figurePhrases(base) {
+  const out = [];
+  for (const q of extractQuantities(base)) {
+    let raw = q.raw.trim().replace(/[,.;:]+$/, '');
+    if (!/\d/.test(raw)) continue;
+    if (q.unit === 'count' && /^(19|20)\d{2}$/.test(raw)) continue;
+
+    if (q.unit === 'count') {
+      const at = base.indexOf(raw);
+      const next = at === -1 ? null : /^\s+([A-Za-z][a-z'-]{2,})/.exec(base.slice(at + raw.length));
+      if (next && searchable(next[1].toLowerCase())) raw = raw + ' ' + next[1];
+    }
+    // Only a phrase is worth quotation marks; a lone number is just a word.
+    if (/\s/.test(raw) || /[.,%$£€¥]/.test(raw)) out.push(raw);
+  }
+  return out;
 }
 
 export function browserQuery(sentence, opts = {}) {
@@ -850,33 +891,32 @@ export function browserQuery(sentence, opts = {}) {
   // wording is the thing being asked about.
   if (asQuestion) {
     const claim = String(sentence).trim().replace(/\s+/g, ' ').replace(/[.\s]+$/, '');
-    return claim ? `Is it true that ${claim}?` : '';
+    return claim ? 'Is it true that ' + claim + '?' : '';
   }
 
-  // The figures first: they are what a factual claim turns on, and an engine given
-  // "4.2 percent" in quotation marks returns pages that actually state it.
   // The figure earns the first pair of quotation marks: it is what a factual claim
-  // turns on, and it is the phrase an engine matches most usefully.
-  const figures = extractQuantities(base)
-    .map((q) => q.raw.trim())
-    .filter((raw) => /\d/.test(raw));
-
-  const names = properNounPhrases(base);
-  const phrases = [...new Set([...figures, ...names])].slice(0, Math.max(0, maxPhrases));
-  const quoted = phrases.map((p) => `"${p}"`);
+  // turns on, and it is the phrase an engine matches most usefully. Names next.
+  const phrases = [...new Set([...figurePhrases(base), ...properNounPhrases(base)])]
+    .slice(0, Math.max(0, maxPhrases));
+  const quoted = phrases.map((p) => '"' + p + '"');
 
   // Then the words that say what the claim is about, minus anything already quoted.
-  // Words already inside quotation marks are not repeated outside them, but words
-  // from a phrase that did not fit stay available as ordinary keywords.
-  const inQuotes = new Set(
-    phrases.join(' ').toLowerCase().match(/[a-z0-9]+(?:[.'-][a-z0-9]+)*/g) || [],
-  );
-  // Reporting verbs and titles describe who spoke, not what was claimed, and they
-  // pull a search towards coverage of the speaker rather than the fact.
-  const rest = keywordQuery(base, budget + 4)
-    .split(' ')
-    .filter((w) => w && !inQuotes.has(w) && !ATTRIBUTION_WORDS.has(w));
+  // Words from a phrase that did not fit stay available as ordinary keywords.
+  const inQuotes = new Set(phrases.join(' ').toLowerCase().match(WORD) || []);
+  const words = [];
+  for (const w of base.toLowerCase().match(WORD) || []) {
+    if (searchable(w) && !inQuotes.has(w) && !words.includes(w)) words.push(w);
+  }
 
+  // When there are more words than room, the ones kept are the most distinctive:
+  // anything with a digit, then the longer words. But they are sent in the order
+  // the claim said them, whichever were kept. Engines reward proximity and order,
+  // and "coral cover since lost half" is a list of words where "lost half its
+  // coral cover since 1995" is a sentence somebody wrote.
   const room = Math.max(2, budget - quoted.length * 2);
-  return [...quoted, ...rest.slice(0, room)].join(' ').trim();
+  const rank = (w) => (/\d/.test(w) ? 100 : 0) + w.length;
+  const keep = new Set([...words].sort((a, b) => rank(b) - rank(a)).slice(0, room));
+  const rest = words.filter((w) => keep.has(w));
+
+  return [...quoted, ...rest].join(' ').trim();
 }
