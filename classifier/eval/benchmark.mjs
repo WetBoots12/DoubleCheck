@@ -23,8 +23,16 @@ import { fileURLToPath } from 'node:url';
 import { scoreWithModel, heuristicScore } from '../inference/scorer.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FLAG = 0.70;
-const FAINT = 0.50;
+function arg(name, fallback) {
+  const i = process.argv.indexOf(name);
+  return i === -1 ? fallback : process.argv[i + 1];
+}
+
+// The two bars the extension actually uses: DEFAULT_SETTINGS.threshold in
+// src/shared/messages.js, and the faint band 0.20 below it. Overridable, so the
+// numbers recorded against an older default can still be reproduced.
+const FLAG = Number(arg('--flag', 0.60));
+const FAINT = Number(arg('--faint', FLAG - 0.20));
 
 // --- reading the file -------------------------------------------------------------------
 
@@ -130,7 +138,8 @@ const f3 = (x) => (x == null ? '  n/a' : x.toFixed(3));
 
 export function printTable(report) {
   console.log(`${'domain'.padEnd(15)}${'n'.padStart(5)}${'pos'.padStart(5)}${'AUC'.padStart(8)}${'AP'.padStart(8)}`
-    + `${'P@.70'.padStart(8)}${'R@.70'.padStart(8)}${'P@.50'.padStart(8)}${'R@.50'.padStart(8)}${'faint band'.padStart(12)}`);
+    + `${`P@${FLAG.toFixed(2).slice(1)}`.padStart(8)}${`R@${FLAG.toFixed(2).slice(1)}`.padStart(8)}`
+    + `${`P@${FAINT.toFixed(2).slice(1)}`.padStart(8)}${`R@${FAINT.toFixed(2).slice(1)}`.padStart(8)}${'faint band'.padStart(12)}`);
   for (const [name, m] of Object.entries(report)) {
     console.log(`${name.padEnd(15)}${String(m.n).padStart(5)}${String(m.positives).padStart(5)}`
       + `${f3(m.auc).padStart(8)}${f3(m.ap).padStart(8)}`
@@ -138,7 +147,7 @@ export function printTable(report) {
       + `${f3(m.faint.precision).padStart(8)}${f3(m.faint.recall).padStart(8)}`
       + `${`${m.band.positives}/${m.band.n}`.padStart(12)}`);
   }
-  console.log('faint band: sentences scoring from 0.50 up to 0.70, shown as claims/total');
+  console.log(`faint band: sentences scoring from ${FAINT.toFixed(2)} up to ${FLAG.toFixed(2)}, shown as claims/total`);
 }
 
 function printMisses(rows, scores, limit) {
@@ -147,18 +156,13 @@ function printMisses(rows, scores, limit) {
     .sort((a, b) => Math.abs(b.score - FLAG) - Math.abs(a.score - FLAG))
     .slice(0, limit);
   if (!wrong.length) return;
-  console.log(`\nworst mistakes at ${FLAG}:`);
+  console.log(`\nworst mistakes at ${FLAG.toFixed(2)}:`);
   for (const r of wrong) {
     console.log(`  ${r.label ? 'MISSED ' : 'FALSE  '}${r.score.toFixed(2)}  [${r.domain}] ${r.text.slice(0, 90)}`);
   }
 }
 
 // --- main -------------------------------------------------------------------------------
-
-function arg(name, fallback) {
-  const i = process.argv.indexOf(name);
-  return i === -1 ? fallback : process.argv[i + 1];
-}
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const split = arg('--split', 'eval');
