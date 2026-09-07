@@ -54,18 +54,22 @@ model never saw, against the previous model:
 |---|---|---|
 | ROC AUC | 0.940 | 0.970 |
 | Average precision | 0.926 | 0.947 |
-| Precision at 0.70 | 0.875 | 0.955 |
-| Recall at 0.70 | 0.843 | 0.759 |
-| False flags among 45 hard negatives, at 0.70 | 9 | 3 |
-| Model file | 1,125 KB | ~300 KB |
+| Precision at 0.60 | 0.752 | 0.944 |
+| Recall at 0.60 | 0.916 | 0.819 |
+| False flags among 45 hard negatives, at 0.60 | 23 | 4 |
+| Model file | 1,125 KB | 291 KB |
 
-The probabilities are calibrated on news sentences, so 0.70 is a stricter bar than
-it was and recall at that threshold fell while precision rose. At 0.50 the current
-model reaches recall 0.855 at precision 0.922, where the previous one had precision
-0.700. Run `node classifier/eval/benchmark.mjs` to reproduce any of this.
+The probabilities are calibrated on news sentences, so a given number is a stricter
+bar than it was: at 0.70 the current model gives precision 0.955 and recall 0.759,
+where the previous one gave 0.875 and 0.843. Run
+`node classifier/eval/benchmark.mjs` to reproduce any of this, and
+`--flag 0.70` to see it at the old default.
 
-The extension's default threshold is **0.70**, chosen for precision: every flagged
-claim is a search call the user may spend.
+The extension's default threshold is **0.60**, chosen from that table: it costs one
+extra false flag among the 45 hard negatives and catches five claims that 0.70 does
+not. Precision matters here because every flagged claim is a search call the user
+may spend, and the faint band below the threshold means a borderline sentence is
+still visible rather than silent.
 
 ## The data, and crediting it
 

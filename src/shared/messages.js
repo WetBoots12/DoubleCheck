@@ -67,7 +67,7 @@ export const SETTINGS_KEY = 'fc_settings';
 // A sentence scoring just under the flagging threshold is not nothing. It is
 // drawn faintly, dashed on the page and dimmed in the panel, so a reader can see it
 // without being told it is a claim. The band is fixed at 0.20 below the threshold,
-// so the default of 0.70 gives faint flags from 0.50, and it moves with the slider
+// so the default of 0.60 gives faint flags from 0.40, and it moves with the slider
 // rather than needing a second one.
 export const FAINT_BAND = 0.2;
 
@@ -77,7 +77,10 @@ export function faintThreshold(threshold) {
 
 export const DEFAULT_SETTINGS = {
   autoCheck: true,
-  threshold: 0.7,
+  // Measured on the benchmark's evaluation half with the calibrated model: 0.60
+  // flags at precision 0.944 and recall 0.819, where 0.70 gave 0.955 and 0.759.
+  // Eight more claims for one more false flag among 45 hard negatives.
+  threshold: 0.6,
   faintFlags: true,      // also mark sentences scoring within FAINT_BAND below the threshold, faintly
   browserSearchEngine: 'default', // which engine the Search in browser button asks, and how; see shared/engines.js
   searchProvider: 'wikipedia', // needs no key, so the extension works out of the box; keyed providers are the upgrade

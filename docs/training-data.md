@@ -5,7 +5,8 @@
 > sentences labelled by ClaimBuster's scheme: 12,542 sentences in all. Five-fold
 > cross-validation gives average precision 0.828 and ROC AUC 0.909; on the
 > multi-domain benchmark's evaluation half (`classifier/eval/benchmark.csv`),
-> ROC AUC 0.970 and precision 0.955 at the 0.70 default threshold. The current
+> ROC AUC 0.970, and precision 0.944 with recall 0.819 at the 0.60 default
+> threshold. The current
 > numbers and how to reproduce them are in
 > [`classifier/README.md`](../classifier/README.md); attribution requirements for
 > both corpora are in [`ATTRIBUTION.md`](../ATTRIBUTION.md). The sections below
