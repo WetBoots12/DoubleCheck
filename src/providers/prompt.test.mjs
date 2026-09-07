@@ -70,13 +70,27 @@ test('the source list still numbers and names each result', () => {
 // Gemini Nano writes at about reading speed, so it is asked to read less and write
 // less. What it must never be asked to skip is the instruction not to obey the data.
 
-test('the brief prompt drops the lean estimate and shortens the summary', () => {
+test('the brief prompt asks for a shorter summary', () => {
+  // The only two differences are here and in how far each source is clipped, so on
+  // short snippets the two prompts are the same length. The saving is in what the
+  // model writes, which is where an on-device model spends its time.
   const full = crossReferencePrompt('A claim.', results);
   const brief = crossReferencePrompt('A claim.', results, { brief: true });
-  assert.match(full, /perspectives/);
-  assert.ok(!brief.includes('perspectives'), 'the lean guess is the one output worth its time');
+  assert.match(full, /2-3 sentences/);
   assert.match(brief, /1-2 sentences/);
-  assert.ok(brief.length < full.length);
+  assert.ok(!brief.includes('2-3 sentences'));
+});
+
+test('every provider is asked for the same fields, on-device included', () => {
+  // A panel that shows the spread of coverage on one provider and not another is
+  // two different products. Shortening the answer must not become dropping part of it.
+  const full = crossReferencePrompt('A claim.', results);
+  const brief = crossReferencePrompt('A claim.', results, { brief: true });
+  for (const field of ['verdict', 'sources', 'summary', 'agreement', 'dispute', 'perspectives']) {
+    assert.match(brief, new RegExp(`"${field}"`), `the brief prompt stopped asking for ${field}`);
+    assert.match(full, new RegExp(`"${field}"`));
+  }
+  assert.match(brief, /rough estimate of each outlet's editorial lean/);
 });
 
 test('the brief prompt keeps every rule that protects the model from the data', () => {
