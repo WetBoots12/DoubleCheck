@@ -318,7 +318,12 @@ function render(claims) {
     return;
   }
 
-  for (const c of [...claims].reverse()) {
+  // In the order they appear in the article. The list used to show the newest flag
+  // first, which on a page read top to bottom is the article upside down: the reader
+  // looked at the panel, then at the page, and found the two disagreeing about
+  // what came first. Claims arrive in the order the page was read, which is the
+  // order of the text, so keeping that order keeps the two in step.
+  for (const c of claims) {
     const el = document.createElement('div');
     el.className = 'claim';
     el.dataset.claimId = c.id;
