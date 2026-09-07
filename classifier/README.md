@@ -102,7 +102,10 @@ both, or that test will tell you that you didn't.**
 |---|---|
 | `train/prepare_data.py` | Normalizes a raw dataset to `text,label` |
 | `train/train.py` | Trains, evaluates, exports `model.json` and the parity fixture |
+| `train/textprep.py` | The pre-pass: number words to digits, capitalised runs to one token. Writes the fixture `inference/textprep.js` is checked against |
 | `inference/scorer.js` | Pure scoring: tokenizing, features, tf-idf, the heuristic fallback |
+| `inference/textprep.js` | The same pre-pass in JavaScript, applied only when the model file declares it |
 | `inference/classifier.js` | Loads the model in the extension, falls back to the heuristic |
 | `inference/scorer.test.mjs` | Unit tests plus the Python parity check |
-| `model/` | Exported `model.json` lands here (git-ignored until trained) |
+| `model/` | The exported `model.json` and its parity fixture |
+| `eval/` | The multi-domain benchmark, its runner, the model audit and the pre-pass fixture |

@@ -5,6 +5,8 @@
 // exactly. The parity test compares scores from this file against scores the Python
 // model produced for the same sentences; if you change one side, change both.
 
+import { prepare } from './textprep.js';
+
 export function tokenize(text) {
   return (text.toLowerCase().match(/[a-z0-9']+/g) || []);
 }
@@ -75,9 +77,12 @@ function tfidfContribution(model, text) {
 
 export function scoreWithModel(model, sentences) {
   const offset = model.idf.length;
-  return sentences.map((text) => {
-    let z = model.intercept + tfidfContribution(model, text);
-    const extra = handcrafted(text);
+  return sentences.map((raw) => {
+    // What the model was fitted on: digits for number words, one token for a name.
+    // A model file that declares no pre-pass gets the text exactly as written.
+    const { featureText, tokenText } = prepare(model, raw);
+    let z = model.intercept + tfidfContribution(model, tokenText);
+    const extra = handcrafted(featureText);
     for (let i = 0; i < extra.length; i++) {
       if (extra[i]) z += model.coef[offset + i];
     }
@@ -138,7 +143,7 @@ export const FEATURE_LABELS = {
 export function explainFeatures(model, text, limit = 3) {
   if (!model?.coef || !model?.idf) return [];
   const offset = model.idf.length;
-  const present = handcrafted(text);
+  const present = handcrafted(prepare(model, text).featureText);
 
   return FEATURES
     .map(([name], i) => ({ name, weight: present[i] ? (model.coef[offset + i] ?? 0) : 0 }))
