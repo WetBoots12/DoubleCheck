@@ -1,0 +1,371 @@
+text,label,domain,split
+"The Great Barrier Reef has lost half its coral cover since 1995.",1,news,eval
+"Unemployment fell to 4.2 percent last quarter, according to the Labor Department.",1,news,calib
+"More than 40,000 people have been displaced by the flooding in Bavaria, the Red Cross said.",1,news,eval
+"Tesla delivered 1.8 million vehicles in 2023, up 38 percent from the previous year.",1,news,calib
+"The Federal Reserve raised interest rates by a quarter point on Wednesday.",1,news,eval
+"Iran launched more than 300 drones and missiles at Israel overnight.",1,news,calib
+"The company laid off 12,000 employees, about 6 percent of its workforce.",1,news,eval
+"Crime in the city has fallen to its lowest level in three decades.",1,news,calib
+"The bill would cut corporate taxes from 21 percent to 15 percent.",1,news,eval
+"The bridge was completed in 1932 and remains the longest of its kind in Europe.",1,news,calib
+"Israel has killed at least 30 senior Iranian commanders since the strikes began.",1,news,eval
+"Wind power supplied a third of the country's electricity last year.",1,news,calib
+"The hospital has closed two of its emergency wards because of staff shortages.",1,news,eval
+"The prime minister has never visited the region since taking office.",1,news,calib
+"Sea levels along the Florida coast have risen eight inches since 1950.",1,news,eval
+"The airline cancelled 900 flights on Monday because of the storm.",1,news,calib
+"The strike is the first by junior doctors in the country in more than a decade.",1,news,eval
+"Police said the suspect had been arrested twice before on similar charges.",1,news,calib
+"The new tariff applies to about $18 billion of imported steel and aluminium.",1,news,eval
+"Turnout in the election was 67 percent, the highest since 1992.",1,news,calib
+"The city council approved a budget of 2.4 billion euros for next year.",1,news,eval
+"Roughly one in five households in the county now relies on a food bank.",1,news,calib
+"The ceasefire has held for eleven days, the longest pause in the fighting so far.",1,news,eval
+"The train derailed at 74 miles per hour on a stretch limited to 50.",1,news,calib
+"The minimum wage will rise to 12.21 pounds an hour in April.",1,news,eval
+"Half of the country's rivers failed the water quality test this year.",1,news,calib
+"The drought is the worst the region has seen since records began in 1901.",1,news,eval
+"Three of the four reactors at the plant have been shut down for inspection.",1,news,calib
+"The senator has missed more than a third of the votes held this session.",1,news,eval
+"House prices in the capital fell for the sixth month in a row.",1,news,calib
+"The court fined the company 4 million dollars for dumping waste into the river.",1,news,eval
+"Fewer than 200 of the promised 1,500 homes have been built.",1,news,calib
+"The governor signed the measure into law on Tuesday, a week after it passed the assembly.",1,news,eval
+"Two-thirds of the school's teachers have left in the past two years.",1,news,calib
+"The country imported 90 percent of its natural gas from Russia before the war.",1,news,eval
+"Inflation reached 8.2 percent in the year to June.",1,news,calib
+"The mayor said the bridge cost 40 million dollars more than planned.",1,news,eval
+"The factory will close in September, ending 1,200 jobs.",1,news,calib
+"The mine produced a quarter of the world's cobalt last year.",1,news,eval
+"About 30 percent of the water supplied to the city is lost through leaking pipes.",1,news,calib
+"The airport handled a record 88 million passengers in 2024.",1,news,eval
+"The vaccine campaign has reached fewer than half of the children it was meant to.",1,news,calib
+"The company's chief executive was paid 24 million dollars last year.",1,news,eval
+"The blaze destroyed 400 homes and burned through 12,000 hectares of forest.",1,news,calib
+"The party lost 50 seats, its worst result since 1945.",1,news,eval
+"Exports to China fell by a fifth in the first half of the year.",1,news,calib
+"The city has added 300 miles of bike lanes since 2015.",1,news,eval
+"The army has doubled the number of troops stationed along the border.",1,news,calib
+"The regulator found that the bank had overcharged 800,000 customers.",1,news,eval
+"The dam holds back enough water to supply the capital for two years.",1,news,calib
+"The prison is holding almost twice as many inmates as it was designed for.",1,news,eval
+"Nearly 60 percent of the funding went to the three largest districts.",1,news,calib
+"The satellite was launched in 2019 and has circled the earth 27,000 times.",1,news,eval
+"Rents in the city have risen 22 percent since the pandemic.",1,news,calib
+"Officials said the new rail line will cut journey times between Manchester and Leeds to under 30 minutes.",1,news,eval
+"Around 1.2 million people crossed the border in the first week of the conflict.",1,news,calib
+"The country has the highest rate of gun deaths in the developed world.",1,news,eval
+"The scheme has cost taxpayers 700 million pounds and delivered nothing.",1,news,calib
+"The strikes hit a refinery that supplies a tenth of the nation's fuel.",1,news,eval
+"The ban on single-use plastic bags cut their use by 85 percent in a year.",1,news,calib
+"It was a beautiful morning and the streets were quiet.",0,news,eval
+"I think the government is making a huge mistake here.",0,news,calib
+"She smiled and said she had never felt more at home.",0,news,eval
+"Honestly, the whole thing feels like a bad dream.",0,news,calib
+"We should all take a moment to be grateful for what we have.",0,news,eval
+"Supporters cheered as the candidate walked on stage.",0,news,calib
+"It is hard to say what happens next.",0,news,eval
+"The debate over the plan is likely to continue for months.",0,news,calib
+"Residents gathered at the square to light candles and lay flowers.",0,news,eval
+"The mood in the room was tense as the results came in.",0,news,calib
+"What does this mean for the rest of the season?",0,news,eval
+"The minister declined to comment when approached by reporters.",0,news,calib
+"For many families here, the wait has been agonising.",0,news,eval
+"He paused, looked out of the window, and shook his head.",0,news,calib
+"This is a story about resilience, and about a town that refused to give up.",0,news,eval
+"There is a sense that something has shifted, though nobody can say quite what.",0,news,calib
+"The question now is whether the coalition can hold together.",0,news,eval
+"Critics say the plan is misguided, while supporters call it long overdue.",0,news,calib
+"It remains to be seen whether the talks will produce anything.",0,news,eval
+"Many here feel the government has forgotten them.",0,news,calib
+"The rain had stopped by the time the march reached the bridge.",0,news,eval
+"Whatever happens, this will not be the end of the matter.",0,news,calib
+"The announcement was met with a mixture of relief and scepticism.",0,news,eval
+"I want to be clear that we are taking this seriously.",0,news,calib
+"There is no easy answer to any of this.",0,news,eval
+"The village sits at the end of a long valley, far from the nearest town.",0,news,calib
+"The speech was short, and the applause was polite rather than warm.",0,news,eval
+"Nobody wanted to be the first to leave.",0,news,calib
+"It is the kind of place where everybody knows everybody.",0,news,eval
+"The talks are expected to resume in the coming weeks.",0,news,calib
+"Some worry it may already be too late.",0,news,eval
+"The president is due to address the nation later tonight.",0,news,calib
+"What a difference a year makes.",0,news,eval
+"Both sides accuse the other of acting in bad faith.",0,news,calib
+"The road ahead looks difficult.",0,news,eval
+"She described the moment as the proudest of her life.",0,news,calib
+"There was little to suggest anything was wrong.",0,news,eval
+"It is a debate that shows no sign of ending.",0,news,calib
+"Officials would not be drawn on when a decision might come.",0,news,eval
+"The sun was setting as the last of the crowd drifted away.",0,news,calib
+"The film grossed 1.4 billion dollars worldwide, the highest of the year.",1,entertainment,eval
+"The album sold 3 million copies in its first week.",1,entertainment,calib
+"The show was cancelled after two seasons.",1,entertainment,eval
+"She won the Oscar for best actress in 2003.",1,entertainment,calib
+"The sequel cost 250 million dollars to make, twice the budget of the original.",1,entertainment,eval
+"The band has never played a show in South America.",1,entertainment,calib
+"The series was watched by 44 million households in its first four days.",1,entertainment,eval
+"The game sold 10 million copies in three days, a record for the studio.",1,entertainment,calib
+"The actor was paid 20 million dollars for the role.",1,entertainment,eval
+"The song spent 19 weeks at number one, longer than any single before it.",1,entertainment,calib
+"The festival drew a crowd of 200,000 over the weekend.",1,entertainment,eval
+"The novel has been translated into 40 languages.",1,entertainment,calib
+"The studio has released only one original film in the past five years.",1,entertainment,eval
+"The tour grossed 900 million dollars across 150 dates.",1,entertainment,calib
+"The film was shot in 23 days on a budget of 60,000 dollars.",1,entertainment,eval
+"The director has been nominated nine times without winning.",1,entertainment,calib
+"The streaming service lost 1 million subscribers in the quarter.",1,entertainment,eval
+"The theatre has been closed since a fire in 2019.",1,entertainment,calib
+"The show's final episode drew 18 million viewers.",1,entertainment,eval
+"The singer cancelled the remaining 12 dates of the tour on doctor's orders.",1,entertainment,calib
+"The franchise has earned more than 30 billion dollars across films, games and merchandise.",1,entertainment,eval
+"The book stayed on the bestseller list for 130 weeks.",1,entertainment,calib
+"The channel has 250 million subscribers, the most of any on the platform.",1,entertainment,eval
+"The musical opened on Broadway in 2015 and has never had an empty seat.",1,entertainment,calib
+"The film was banned in six countries on release.",1,entertainment,eval
+"The console has sold 150 million units since launch.",1,entertainment,calib
+"The comedian's special was the most streamed on the service last month.",1,entertainment,eval
+"The painting sold at auction for 450 million dollars.",1,entertainment,calib
+"The actress has appeared in 60 films over a 40-year career.",1,entertainment,eval
+"The reboot was pulled from cinemas after one week.",1,entertainment,calib
+"The label dropped the artist after the album sold fewer than 5,000 copies.",1,entertainment,eval
+"Ticket prices for the reunion tour start at 400 dollars.",1,entertainment,calib
+"The show has won 59 Emmy awards, more than any other drama.",1,entertainment,eval
+"The film's opening weekend was the biggest ever for an animated feature.",1,entertainment,calib
+"The video was viewed a billion times in its first month.",1,entertainment,eval
+"The network has not aired a new sitcom since 2021.",1,entertainment,calib
+"The film is a gorgeous, meandering meditation on grief.",0,entertainment,eval
+"Her novel is probably the best thing I have read this year.",0,entertainment,calib
+"The performances are uniformly excellent, especially in the second half.",0,entertainment,eval
+"It is hard not to be charmed by the film's ramshackle energy.",0,entertainment,calib
+"The plot makes very little sense, but that hardly matters.",0,entertainment,eval
+"Fans will love it; everyone else may wonder what the fuss is about.",0,entertainment,calib
+"The soundtrack is a delight from start to finish.",0,entertainment,eval
+"I found the ending deeply unsatisfying.",0,entertainment,calib
+"The chemistry between the two leads carries the whole thing.",0,entertainment,eval
+"It is the sort of album that rewards repeated listening.",0,entertainment,calib
+"The show looks stunning, even when the writing lets it down.",0,entertainment,eval
+"Whether you enjoy it will depend on your tolerance for whimsy.",0,entertainment,calib
+"The final act drags, and the villain is underwritten.",0,entertainment,eval
+"There is a lot to admire here and not much to love.",0,entertainment,calib
+"The costumes alone are worth the price of admission.",0,entertainment,eval
+"She has never looked more comfortable on screen.",0,entertainment,calib
+"It is loud, silly and enormous fun.",0,entertainment,eval
+"The game feels unfinished, as if it shipped a year early.",0,entertainment,calib
+"Every scene seems to go on a beat too long.",0,entertainment,eval
+"Is this the best superhero film ever made?",0,entertainment,calib
+"The new season picks up right where the last one left off.",0,entertainment,eval
+"The jokes land more often than not.",0,entertainment,calib
+"You can feel the director's affection for the material in every frame.",0,entertainment,eval
+"It is not a great film, but it is an interesting one.",0,entertainment,calib
+"The pacing in the middle section could have been tighter.",0,entertainment,eval
+"I laughed, I cried, and I would happily watch it again.",0,entertainment,calib
+"Longtime fans may find the changes hard to forgive.",0,entertainment,eval
+"The lead actor gives the performance of his career.",0,entertainment,calib
+"There is a tenderness to the writing that sneaks up on you.",0,entertainment,eval
+"For all its flaws, the show has a big heart.",0,entertainment,calib
+"The trailer promised more than the film delivers.",0,entertainment,eval
+"It is a bold choice, and it mostly pays off.",0,entertainment,calib
+"The finale answers some questions and raises plenty more.",0,entertainment,eval
+"It is easily the funniest thing on television right now.",0,entertainment,calib
+"Participants who slept fewer than six hours had a 20 percent higher risk of infection.",1,science,eval
+"The vaccine was 95 percent effective in preventing symptomatic illness in the trial.",1,science,calib
+"Global average temperatures in 2024 were 1.55C above pre-industrial levels.",1,science,eval
+"Smoking causes about 480,000 deaths a year in the United States.",1,science,calib
+"The study followed 12,000 adults for a median of 8.4 years.",1,science,eval
+"Atmospheric carbon dioxide passed 420 parts per million in 2023.",1,science,calib
+"The drug reduced mortality by 31 percent compared with placebo.",1,science,eval
+"The species has lost 70 percent of its range since 1970.",1,science,calib
+"The reactor produced 500 megawatts for 30 seconds before shutting down.",1,science,eval
+"Patients on the higher dose reported side effects twice as often.",1,science,calib
+"The glacier has retreated 2.3 kilometres since the first survey in 1985.",1,science,eval
+"The telescope detected water vapour in the atmosphere of a planet 120 light years away.",1,science,calib
+"Antibiotic resistance was found in 40 percent of the samples tested.",1,science,eval
+"The effect was significant at p < 0.001 across all three cohorts.",1,science,calib
+"Bees exposed to the pesticide produced 85 percent fewer queens.",1,science,eval
+"The fossil is 3.2 million years old, making it the oldest of its kind.",1,science,calib
+"Mean blood pressure fell by 5.2 mmHg in the treatment group.",1,science,eval
+"The ocean has absorbed about 90 percent of the excess heat trapped by greenhouse gases.",1,science,calib
+"The battery retained 80 percent of its capacity after 2,000 charge cycles.",1,science,eval
+"The trial enrolled 1,204 patients across 48 sites in nine countries.",1,science,calib
+"Children who were breastfed scored three points higher on average.",1,science,eval
+"The asteroid will pass within 32,000 kilometres of the earth in 2029.",1,science,calib
+"Deaths from malaria fell by a third between 2000 and 2015.",1,science,eval
+"The material conducts electricity with zero resistance at minus 70 degrees celsius.",1,science,calib
+"The virus was detected in wastewater three weeks before the first confirmed case.",1,science,eval
+"The forest stores an estimated 90 billion tonnes of carbon.",1,science,calib
+"Rats fed the high-sugar diet gained 40 percent more weight.",1,science,eval
+"Only 12 percent of the plastic ever produced has been recycled.",1,science,calib
+"The device measured heart rate to within two beats per minute of the clinical monitor.",1,science,eval
+"The gene variant was present in one in every 200 people of European descent.",1,science,calib
+"The rate of sea ice loss has doubled since the 1990s.",1,science,eval
+"The implant restored partial vision in six of the eight patients.",1,science,calib
+"The compound killed 99.9 percent of the bacteria within an hour.",1,science,eval
+"Coral bleaching affected 84 percent of reefs surveyed between 2023 and 2025.",1,science,calib
+"The average adult in the study consumed 17 teaspoons of added sugar a day.",1,science,eval
+"The earthquake measured 7.8 and was felt 500 kilometres away.",1,science,calib
+"Response rates were 62 percent in the intervention arm and 38 percent in the control arm.",1,science,eval
+"The probe has travelled 24 billion kilometres since its launch in 1977.",1,science,calib
+"Half of the world's wetlands have been drained since 1900.",1,science,eval
+"The treatment cut hospital readmissions by a quarter.",1,science,calib
+"Wolves returned to the park in 1995 and now number about 100.",1,science,eval
+"The lake has warmed by 1.3 degrees since 1970.",1,science,calib
+"The new strain was found in 14 countries within a month of being identified.",1,science,eval
+"The scan detected tumours as small as two millimetres.",1,science,calib
+"Nitrogen runoff from farms has created a dead zone the size of New Jersey.",1,science,eval
+"Participants who exercised three times a week had lower rates of depression.",1,science,calib
+"The sensor uses a tenth of the power of the previous design.",1,science,eval
+"Nearly all of the warming since 1950 is attributable to human activity.",1,science,calib
+"The moth population has fallen by 60 percent in four decades.",1,science,eval
+"Fewer than one in ten trials reported their results within a year of completion.",1,science,calib
+"Further work is needed to establish whether the effect holds in older populations.",0,science,eval
+"We propose a novel framework for reasoning about uncertainty in these settings.",0,science,calib
+"These findings should be interpreted with caution given the small sample.",0,science,eval
+"It is tempting to speculate that a similar mechanism operates in humans.",0,science,calib
+"The authors thank the participants for their time.",0,science,eval
+"Future studies might explore the role of diet in this relationship.",0,science,calib
+"This raises the question of whether the model generalises beyond the training set.",0,science,eval
+"We believe this approach could be useful in a range of applications.",0,science,calib
+"The mechanism remains poorly understood.",0,science,eval
+"One possible explanation is that the effect is driven by confounding.",0,science,calib
+"In this section we describe the experimental setup.",0,science,eval
+"It seems likely that other factors are at play.",0,science,calib
+"The implications of this work are potentially far reaching.",0,science,eval
+"Our results are broadly consistent with earlier reports.",0,science,calib
+"The data are available from the corresponding author on request.",0,science,eval
+"Whether this holds under field conditions is an open question.",0,science,calib
+"We caution against over-interpreting these preliminary results.",0,science,eval
+"More research is needed before any clinical recommendation can be made.",0,science,calib
+"This suggests, though does not prove, a causal link.",0,science,eval
+"The authors declare no competing interests.",0,science,calib
+"A limitation of the study is its reliance on self-reported data.",0,science,eval
+"It is unclear how these findings translate to real-world settings.",0,science,calib
+"We hope this work will stimulate further discussion.",0,science,eval
+"Several alternative interpretations are possible.",0,science,calib
+"This is, to our knowledge, an under-explored area.",0,science,eval
+"The reviewers raised a number of helpful points.",0,science,calib
+"Such an effect, if real, would be of considerable interest.",0,science,eval
+"The next step is to test the hypothesis in a larger cohort.",0,science,calib
+"Funding was provided by the national research council.",0,science,eval
+"It may be that the true effect is smaller than reported here.",0,science,calib
+"Preheat the oven to 180 degrees and grease a 20cm tin.",0,hardneg,eval
+"The recipe calls for two eggs and a cup of flour.",0,hardneg,calib
+"Add 200g of sugar and beat until pale and fluffy.",0,hardneg,eval
+"Bake for 25 to 30 minutes until a skewer comes out clean.",0,hardneg,calib
+"Serves 4. Prep time 15 minutes. Cook time 45 minutes.",0,hardneg,eval
+"Stir in 500ml of stock and simmer for 20 minutes.",0,hardneg,calib
+"Season with salt and pepper to taste.",0,hardneg,eval
+"Chill the dough for at least an hour before rolling.",0,hardneg,calib
+"Whisk 3 tablespoons of olive oil with the juice of half a lemon.",0,hardneg,eval
+"Cook the pasta in plenty of salted water for 9 minutes.",0,hardneg,calib
+"This makes about 24 cookies, depending on size.",0,hardneg,eval
+"Let the meat rest for 10 minutes before carving.",0,hardneg,calib
+"Use 2 cloves of garlic, finely chopped.",0,hardneg,eval
+"Reduce the heat and cook for a further 5 minutes.",0,hardneg,calib
+"Each serving contains 320 calories and 12g of fat.",0,hardneg,eval
+"FT: Arsenal 3-1 Chelsea.",0,hardneg,calib
+"Lakers 112, Celtics 108, final.",0,hardneg,eval
+"Djokovic beat Alcaraz 6-3, 4-6, 7-5 to reach the final.",0,hardneg,calib
+"Man City 2 Liverpool 2 (Haaland 12, Foden 67; Salah 30, Diaz 88).",0,hardneg,eval
+"Yankees 5, Red Sox 3 after seven innings.",0,hardneg,calib
+"Full time: France 24-19 Ireland.",0,hardneg,eval
+"Verstappen 1st, Norris 2nd, Leclerc 3rd.",0,hardneg,calib
+"Standings: 1. Real Madrid 78 pts 2. Barcelona 74 3. Atletico 70.",0,hardneg,eval
+"HT 0-0. Possession 61-39. Shots on target 3-1.",0,hardneg,calib
+"Eagles 27, Cowboys 20. Q4 2:14 remaining.",0,hardneg,eval
+"Nadal d. Federer 6-4 6-4.",0,hardneg,calib
+"Round 3 leaderboard: Scheffler -12, McIlroy -10, Rahm -9.",0,hardneg,eval
+"Warriors lead 58-51 at the half.",0,hardneg,calib
+"Kane 45+2', Bellingham 71' (pen).",0,hardneg,eval
+"Final score 3-2 on penalties.",0,hardneg,calib
+"Sign up for our newsletter to get the latest stories in your inbox.",0,hardneg,eval
+"Click here to read more about our subscription options.",0,hardneg,calib
+"Share this story on Facebook, X or by email.",0,hardneg,eval
+"Thank you for reading and please consider supporting our journalism.",0,hardneg,calib
+"Home | News | Sport | Weather | More.",0,hardneg,eval
+"Most read: 1. Storm warning issued 2. Star quits show 3. Rates on hold.",0,hardneg,calib
+"Related: Five things to know about the new tax rules.",0,hardneg,eval
+"Skip to main content.",0,hardneg,calib
+"Log in or create a free account to continue reading.",0,hardneg,eval
+"You have 2 free articles remaining this month.",0,hardneg,calib
+"Recommended for you.",0,hardneg,eval
+"Get the app for iOS and Android.",0,hardneg,calib
+"Trending now: 10 photos that will make you smile.",0,hardneg,eval
+"Join 2 million readers who get our morning briefing.",0,hardneg,calib
+"Next article: What the budget means for you.",0,hardneg,eval
+"Page 3 of 12.",0,hardneg,calib
+"Search results for 'election' (1,204 items).",0,hardneg,eval
+"Show 20 more comments.",0,hardneg,calib
+"Follow us on Instagram for more like this.",0,hardneg,eval
+"Loading more stories.",0,hardneg,calib
+"Updated 14:32 GMT, 6 September 2026.",0,hardneg,eval
+"Published 3 hours ago.",0,hardneg,calib
+"By Sarah Chen, Senior Correspondent.",0,hardneg,eval
+"Last modified on Tue 2 Sep 2026 09.15 BST.",0,hardneg,calib
+"Photos by Getty Images unless otherwise stated.",0,hardneg,eval
+"First published on Mon 1 Sep 2026 17.00 EDT.",0,hardneg,calib
+"Reporting by James Okafor; editing by Maria Lopez.",0,hardneg,eval
+"This article is more than 2 years old.",0,hardneg,calib
+"Posted on 12 March 2025 at 08:41.",0,hardneg,eval
+"Video, 00:02:14.",0,hardneg,calib
+"Correction, 4 September 2026: an earlier version misspelled the minister's name.",0,hardneg,eval
+"Filed under Politics, Economy, Europe.",0,hardneg,calib
+"Reading time: 6 minutes.",0,hardneg,eval
+"Episode 214, 52 min, released 5 Sep 2026.",0,hardneg,calib
+"Live: updates from 09:00 to 17:30.",0,hardneg,eval
+"All rights reserved. Terms of service apply.",0,hardneg,calib
+"We use cookies to improve your experience and analyse traffic.",0,hardneg,eval
+"By continuing you agree to our privacy policy.",0,hardneg,calib
+"This site is protected by reCAPTCHA and the Google privacy policy applies.",0,hardneg,eval
+"Manage your cookie preferences.",0,hardneg,calib
+"Copyright 2026 Example Media Group.",0,hardneg,eval
+"Your data will be processed in accordance with our terms.",0,hardneg,calib
+"Accept all cookies or reject non-essential cookies.",0,hardneg,eval
+"Do not sell my personal information.",0,hardneg,calib
+"Opinions expressed are those of the author alone.",0,hardneg,eval
+"Add to basket.",0,hardneg,calib
+"Was 49.99, now 29.99, save 40 percent.",0,hardneg,eval
+"In stock, usually dispatched within 24 hours.",0,hardneg,calib
+"Rated 4.6 out of 5 by 1,832 reviewers.",0,hardneg,eval
+"Select size: S, M, L, XL.",0,hardneg,calib
+"Free delivery on orders over 50 dollars.",0,hardneg,eval
+"Write a review and earn 100 points.",0,hardneg,calib
+"Sort by: relevance, price low to high, newest.",0,hardneg,eval
+"Only 3 left in stock.",0,hardneg,calib
+"Compare with similar items.",0,hardneg,eval
+"Your cart is empty.",0,hardneg,calib
+"Save 15 percent when you subscribe.",0,hardneg,eval
+"Item added to your wishlist.",0,hardneg,calib
+"Frequently bought together.",0,hardneg,eval
+"Estimated delivery Thursday 11 September.",0,hardneg,calib
+"the reef has lost half its coral cover since 1995",1,captions,eval
+"unemployment fell to 4.2 percent last quarter",1,captions,calib
+"more than forty thousand people have been displaced by the flooding",1,captions,eval
+"the company laid off twelve thousand employees this year",1,captions,calib
+"crime in the city is at its lowest level in thirty years",1,captions,eval
+"the bill cuts corporate taxes from twenty one percent to fifteen",1,captions,calib
+"the bridge was finished in 1932 and it's still the longest in europe",1,captions,eval
+"wind power gave us a third of our electricity last year",1,captions,calib
+"sea levels here have gone up eight inches since 1950",1,captions,eval
+"the airline cancelled nine hundred flights on monday",1,captions,calib
+"turnout was 67 percent the highest since 1992",1,captions,eval
+"one in five households in this county uses a food bank",1,captions,calib
+"the vaccine was 95 percent effective in the trial",1,captions,eval
+"smoking kills about 480,000 americans every year",1,captions,calib
+"the film made 1.4 billion dollars worldwide",1,captions,eval
+"the album sold three million copies in its first week",1,captions,calib
+"the show was cancelled after two seasons",1,captions,eval
+"the glacier has retreated more than two kilometres since 1985",1,captions,calib
+"rents here have gone up 22 percent since the pandemic",1,captions,eval
+"the country gets 90 percent of its gas from russia",1,captions,calib
+"so yeah that's pretty much what happened",0,captions,eval
+"i don't know maybe it'll work out maybe it won't",0,captions,calib
+"thanks for watching and don't forget to subscribe",0,captions,eval
+"let me know what you think in the comments",0,captions,calib
+"honestly this is one of my favourite places in the world",0,captions,eval
+"we're going to take a quick break and be right back",0,captions,calib
+"okay so let's get into it",0,captions,eval
+"i mean that's just my opinion",0,captions,calib
+"hit the like button if you enjoyed this",0,captions,eval
+"it's been a long day but we made it",0,captions,calib
