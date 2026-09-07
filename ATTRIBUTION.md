@@ -60,6 +60,29 @@ decides what is worth checking, and never asserts a verdict. Verdicts in this
 extension come from search results and the optional AI step, which see evidence
 the classifier never does. Do not present its scores as truth ratings.
 
+## Wikinews articles
+
+The classifier is also trained on sentences from **English Wikinews**, written by
+Wikinews contributors and released under the **Creative Commons Attribution 2.5
+Generic licence (CC BY 2.5)**.
+
+- Site: <https://en.wikinews.org/>
+- Licence: <https://creativecommons.org/licenses/by/2.5/>
+
+CC BY 2.5 permits use, redistribution and derivative works provided the authors are
+credited. The credit is the list of every article used, with its title and address,
+in [`classifier/train/wikinews/sources.csv`](classifier/train/wikinews/sources.csv);
+each labelled sentence in
+[`classifier/train/wikinews/labelled.csv`](classifier/train/wikinews/labelled.csv)
+carries the address of the article it came from. The authors of each article are
+listed in that article's page history at the address given. A model trained on this
+data is a derivative work and carries the same credit in its `attribution` field.
+
+The labels themselves were added by this project, following ClaimBuster's
+annotation scheme as set out in
+[`classifier/train/LABELLING.md`](classifier/train/LABELLING.md). They are not part
+of Wikinews and Wikinews is not responsible for them.
+
 ## Published fact-checks
 
 The optional fact-check lookup calls Google's Fact Check Tools API with the user's
