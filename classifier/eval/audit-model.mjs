@@ -43,7 +43,7 @@ console.log(`  ${'total'.padEnd(12)}${(total / 1e3).toFixed(0).padStart(7)} KB`)
 
 // --- 2. weights that do nothing ----------------------------------------------------------
 
-console.log('\n=== weight distribution over the 20,000 terms ===');
+console.log(`\n=== weight distribution over the ${terms.length} terms ===`);
 const abs = terms.map((t) => Math.abs(t.coef)).sort((a, b) => b - a);
 const mass = abs.reduce((s, x) => s + x, 0);
 for (const cut of [0.01, 0.05, 0.1, 0.25, 0.5]) {
