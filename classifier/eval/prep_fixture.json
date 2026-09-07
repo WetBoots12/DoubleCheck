@@ -1,0 +1,157 @@
+[
+  {
+    "text": "The Great Barrier Reef has lost half its coral cover since 1995.",
+    "numbers": "The Great Barrier Reef has lost 0.5 its coral cover since 1995.",
+    "masked": "The xent has lost 0.5 its coral cover since 1995."
+  },
+  {
+    "text": "The Federal Reserve raised interest rates by a quarter point on Wednesday.",
+    "numbers": "The Federal Reserve raised interest rates by 0.25 point on Wednesday.",
+    "masked": "The xent raised interest rates by 0.25 point on xent"
+  },
+  {
+    "text": "The sensor uses a tenth of the power of the previous design.",
+    "numbers": "The sensor uses 0.1 of the power of the previous design.",
+    "masked": "The sensor uses 0.1 of the power of the previous design."
+  },
+  {
+    "text": "The mine produced a quarter of the world's cobalt last year.",
+    "numbers": "The mine produced 0.25 of the world's cobalt last year.",
+    "masked": "The mine produced 0.25 of the world's cobalt last year."
+  },
+  {
+    "text": "The hospital has closed two of its emergency wards because of staff shortages.",
+    "numbers": "The hospital has closed 2 of its emergency wards because of staff shortages.",
+    "masked": "The hospital has closed 2 of its emergency wards because of staff shortages."
+  },
+  {
+    "text": "The prison is holding almost twice as many inmates as it was designed for.",
+    "numbers": "The prison is holding almost 2 times as many inmates as it was designed for.",
+    "masked": "The prison is holding almost 2 times as many inmates as it was designed for."
+  },
+  {
+    "text": "More than forty thousand people have been displaced by the flooding in Bavaria.",
+    "numbers": "More than 40000 people have been displaced by the flooding in Bavaria.",
+    "masked": "More than 40000 people have been displaced by the flooding in xent"
+  },
+  {
+    "text": "Four hundred and fifty homes were lost, and twenty-one people died.",
+    "numbers": "450 homes were lost, and 21 people died.",
+    "masked": "450 homes were lost, and 21 people died."
+  },
+  {
+    "text": "Two-thirds of the school's teachers have left in the past two years.",
+    "numbers": "0.67 of the school's teachers have left in the past 2 years.",
+    "masked": "0.67 of the school's teachers have left in the past 2 years."
+  },
+  {
+    "text": "One in five households now relies on a food bank.",
+    "numbers": "1 in 5 households now relies on a food bank.",
+    "masked": "1 in 5 households now relies on a food bank."
+  },
+  {
+    "text": "One possible explanation is that the effect is driven by confounding.",
+    "numbers": "One possible explanation is that the effect is driven by confounding.",
+    "masked": "One possible explanation is that the effect is driven by confounding."
+  },
+  {
+    "text": "No one wanted to be the first to leave, and they looked at one another.",
+    "numbers": "No one wanted to be the first to leave, and they looked at one another.",
+    "masked": "No one wanted to be the first to leave, and they looked at one another."
+  },
+  {
+    "text": "The performances are uniformly excellent, especially in the second half.",
+    "numbers": "The performances are uniformly excellent, especially in the second half.",
+    "masked": "The performances are uniformly excellent, especially in the second half."
+  },
+  {
+    "text": "Djokovic beat Alcaraz 6-3, 4-6, 7-5 to reach the final.",
+    "numbers": "Djokovic beat Alcaraz 6-3, 4-6, 7-5 to reach the final.",
+    "masked": "Djokovic beat xent 6-3, 4-6, 7-5 to reach the final."
+  },
+  {
+    "text": "Man City 2 Liverpool 2 (Haaland 12, Foden 67; Salah 30, Diaz 88).",
+    "numbers": "Man City 2 Liverpool 2 (Haaland 12, Foden 67; Salah 30, Diaz 88).",
+    "masked": "xent 2 xent 2 xent 12, xent 67; xent 30, xent 88)."
+  },
+  {
+    "text": "Tesla delivered 1.8 million vehicles in 2023, up 38 percent from the previous year.",
+    "numbers": "Tesla delivered 1.8 million vehicles in 2023, up 38 percent from the previous year.",
+    "masked": "Tesla delivered 1.8 million vehicles in 2023, up 38 percent from the previous year."
+  },
+  {
+    "text": "Iran launched more than three hundred drones and missiles at Israel overnight.",
+    "numbers": "Iran launched more than 300 drones and missiles at Israel overnight.",
+    "masked": "Iran launched more than 300 drones and missiles at xent overnight."
+  },
+  {
+    "text": "I think the government is making a huge mistake here, and I'm not alone.",
+    "numbers": "I think the government is making a huge mistake here, and I'm not alone.",
+    "masked": "I think the government is making a huge mistake here, and I'm not alone."
+  },
+  {
+    "text": "It was a beautiful morning and the streets of Old Delhi were quiet.",
+    "numbers": "It was a beautiful morning and the streets of Old Delhi were quiet.",
+    "masked": "It was a beautiful morning and the streets of xent were quiet."
+  },
+  {
+    "text": "Updated 14:32 GMT, 6 September 2026.",
+    "numbers": "Updated 14:32 GMT, 6 September 2026.",
+    "masked": "Updated 14:32 xent 6 xent 2026."
+  },
+  {
+    "text": "\"Reef lost half its coral,\" the BBC said, quoting Dr. Jane Smith of NOAA.",
+    "numbers": "\"Reef lost 0.5 its coral,\" the BBC said, quoting Dr. Jane Smith of NOAA.",
+    "masked": "\"Reef lost 0.5 its coral,\" the xent said, quoting xent of xent"
+  },
+  {
+    "text": "the reef has lost half its coral cover since nineteen ninety five",
+    "numbers": "the reef has lost 0.5 its coral cover since 1995",
+    "masked": "the reef has lost 0.5 its coral cover since 1995"
+  },
+  {
+    "text": "in twenty twenty-four turnout was sixty seven percent the highest since twenty twelve",
+    "numbers": "in 2024 turnout was 67 percent the highest since 32",
+    "masked": "in 2024 turnout was 67 percent the highest since 32"
+  },
+  {
+    "text": "crime in the city is at its lowest level in thirty years",
+    "numbers": "crime in the city is at its lowest level in 30 years",
+    "masked": "crime in the city is at its lowest level in 30 years"
+  },
+  {
+    "text": "A hundred years ago a dozen ships sailed; a thousand men were aboard.",
+    "numbers": "100 years ago 12 ships sailed; 1000 men were aboard.",
+    "masked": "100 years ago 12 ships sailed; 1000 men were aboard."
+  },
+  {
+    "text": "Wind power supplied a third of the country's electricity last year.",
+    "numbers": "Wind power supplied 0.33 of the country's electricity last year.",
+    "masked": "Wind power supplied 0.33 of the country's electricity last year."
+  },
+  {
+    "text": "The Office for National Statistics reported that inflation rose to 8.2 percent.",
+    "numbers": "The Office for National Statistics reported that inflation rose to 8.2 percent.",
+    "masked": "The xent for xent reported that inflation rose to 8.2 percent."
+  },
+  {
+    "text": "",
+    "numbers": "",
+    "masked": ""
+  },
+  {
+    "text": "   ",
+    "numbers": "   ",
+    "masked": ""
+  },
+  {
+    "text": "X",
+    "numbers": "X",
+    "masked": "X"
+  },
+  {
+    "text": "NASA and the FBI disagree; McIlroy and O'Brien do not.",
+    "numbers": "NASA and the FBI disagree; McIlroy and O'Brien do not.",
+    "masked": "NASA and the xent disagree; xent and xent do not."
+  }
+]

@@ -30,6 +30,8 @@ from sklearn.metrics import (average_precision_score, classification_report,
                              precision_recall_fscore_support, roc_auc_score)
 from sklearn.model_selection import train_test_split
 
+import textprep
+
 TOKEN_RE = re.compile(r"[a-z0-9']+")
 
 # Order matters: the JavaScript scorer appends these in exactly this sequence.
@@ -65,11 +67,22 @@ FEATURE_PATTERNS = {
 }
 
 
+# The pre-pass, mirrored in classifier/inference/textprep.js: number words become
+# digits before anything looks at the text, and runs of capitalised words become one
+# token before the vectorizer sees it. Recorded in the exported model so the scorer
+# applies exactly what the weights were fitted on, and nothing to a model that was
+# fitted without it. Switched off by --no-preprocess for a like-for-like comparison.
+PREPROCESS = {"numbers": True, "entities": True, "token": textprep.ENTITY_TOKEN}
+
+
 def tokenizer(text):
-    return TOKEN_RE.findall(text.lower())
+    _, token_text = textprep.prepare(text, PREPROCESS["numbers"], PREPROCESS["entities"])
+    return TOKEN_RE.findall(token_text.lower())
 
 
 def handcrafted(text):
+    if PREPROCESS["numbers"]:
+        text = textprep.normalize_numbers(text)
     row = []
     for name in FEATURE_NAMES:
         if name == "is_long":
@@ -106,7 +119,12 @@ def main():
     ap.add_argument("--min-df", type=int, default=2)
     ap.add_argument("--test-size", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--no-preprocess", action="store_true",
+                    help="Fit on the raw text, without digit normalization or entity masking")
     args = ap.parse_args()
+    if args.no_preprocess:
+        PREPROCESS["numbers"] = False
+        PREPROCESS["entities"] = False
 
     df = pd.read_csv(args.data).dropna(subset=["text", "label"])
     texts = df["text"].astype(str).tolist()
@@ -203,6 +221,8 @@ def main():
         "coef": [float(v) for v in model.coef_[0]],
         "intercept": float(model.intercept_[0]),
         "feature_names": FEATURE_NAMES,
+        # What the scorer must do to a sentence before these weights apply to it.
+        "preprocess": {k: v for k, v in PREPROCESS.items() if v},
         "metrics": {
             "average_precision": float(average_precision_score(y_test, scores)),
             "roc_auc": float(roc_auc_score(y_test, scores)),

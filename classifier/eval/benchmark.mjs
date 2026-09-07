@@ -160,9 +160,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const useHeuristic = process.argv.includes('--heuristic');
   const rows = loadBenchmark(split);
 
+  // --preprocess forces the pre-pass on a model that was fitted without it. The
+  // weights do not know the new tokens, so this only shows what the digit features
+  // buy on their own; the real answer is a retrained model.
+  const model = useHeuristic ? null : JSON.parse(readFileSync(modelPath, 'utf8'));
+  if (model && process.argv.includes('--preprocess')) model.preprocess = { numbers: true, entities: true };
   const scores = useHeuristic
     ? rows.map((r) => heuristicScore(r.text))
-    : scoreWithModel(JSON.parse(readFileSync(modelPath, 'utf8')), rows.map((r) => r.text));
+    : scoreWithModel(model, rows.map((r) => r.text));
 
   console.log(`${useHeuristic ? 'heuristic scorer' : modelPath} on the ${split} half (${rows.length} sentences)\n`);
   const report = byDomain(rows, scores);

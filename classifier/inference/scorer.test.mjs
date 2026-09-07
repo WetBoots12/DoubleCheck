@@ -117,3 +117,64 @@ test('every feature has a label, so none can surface as a raw name', () => {
     assert.ok(FEATURE_LABELS[name], `${name} has no reader-facing label`);
   }
 });
+
+// --- the pre-pass ------------------------------------------------------------------
+// textprep.js and textprep.py must produce identical strings, or the weights fitted
+// in Python apply to different tokens in the browser. The fixture is written by the
+// Python side; this is the JavaScript side checking itself against it.
+
+import { normalizeNumbers, maskEntities, prepare, ENTITY_TOKEN } from './textprep.js';
+
+test('the JavaScript pre-pass matches the Python pre-pass on every fixture sentence', () => {
+  const fixture = JSON.parse(readFileSync(join(here, '..', 'eval', 'prep_fixture.json'), 'utf8'));
+  assert.ok(fixture.length >= 25, 'the fixture should cover the awkward cases');
+  for (const row of fixture) {
+    const { featureText, tokenText } = prepare({ preprocess: { numbers: true, entities: true } }, row.text);
+    assert.equal(featureText, row.numbers, `numbers differ for: ${row.text}`);
+    assert.equal(tokenText, row.masked, `masking differs for: ${row.text}`);
+  }
+});
+
+test('number words become the digits the model already knows how to weigh', () => {
+  assert.equal(normalizeNumbers('a quarter of the cobalt'), '0.25 of the cobalt');
+  assert.equal(normalizeNumbers('forty thousand people'), '40000 people');
+  assert.equal(normalizeNumbers('twenty-one people died'), '21 people died');
+  assert.equal(normalizeNumbers('three million vehicles'), '3 million vehicles');
+  assert.equal(normalizeNumbers('twice as many'), '2 times as many');
+  assert.equal(normalizeNumbers('since nineteen ninety five'), 'since 1995');
+});
+
+test('"one" is only a number where it is counting', () => {
+  assert.equal(normalizeNumbers('one in five households'), '1 in 5 households');
+  assert.equal(normalizeNumbers('One possible explanation'), 'One possible explanation');
+  assert.equal(normalizeNumbers('no one wanted to'), 'no one wanted to');
+  assert.equal(normalizeNumbers('looked at one another'), 'looked at one another');
+});
+
+test('"half" is a fraction only where it is one', () => {
+  assert.equal(normalizeNumbers('lost half its coral'), 'lost 0.5 its coral');
+  assert.equal(normalizeNumbers('in the second half'), 'in the second half');
+});
+
+test('names become one token, wherever they are and however long', () => {
+  assert.equal(maskEntities('The Federal Reserve raised rates.'), `The ${ENTITY_TOKEN} raised rates.`);
+  assert.equal(maskEntities('Djokovic beat Alcaraz in Paris'), `Djokovic beat ${ENTITY_TOKEN} in ${ENTITY_TOKEN}`);
+  assert.equal(maskEntities('I said I would, and so did Dr. Jane Smith'), `I said I would, and so did ${ENTITY_TOKEN}`);
+  assert.equal(maskEntities('nothing capitalised at all'), 'nothing capitalised at all');
+  assert.equal(maskEntities(''), '');
+});
+
+test('a model that declares no pre-pass is scored on the text exactly as written', () => {
+  const raw = 'The Federal Reserve raised rates by a quarter point.';
+  assert.deepEqual(prepare({}, raw), { featureText: raw, tokenText: raw });
+  assert.deepEqual(prepare(null, raw), { featureText: raw, tokenText: raw });
+});
+
+test('with the pre-pass, a spelled-out figure fires the digit feature', () => {
+  const names = FEATURES.map(([n]) => n);
+  const raw = 'The mine produced a quarter of the cobalt.';
+  const before = handcrafted(raw);
+  const after = handcrafted(prepare({ preprocess: { numbers: true } }, raw).featureText);
+  assert.equal(before[names.indexOf('has_digit')], 0);
+  assert.equal(after[names.indexOf('has_digit')], 1);
+});
