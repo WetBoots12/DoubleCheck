@@ -152,6 +152,5 @@ was left out of the package; `qr-code-coffee.png` is untouched in the repository
   suspicions, not confirmed fixes. No broad classifier retraining or store submission
   work was undertaken.
 
-See `CLAUDE-CONTINUE-AUDIT-FIXES.md` at the repository root for the remaining review
-and browser-validation task. The original supplied audit is preserved beside this
-report as `audit-original-2026-09-26.md`.
+The remaining browser-validation passes are listed in `testing.md`. The original
+supplied audit is preserved beside this report as `audit-original-2026-09-26.md`.

@@ -1,4 +1,4 @@
-# FactCheck Browser Extension — Architecture & Design Spec
+# Double Check — Architecture & Design Spec
 
 Status: approved for implementation (v1)
 Date: 2026-08-29
@@ -363,15 +363,14 @@ read at all rather than read and then discarded.
 
 ## 9. Component breakdown for implementation
 
-Each of the following is spec'd as a standalone, agent-ready prompt in
-`docs/prompts/`, so each can be built independently against the interfaces
+Each of the following is a standalone component built against the interfaces
 defined above:
 
-1. `01-classifier-training.md` — offline training + export pipeline
-2. `02-extension-scaffold.md` — Manifest V3 project skeleton, build tooling
-3. `03-content-script-articles.md` — article/text extraction + highlighting
-4. `04-content-script-video.md` — YouTube transcript/caption extraction
-5. `05-background-service-worker.md` — orchestration, state, badge, rate limiting
-6. `06-side-panel-ui.md` — the feed UI + toggle
-7. `07-options-settings-ui.md` — settings page, key storage, provider selection
-8. `08-provider-adapters.md` — SearchProvider/LLMProvider interfaces + concrete adapters
+1. Classifier training — offline training + export pipeline (`classifier/train`)
+2. Extension scaffold — Manifest V3 project skeleton (`manifest.json`, `src/shared`)
+3. Article content script — text extraction + highlighting (`src/content/article`)
+4. Video content script — YouTube transcript/caption extraction (`src/content/video`)
+5. Background service worker — orchestration, state, badge, rate limiting (`src/background`)
+6. Side panel — the feed UI + toggle (`src/sidepanel`)
+7. Options page — settings, key storage, provider selection (`src/options`)
+8. Provider adapters — SearchProvider/LLMProvider interfaces + concrete adapters (`src/providers`)
