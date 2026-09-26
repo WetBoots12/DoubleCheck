@@ -17,7 +17,7 @@ const el = (id) => document.getElementById(id);
 // Three panels behind one page: the guide, the settings, and the credits. The guide
 // is first and open by default, because someone opening this page for the first time
 // needs to know what the extension does before changing how it does it.
-const TABS = ['guide', 'settings', 'sources', 'credits'];
+const TABS = ['guide', 'settings', 'sources', 'credits', 'support'];
 
 function showTab(name) {
   for (const id of TABS) {
@@ -56,6 +56,7 @@ const fields = {
   highlightThickness: el('highlightThickness'),
   panelTextSize: el('panelTextSize'),
   showVideoOverlay: el('showVideoOverlay'),
+  autoTranscript: el('autoTranscript'),
   readSources: el('readSources'),
   academicMode: el('academicMode'),
   privateSitesRule: el('privateSitesRule'),
@@ -182,6 +183,7 @@ function formValues() {
     highlightThickness: fields.highlightThickness.value,
     panelTextSize: fields.panelTextSize.value,
     showVideoOverlay: fields.showVideoOverlay.checked,
+    autoTranscript: fields.autoTranscript.checked,
     readSources: fields.readSources.checked,
     academicMode: fields.academicMode.checked,
     privateSitesRule: fields.privateSitesRule.checked,
@@ -422,6 +424,7 @@ async function wireSources() {
   fields.highlightThickness.value = s.highlightThickness;
   fields.panelTextSize.value = s.panelTextSize;
   fields.showVideoOverlay.checked = s.showVideoOverlay !== false;
+  fields.autoTranscript.checked = s.autoTranscript !== false;
   previewAppearance();
   for (const f of [fields.highlightStyle, fields.highlightColor, fields.highlightThickness]) {
     f.addEventListener('change', previewAppearance);
@@ -460,6 +463,10 @@ async function wireSources() {
     setTimeout(() => { status.textContent = ''; }, 2500);
   });
   await wireSources();
-  wireTabs();
   el('save').addEventListener('click', save);
 })();
+
+// Wired before anything above is awaited: the tabs only switch panels, and the
+// start-up work (asking the on-device model whether it exists, loading the works
+// cited list) used to leave them dead for a second or two after the page opened.
+wireTabs();

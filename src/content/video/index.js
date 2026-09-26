@@ -360,7 +360,10 @@
     } else if (msg.type === MSG.OPEN_TRANSCRIPT) {
       openTranscript();
     } else if (msg.type === MSG.SCAN_CONFIG) {
-      if (msg.appearance) showOverlay = msg.appearance.showVideoOverlay !== false;
+      if (msg.appearance) {
+        showOverlay = msg.appearance.showVideoOverlay !== false;
+        autoTranscript = msg.appearance.autoTranscript !== false;
+      }
       autoCheck = msg.autoCheck && msg.scanAllowed !== false;
       // Reaching here after a language block means the user pressed the thumbs-up
       // for this site. Their yes outranks our reading of the captions.
@@ -401,6 +404,40 @@
       }
     }
     return false;
+  }
+
+  // Opening it without being asked, when the reader has that setting on.
+  //
+  // Once per video, and only when the video offers a transcript of its own: the
+  // description's transcript section is YouTube saying so, and without it there is
+  // nothing to open. A reader who closes the panel has answered for that video, so
+  // it is not reopened. Nothing here reads anything the page may not read: it waits
+  // for the same permission every other read needs, and a moment after each video
+  // loads, since YouTube keeps the previous video's description briefly in place.
+  let autoTranscript = true;
+  let transcriptTriedFor = null;
+  let watchSince = Date.now();
+  const AUTO_TRANSCRIPT_SETTLE_MS = 2500;
+
+  function transcriptPanelOpen() {
+    return Boolean(document.querySelector(
+      'ytd-transcript-segment-renderer, '
+      + '[target-id="engagement-panel-searchable-transcript"][visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"]',
+    ));
+  }
+
+  function maybeOpenTranscript() {
+    if (!autoTranscript || !autoCheck || !location.pathname.startsWith('/watch')) return;
+    const id = new URLSearchParams(location.search).get('v');
+    if (!id || transcriptTriedFor === id) return;
+    if (Date.now() - watchSince < AUTO_TRANSCRIPT_SETTLE_MS) return;
+    if (transcriptPanelOpen()) {
+      transcriptTriedFor = id; // already open, by the reader or by YouTube
+      return;
+    }
+    if (!document.querySelector('ytd-video-description-transcript-section-renderer button')) return;
+    transcriptTriedFor = id;
+    openTranscript();
   }
 
   function openTranscript() {
@@ -523,6 +560,7 @@
   let lastUrl = location.href.split('#')[0];
   function onPageChanged() {
     autoCheck = false;
+    watchSince = Date.now();
     english = null;
     languageReported = false;
     dropHeld();
@@ -548,7 +586,10 @@
       if (url !== location.href.split('#')[0]) return;
       if (!res) throw new Error('no policy answer');
       autoCheck = Boolean(res.autoCheck) && res.scanAllowed === true;
-      if (res.appearance) showOverlay = res.appearance.showVideoOverlay !== false;
+      if (res.appearance) {
+        showOverlay = res.appearance.showVideoOverlay !== false;
+        autoTranscript = res.appearance.autoTranscript !== false;
+      }
     }).catch(() => { if (attempt < 1) setTimeout(() => askVideoPolicy(attempt + 1), 400); });
   }
 
@@ -575,6 +616,7 @@
       readCues(); // fallback in case a mutation was coalesced away
       ingestTranscript(); // cheap when the count is unchanged
     }
+    maybeOpenTranscript();
     // A video with very few captions would otherwise hold its first sentences for
     // ever waiting for a sample that never arrives.
     if (english === null && heldSince && Date.now() - heldSince >= LANG_HOLD_MS) {

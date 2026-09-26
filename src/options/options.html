@@ -18,6 +18,9 @@
         --ok: #3d7a5a;
         --btn-bg: #1c1b19;
         --btn-fg: #faf9f7;
+        --coffee: #9a4f12;
+        --coffee-fg: #ffffff;
+        --coffee-tint: #fbead6;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -32,6 +35,9 @@
           --ok: #7fb79a;
           --btn-bg: #ece9e2;
           --btn-fg: #16150f;
+          --coffee: #f0a860;
+          --coffee-fg: #1f1406;
+          --coffee-tint: #3a2a18;
         }
       }
       body {
@@ -197,6 +203,38 @@
         color: var(--fg);
         border-bottom-color: var(--btn-bg);
       }
+      /* The support tab is meant to be noticed: bold, coffee-coloured, on a tint. */
+      button.tab.tab-support {
+        margin-left: auto;
+        color: var(--coffee);
+        font-weight: 700;
+        background: var(--coffee-tint);
+        border-radius: 8px 8px 0 0;
+      }
+      button.tab.tab-support:hover { color: var(--coffee); filter: brightness(1.08); }
+      button.tab.tab-support[aria-selected="true"] { border-bottom-color: var(--coffee); }
+      .support-card { text-align: center; }
+      .support-card p { max-width: 520px; margin-left: auto; margin-right: auto; }
+      .tabpanel a.coffee-button {
+        display: inline-block;
+        margin: 6px 0 18px;
+        padding: 11px 22px;
+        border-radius: 999px;
+        background: var(--coffee);
+        color: var(--coffee-fg);
+        font-size: 15px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .tabpanel a.coffee-button:hover { filter: brightness(1.08); }
+      .tabpanel a.coffee-button:focus-visible { outline: 3px solid var(--coffee-tint); outline-offset: 2px; }
+      figure.qr { margin: 0 auto 14px; }
+      figure.qr img {
+        width: 220px; height: 220px; max-width: 100%;
+        background: #fff; padding: 10px; border-radius: 12px;
+        border: 1px solid var(--border);
+      }
+      figure.qr figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
       .tabpanel[hidden] { display: none; }
 
       .tabpanel h3 { font-size: 14px; margin: 20px 0 6px; }
@@ -253,6 +291,7 @@
         <button role="tab" id="tab-settings-btn" class="tab" aria-controls="tab-settings" aria-selected="false">Settings</button>
         <button role="tab" id="tab-sources-btn" class="tab" aria-controls="tab-sources" aria-selected="false">Works cited</button>
         <button role="tab" id="tab-credits-btn" class="tab" aria-controls="tab-credits" aria-selected="false">Credits and licences</button>
+        <button role="tab" id="tab-support-btn" class="tab tab-support" aria-controls="tab-support" aria-selected="false">&#9749; Support</button>
       </nav>
 
       <div class="tabpanel" id="tab-guide" role="tabpanel" aria-labelledby="tab-guide-btn">
@@ -521,7 +560,7 @@
             <tr><th>A setting did nothing</th><td>Press Rescan. Settings apply to sentences that have not been judged yet.</td></tr>
             <tr><th>The panel is a long scroll</th><td>Each checked claim has a "hide" at the end of its badges, and "Fold all" at the top folds every one of them. The sentence and its buttons stay; only what was found is folded away.</td></tr>
             <tr><th>Sign-up boxes get marked</th><td>Raise the threshold slider a little in Settings, then press Rescan.</td></tr>
-            <tr><th>A video is not being read</th><td>Turn on subtitles, or press "Open the transcript" in the panel.</td></tr>
+            <tr><th>A video is not being read</th><td>Turn on subtitles, or press "Open the transcript" in the panel. With "Open a YouTube video's transcript automatically" on in Settings, a video that has a transcript has it opened for you.</td></tr>
             <tr><th>Too many marks</th><td>Raise the threshold. Too few, lower it. Move it a little at a time.</td></tr>
             <tr><th>Some marks are dashed and pale</th><td>Those sentences scored just below your threshold. They are "possibly a claim" and can be checked like any other. Turn them off in Settings if you would rather not see them.</td></tr>
           </table>
@@ -610,6 +649,18 @@
           <div class="hint">
             Turn this off for a clean player. Claims are still found and still listed
             in the side panel.
+          </div>
+        </div>
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" id="autoTranscript" />
+            Open a YouTube video's transcript automatically
+          </label>
+          <div class="hint">
+            When a video has a transcript, it is opened beside the player so the whole
+            video can be read at once, whether or not subtitles are on. It is YouTube's
+            own transcript panel, loaded from YouTube as if you had opened it; nothing
+            goes anywhere else. Close it and it stays closed for that video.
           </div>
         </div>
       </section>
@@ -969,6 +1020,27 @@
             the trained model, the ClaimBuster credit above must travel with it, which is
             why it is embedded in the model file itself. If you retrain on other data, add
             that dataset's licence and credit before publishing the result.
+          </p>
+        </section>
+      </div>
+
+      <div class="tabpanel" id="tab-support" role="tabpanel" aria-labelledby="tab-support-btn" hidden>
+        <section class="support-card">
+          <h2>Buy me a coffee</h2>
+          <p>
+            FactCheck Sidebar is free, with no ads, no accounts and no tracking. If it
+            helps you read the news a little more carefully, a coffee keeps it going.
+          </p>
+          <a class="coffee-button" href="https://buymeacoffee.com/generousmango" target="_blank" rel="noreferrer">&#9749; Buy me a coffee</a>
+          <figure class="qr">
+            <img src="support-qr.png" width="220" height="220"
+                 alt="QR code for buymeacoffee.com/generousmango">
+            <figcaption>Or scan with your phone: buymeacoffee.com/generousmango</figcaption>
+          </figure>
+          <p class="hint">
+            The button opens buymeacoffee.com in a new tab. Supporting unlocks nothing and
+            changes nothing about how the extension works, and nothing about you is sent
+            anywhere by this page.
           </p>
         </section>
       </div>

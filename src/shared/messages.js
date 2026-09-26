@@ -84,6 +84,7 @@ export const DEFAULT_SETTINGS = {
   // Eight more claims for one more false flag among 45 hard negatives.
   threshold: 0.6,
   faintFlags: true,      // also mark sentences scoring within FAINT_BAND below the threshold, faintly
+  autoTranscript: true,  // open a YouTube video's own transcript panel automatically, when it has one
   browserSearchEngine: 'default', // which engine the Search in browser button asks, and how; see shared/engines.js
   searchProvider: 'wikipedia', // needs no key, so the extension works out of the box; keyed providers are the upgrade
   searchApiKey: '',
