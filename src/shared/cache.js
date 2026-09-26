@@ -53,6 +53,7 @@ export function createCache(storage, opts = {}) {
   // So index updates queue behind one another. Only the index is serialised; the
   // entries themselves are written straight away, and reads never queue.
   let indexQueue = Promise.resolve();
+  let generation = 0;
 
   function serialize(work) {
     const next = indexQueue.then(work, work);
@@ -79,25 +80,42 @@ export function createCache(storage, opts = {}) {
     if (!entry) return null;
     if (entry.k !== key) return null; // hash collision: not our answer
     if (!(entry.exp > now())) {
-      await remove([id]);
+      await sweep();
       return null;
     }
     return entry.v;
   }
 
-  async function remove(ids) {
-    if (!ids.length) return;
-    await storage.remove(ids);
-    return serialize(async () => {
-      const keep = (await readIndex()).filter((i) => !ids.includes(i.id));
-      await writeIndex(keep);
-    });
+  async function sweepEntries() {
+    const all = await storage.get(null);
+    const expired = Object.entries(all || {})
+      .filter(([id, entry]) => id.startsWith(CACHE_PREFIX) && id !== INDEX_KEY && !(entry?.exp > now()))
+      .map(([id]) => id);
+    if (expired.length) await storage.remove(expired);
+    const live = (await readIndex()).filter((i) => all[i.id]?.exp > now());
+    await writeIndex(live);
   }
 
-  async function set(key, value) {
-    const id = CACHE_PREFIX + hashKey(key);
-    await storage.set({ [id]: { k: key, v: value, exp: now() + ttl } });
+  // A sweep reads the whole storage area, and one check writes half a dozen entries,
+  // so writes sweep at most every few minutes rather than every time. Expired entries
+  // are never served in between (get and hasMany check the expiry themselves); this
+  // only bounds how long one can sit on disk past its expiry while Chrome is running.
+  const sweepEvery = opts.sweepEveryMs ?? 10 * 60 * 1000;
+  let lastSweep = -Infinity;
+
+  async function sweepNow() {
+    await sweepEntries();
+    lastSweep = now();
+  }
+
+  function sweep() { return serialize(sweepNow); }
+
+  function set(key, value, expectedGeneration = generation) {
     return serialize(async () => {
+      if (expectedGeneration !== generation) return;
+      if (now() - lastSweep >= sweepEvery) await sweepNow();
+      const id = CACHE_PREFIX + hashKey(key);
+      await storage.set({ [id]: { k: key, v: value, exp: now() + ttl } });
       const list = [{ id, at: now() }, ...(await readIndex()).filter((i) => i.id !== id)];
       const evicted = list.slice(max).map((i) => i.id);
       await writeIndex(list);
@@ -108,10 +126,11 @@ export function createCache(storage, opts = {}) {
   // The one call sites use: return what is stored, or run the work and store it.
   // A rejection is never cached, so a failed provider call can be retried at once.
   async function wrap(key, fn) {
+    const started = generation;
     const hit = await get(key);
     if (hit !== null && hit !== undefined) return hit;
     const value = await fn();
-    await set(key, value);
+    await set(key, value, started);
     return value;
   }
 
@@ -120,6 +139,7 @@ export function createCache(storage, opts = {}) {
   // to a crash or an interrupted write is still deleted. Clearing has to mean
   // clearing: the entries hold the text of claims the user checked.
   async function clear() {
+    generation++;
     return serialize(async () => {
       const all = await storage.get(null);
       const ids = Object.keys(all || {}).filter((k) => k.startsWith(CACHE_PREFIX));
@@ -151,5 +171,5 @@ export function createCache(storage, opts = {}) {
     return (await readIndex()).length;
   }
 
-  return { get, set, wrap, hasMany, clear, size };
+  return { get, set, wrap, hasMany, clear, size, sweep, epoch: () => generation };
 }

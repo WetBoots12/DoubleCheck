@@ -80,7 +80,8 @@
       },
       onChanged: { addListener: () => {} },
     },
-    tabs: { create: () => {} },
+    windows: { getCurrent: async () => ({ id: 1 }) },
+    tabs: { create: () => {}, query: async () => [{ id: 1 }], onActivated: { addListener() {} } },
   };
 
   // A stub model. It records the prompt it was given, so the harness can show what

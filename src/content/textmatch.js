@@ -21,9 +21,7 @@
 
   // Returns [{ nodeIndex, start, end }] covering the sentence, or null if absent.
   // Ranges are half-open: [start, end).
-  function buildMatchPlan(nodeTexts, needle) {
-    const target = normalize(needle || '');
-    if (!target) return null;
+  function buildMatchIndex(nodeTexts) {
 
     let flat = '';
     const origin = []; // origin[i] = [nodeIndex, offsetWithinNode] for flat[i]
@@ -47,6 +45,12 @@
       }
     }
 
+    return { flat, origin };
+  }
+
+  function planFromIndex({ flat, origin }, needle) {
+    const target = normalize(needle || '');
+    if (!target) return null;
     const at = flat.indexOf(target);
     if (at === -1) return null;
 
@@ -68,7 +72,10 @@
     return spans;
   }
 
-  const api = { normalize, buildMatchPlan };
+  function buildMatchPlan(nodeTexts, needle) {
+    return planFromIndex(buildMatchIndex(nodeTexts), needle);
+  }
+  const api = { normalize, buildMatchPlan, buildMatchIndex, planFromIndex };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FCTextMatch = api;

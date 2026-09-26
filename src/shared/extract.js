@@ -13,13 +13,11 @@
 //
 // Nothing here fetches. The caller does that, so this stays pure and testable.
 
-// Regions that are never the article. Removed with their contents.
-const CHROME_TAGS = /<(script|style|noscript|svg|template|iframe|form|nav|header|footer|aside|figure|figcaption|button|select)\b[^>]*>[\s\S]*?<\/\1>/gi;
-const SELF_CLOSING_CHROME = /<(script|style|noscript|svg|template|iframe)\b[^>]*\/>/gi;
-const COMMENTS = /<!--[\s\S]*?-->/g;
-
-// A paragraph, or a list item, which is where many outlets put the numbers.
-const BLOCK = /<(p|li|h[1-4])\b[^>]*>([\s\S]*?)<\/\1>/gi;
+// Bounded tag tokens and a forward-only scan avoid retrying an unclosed region
+// from every opening tag. Malformed source HTML must not monopolize the worker.
+const OMIT_TAGS = new Set('script style noscript svg template iframe form nav header footer aside figure figcaption button select'.split(' '));
+const PARAGRAPH_TAGS = new Set(['p', 'li', 'h1', 'h2', 'h3', 'h4']);
+const MAX_HTML_CHARS = 400000;
 
 const ENTITIES = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–',
@@ -73,26 +71,55 @@ export function extractParagraphs(html, opts = {}) {
   const minChars = opts.minChars ?? 80;
   const limit = opts.limit ?? 60;
 
-  const body = String(html || '')
-    .replace(COMMENTS, ' ')
-    .replace(SELF_CLOSING_CHROME, ' ')
-    .replace(CHROME_TAGS, ' ');
-
+  const body = String(html || '').slice(0, MAX_HTML_CHARS);
   const out = [];
   const seen = new Set();
+  const tags = /<!--|<\/?([a-z][a-z0-9]*)\b[^<>]{0,4096}>/gi;
+  let blocked = null;
+  let depth = 0;
+  let paragraph = null;
+  let chunks = [];
+  let cursor = 0;
   let m;
-  BLOCK.lastIndex = 0;
-  while ((m = BLOCK.exec(body)) !== null) {
-    const text = decodeEntities(m[2].replace(/<[^>]*>/g, ' '))
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (text.length < minChars) continue;
-    if (FURNITURE.test(text)) continue;
-    const key = text.toLowerCase();
-    if (seen.has(key)) continue; // the same line often appears twice in a template
-    seen.add(key);
-    out.push(text);
-    if (out.length >= limit) break;
+  while ((m = tags.exec(body)) !== null) {
+    if (paragraph && !blocked) chunks.push(body.slice(cursor, m.index));
+    if (m[0] === '<!--') {
+      const end = body.indexOf('-->', tags.lastIndex);
+      tags.lastIndex = end < 0 ? body.length : end + 3;
+      cursor = tags.lastIndex;
+      continue;
+    }
+    cursor = tags.lastIndex;
+    const tag = m[1].toLowerCase();
+    const closing = m[0][1] === '/';
+    const selfClosing = /\/\s*>$/.test(m[0]);
+    if (blocked) {
+      if (tag === blocked) {
+        if (closing) { if (--depth === 0) blocked = null; }
+        else if (!selfClosing) depth++;
+      }
+      continue;
+    }
+    if (OMIT_TAGS.has(tag)) {
+      if (!closing && !selfClosing) { blocked = tag; depth = 1; }
+      continue;
+    }
+    if (PARAGRAPH_TAGS.has(tag)) {
+      if (!closing) { paragraph = tag; chunks = []; }
+      else if (paragraph === tag) {
+        // A tag the bounded token pattern skipped (one over 4 KB, such as an inline
+        // data URI) is still markup. [^<>]* stops at the next bracket, so this is linear.
+        const text = decodeEntities(chunks.join(' ').replace(/<[^<>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+        const key = text.toLowerCase();
+        if (text.length >= minChars && !FURNITURE.test(text) && !seen.has(key)) {
+          seen.add(key);
+          out.push(text);
+        }
+        paragraph = null;
+        chunks = [];
+        if (out.length >= limit) break;
+      }
+    }
   }
   return out;
 }

@@ -27,6 +27,7 @@ function fakeStorageArea() {
 
 const sent = { runtime: [], tabs: [], badge: [], search: [] };
 let messageListener = null;
+let tabUpdatedListener = null;
 let menuClickListener = null;
 const ACTIVE_TAB = 1;
 
@@ -44,7 +45,7 @@ globalThis.chrome = {
   },
   tabs: {
     onRemoved: { addListener() {} },
-    onUpdated: { addListener() {} },
+    onUpdated: { addListener(fn) { tabUpdatedListener = fn; } },
     onActivated: { addListener() {} },
     query: async () => [{ id: ACTIVE_TAB, url: 'https://www.example.com/article' }],
     get: async (id) => ({ id, url: 'https://www.example.com/article' }),
@@ -102,9 +103,19 @@ globalThis.fetch = async (url, init) => {
 
 const settle = () => new Promise((r) => setTimeout(r, 50));
 
+let docSeq = 0;
+// A reload, as the worker sees one: a new content script instance, naming a new
+// document. The first id a tab reports is only recorded, so one is registered first.
+async function reloadDocument(tabId) {
+  if (docSeq === 0) await send({ type: 'getState', docId: 'document-0000' }, tabId);
+  await send({ type: 'getState', docId: `document-${String(++docSeq).padStart(4, '0')}` }, tabId);
+}
+
 function send(msg, tabId = ACTIVE_TAB) {
   return new Promise((resolve) => {
-    const keep = messageListener(msg, { tab: { id: tabId } }, resolve);
+    const content = new Set(['getState', 'pagePrivate', 'pageLanguage', 'pageSources', 'pageChanged', 'unlocated', 'sentences', 'highlightClicked', 'captionHint', 'navState']);
+    const sender = content.has(msg.type) ? { tab: { id: tabId } } : { url: chrome.runtime.getURL('src/sidepanel/panel.html') };
+    const keep = messageListener(msg, sender, resolve);
     if (!keep) resolve(undefined);
   });
 }
@@ -256,7 +267,8 @@ test('a page reporting a password field is blocked, and what it already sent is 
   assert.deepEqual((await send({ type: 'panelReady' }, undefined)).claims, []);
 
   // Navigating away clears it: the next page is judged on its own merits.
-  await send({ type: 'pageChanged' });
+  await reloadDocument(ACTIVE_TAB);
+  await settle();
   await settle();
   assert.equal((await send({ type: 'getState' })).scanAllowed, true);
 
@@ -342,7 +354,8 @@ test('a check spends one search call, and checking the same claim again spends n
   assert.ok(checked.results.length >= 1);
 
   // A fresh page carrying the same sentence: same question, so no second call.
-  await send({ type: 'pageChanged' });
+  await reloadDocument(ACTIVE_TAB);
+  await settle();
   await send({ type: 'sentences', sentences: [{ id: 's1', text: target.text }] });
   await settle();
   await send({ type: 'checkClaim', claimId: 's1' }, undefined);
@@ -373,7 +386,8 @@ test('clearing the cache empties it, and the next check pays for a call again', 
   assert.deepEqual(res, { ok: true });
 
   const before = searchCalls.length;
-  await send({ type: 'pageChanged' });
+  await reloadDocument(ACTIVE_TAB);
+  await settle();
   await send({ type: 'sentences', sentences: [{ id: 's9', text: 'Unemployment fell to 4.2 percent last quarter, according to the Labor Department.' }] });
   await settle();
   await send({ type: 'checkClaim', claimId: 's9' }, undefined);
@@ -509,4 +523,131 @@ test('with faint flags off, the same sentence is not a claim', async (t) => {
   } finally {
     await chrome.storage.local.set({ fc_settings: before.fc_settings || {} });
   }
+});
+
+
+test('video timestamps survive the worker highlight message', async () => {
+  await chrome.storage.local.set({ fc_settings: { threshold: 0, faintFlags: false } });
+  await send({ type: 'rescan' });
+  await send({ type: 'sentences', sentences: [{ id: 'timestamp', text: 'The company reported revenue of 5 billion dollars in 2023.', ts: 1234 }] });
+  await settle();
+  const marked = sent.tabs.flatMap((item) => item.msg.claims || []).find((claim) => claim.id === 'timestamp');
+  assert.equal(marked.ts, 1234);
+});
+
+test('a content script cannot invoke privileged panel operations', () => {
+  for (const type of ['siteRule', 'clearSources', 'checkClaim', 'llmResult', 'saveSettings']) {
+    const accepted = messageListener({ type, claimId: 'timestamp', patch: { autoCheck: false } }, { tab: { id: ACTIVE_TAB } }, () => {});
+    assert.equal(accepted, false, type);
+  }
+});
+
+test('on-device AI completes for its original tab after a tab switch', async () => {
+  const { tabStore } = await import('./tabstate.js');
+  const originalGet = chrome.tabs.get;
+  const originalQuery = chrome.tabs.query;
+  const first = 810;
+  const second = 811;
+  let active = first;
+  chrome.tabs.get = async (id) => ({ id, windowId: 1, url: 'https://example.com/article' });
+  chrome.tabs.query = async () => [{ id: active, windowId: 1, url: 'https://example.com/article' }];
+  try {
+    await chrome.storage.local.set({ fc_settings: { llmProvider: 'builtin' } });
+    const state = await tabStore.get(first);
+    state.claims.set('ai', { id: 'ai', text: 'Revenue rose by 20 percent.', status: 'checked', results: [{ url: 'https://example.org/', title: 'Revenue rose by 20 percent.' }] });
+    await tabStore.save(first);
+    await send({ type: 'checkClaim', claimId: 'ai', withAi: true, panelId: 'owner', windowId: 1 });
+    await settle();
+    const request = sent.runtime.filter((msg) => msg.type === 'llmRequest').at(-1);
+    assert.equal(request.tabId, first);
+    assert.equal(request.windowId, 1);
+    active = second;
+    await send({ type: 'llmResult', tabId: first, claimId: 'ai', requestId: request.requestId, analysis: { summary: 'Correct tab' } });
+    await settle();
+    assert.equal(state.claims.get('ai').summarizing, false);
+    assert.equal(state.claims.get('ai').analysis.summary, 'Correct tab');
+    assert.equal(await tabStore.peek(second), null);
+  } finally { chrome.tabs.get = originalGet; chrome.tabs.query = originalQuery; }
+});
+
+test('panel requests query their own window, not the focused window', async () => {
+  const query = chrome.tabs.query;
+  const calls = [];
+  chrome.tabs.query = async (options) => { calls.push(options); return []; };
+  try {
+    await send({ type: 'panelReady', windowId: 22 });
+    assert.ok(calls.some((options) => options.windowId === 22 && options.currentWindow === undefined));
+  } finally { chrome.tabs.query = query; }
+});
+
+test('fragment-only tab updates preserve checked claims', async () => {
+  const { tabStore } = await import('./tabstate.js');
+  const tab = 812;
+  const url = 'https://example.com/article';
+  await chrome.storage.session.set({ [`page:${tab}`]: url });
+  const state = await tabStore.get(tab);
+  state.claims.set('kept', { id: 'kept', text: 'Already checked', status: 'checked', analysis: { summary: 'Keep me' } });
+  await tabStore.save(tab);
+  tabUpdatedListener(tab, { url: url + '#note-1' }, { url: url + '#note-1' });
+  await settle();
+  assert.equal((await tabStore.peek(tab)).claims.get('kept').analysis.summary, 'Keep me');
+});
+
+test('context menu opens the side panel before asynchronous work starts', () => {
+  const open = chrome.sidePanel.open;
+  let opened = false;
+  chrome.sidePanel.open = () => { opened = true; return Promise.resolve(); };
+  try {
+    menuClickListener({ menuItemId: 'fc-check-selection', selectionText: 'The company reported 20 percent revenue growth.' }, { id: ACTIVE_TAB });
+    assert.equal(opened, true);
+  } finally { chrome.sidePanel.open = open; }
+});
+
+// Measured in Chrome 153: history.replaceState to the same address, and an iframe
+// navigating after the page had loaded, each fire onUpdated with status 'loading'
+// and no url. Treating that as a reload wiped every claim while the page kept its
+// highlights, so it must not reset anything.
+test('a status-only loading event (replaceState, iframe load) keeps the claims', async () => {
+  const { tabStore } = await import('./tabstate.js');
+  const tab = 813;
+  const url = 'https://example.com/article';
+  await chrome.storage.session.set({ [`page:${tab}`]: url });
+  const state = await tabStore.get(tab);
+  state.claims.set('kept', { id: 'kept', text: 'Already checked', status: 'checked' });
+  await tabStore.save(tab);
+  tabUpdatedListener(tab, { status: 'loading' }, { id: tab, url });
+  tabUpdatedListener(tab, { status: 'complete' }, { id: tab, url });
+  await settle();
+  assert.ok((await tabStore.peek(tab))?.claims.get('kept'), 'a subframe or replaceState must not reset the tab');
+});
+
+test('a new document on the same address resets the tab; the same document does not', async () => {
+  const { tabStore } = await import('./tabstate.js');
+  const tab = 814;
+  await send({ type: 'getState', docId: 'firstdocument1' }, tab);
+  const state = await tabStore.get(tab);
+  state.claims.set('old', { id: 'old', text: 'From the first load', status: 'checked' });
+  await tabStore.save(tab);
+
+  await send({ type: 'getState', docId: 'firstdocument1' }, tab); // a rescan or retry
+  assert.ok((await tabStore.peek(tab))?.claims.get('old'), 'the same document asking again is not a reload');
+
+  await send({ type: 'getState', docId: 'seconddocument2' }, tab); // the reload
+  assert.equal((await tabStore.peek(tab))?.claims.get('old'), undefined, 'a reloaded page starts from nothing');
+});
+
+// The video script reports its caption state only when it changes, which is usually
+// before anyone opens the panel. A panel opened afterwards must still be told, or
+// the captions-off banner and its "Open the transcript" button never appear.
+test('a panel opened after the caption report is still shown it, until the page changes', async () => {
+  const tab = (await send({ type: 'panelReady' }, undefined)).tabId; // whichever tab is active by now
+  await send({ type: 'getState', docId: 'captiondoc-first' }, tab);
+  await send({ type: 'captionHint', hint: 'off', scanned: 0 }, tab);
+  await settle();
+  const res = await send({ type: 'panelReady' }, undefined);
+  assert.deepEqual(res.caption, { hint: 'off', scanned: 0 });
+
+  await send({ type: 'getState', docId: 'captiondoc-second' }, tab); // reloaded
+  await settle();
+  assert.equal((await send({ type: 'panelReady' }, undefined)).caption, null, 'a new page starts without the old banner');
 });

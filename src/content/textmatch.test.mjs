@@ -81,3 +81,14 @@ test('matches the first occurrence when a sentence repeats', () => {
   const plan = buildMatchPlan(nodes, 'Costs rose.');
   assert.equal(plan[0].nodeIndex, 0);
 });
+
+
+test('one flattened index locates multiple claims spanning shared text nodes', () => {
+  const nodes = ['Revenue grew ', '20 percent. Employment rose ', 'by 5 percent.'];
+  const index = FCTextMatch.buildMatchIndex(nodes);
+  const first = FCTextMatch.planFromIndex(index, 'Revenue grew 20 percent.');
+  const second = FCTextMatch.planFromIndex(index, 'Employment rose by 5 percent.');
+  assert.equal(selected(nodes, first), 'Revenue grew 20 percent.');
+  assert.equal(selected(nodes, second), 'Employment rose by 5 percent.');
+  assert.ok(first.at(-1).end <= second[0].start);
+});

@@ -30,6 +30,7 @@ Nothing is sent automatically. Every row below happens only on a button press.
 | the top two result pages | nothing is sent; the page is fetched, cookies omitted | Check sources |
 | a local server the user names | the claim and the search results | Check with AI, if configured |
 | the user's own search engine | a query shaped from the claim | Search in browser |
+| buymeacoffee.com | nothing; an ordinary link opens the page in a new tab | Buy me a coffee (a donation link that unlocks nothing) |
 
 ## Data disclosure form
 
@@ -57,9 +58,11 @@ Points it must cover, all verifiable in the code:
 
 - API keys are held in `chrome.storage.local` and are sent only to the service
   they belong to. There is no server to send them to otherwise.
-- Answers from providers are cached in `chrome.storage.local` for one day, so a
-  second look at the same claim spends no further call. The cache keys are hashed.
-  The user can turn caching off and can clear it from the options page.
+- Provider answers in `chrome.storage.local` expire after 24 hours. Expired records
+  are deleted at worker startup and at cache writes (at most every ten minutes);
+  deletion is delayed while Chrome is closed. Matching cached requests are reused. The cache keys are hashed
+  (the stored values are not encrypted). Turning caching off clears the cache;
+  the options page also has a clear button.
 - Nothing from an incognito tab is cached.
 - Per-tab state lives in `chrome.storage.session` and is gone when the browser
   closes.

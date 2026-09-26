@@ -80,7 +80,9 @@ globalThis.fetch = async (url) => {
 
 function send(msg, tabId = TAB) {
   return new Promise((resolve) => {
-    const keep = messageListener(msg, { tab: { id: tabId } }, resolve);
+    const content = new Set(['getState', 'pagePrivate', 'pageLanguage', 'pageSources', 'pageChanged', 'unlocated', 'sentences', 'highlightClicked', 'captionHint', 'navState']);
+    const sender = content.has(msg.type) ? { tab: { id: tabId } } : { url: chrome.runtime.getURL('src/sidepanel/panel.html') };
+    const keep = messageListener(msg, sender, resolve);
     if (!keep) resolve(undefined);
   });
 }
@@ -319,4 +321,31 @@ test('the free-answer flag is a view of the cache, not something written to the 
   const raw = (await chrome.storage.session.get(`tab:${tab}`))[`tab:${tab}`];
   assert.equal('cached' in raw.claims.c1, false,
     'what is true of the cache right now must not be saved as though it were true of the claim');
+});
+
+
+test('publisher exclusions survive worker restart and remain part of the search query', async () => {
+  const tab = 990;
+  const oldFetch = globalThis.fetch;
+  const oldGet = chrome.tabs.get;
+  const oldQuery = chrome.tabs.query;
+  const urls = [];
+  chrome.tabs.get = async (id) => ({ id, url: 'https://example.com/story' });
+  chrome.tabs.query = async () => [{ id: tab, url: 'https://example.com/story' }];
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+    return { ok: true, status: 200, json: async () => ({ organic_results: [] }) };
+  };
+  try {
+    await chrome.storage.local.set({ fc_settings: { searchProvider: 'serpapi', searchApiKey: 'test-key', cacheResults: false, readSources: false } });
+    await send({ type: 'pageSources', domains: ['reuters.com'] }, tab);
+    const { tabStore } = await import('./tabstate.js');
+    const state = await tabStore.get(tab);
+    state.claims.set('wire', { id: 'wire', text: 'Revenue grew by 20 percent.', status: 'unchecked' });
+    await tabStore.save(tab);
+    await import('./index.js?publisher-restart');
+    await send({ type: 'checkClaim', claimId: 'wire' });
+    await settle();
+    assert.ok(urls.some((url) => new URL(url).searchParams.get('q')?.includes('-site:reuters.com')));
+  } finally { globalThis.fetch = oldFetch; chrome.tabs.get = oldGet; chrome.tabs.query = oldQuery; }
 });

@@ -137,3 +137,58 @@ test('an entity whose case carries no meaning still decodes', () => {
 test('an entity that is not one is left exactly as it was', () => {
   assert.equal(decodeEntities('&notanentity;'), '&notanentity;');
 });
+
+
+test('unclosed region and paragraph floods stay bounded', () => {
+  for (const tag of ['<nav>', '<p>', '<!--', '<p ']) {
+    const start = performance.now();
+    assert.deepEqual(extractParagraphs(tag.repeat(400000)), []);
+    assert.ok(performance.now() - start < 1500, 'malformed HTML stalled parsing');
+  }
+});
+
+test('source fetch refuses local destinations and redirects before following them', async () => {
+  const { fetchPageHtml } = await import('../providers/index.js');
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    // Model the fetch API rejecting a redirect when redirect:error is set.
+    if (init.redirect === 'error') throw new TypeError('redirect refused');
+    return { ok: true, headers: { get: () => 'text/html' }, text: async () => 'private data' };
+  };
+  try {
+    for (const url of ['http://10.0.0.1/', 'http://127.1/', 'http://2130706433/',
+      'http://localhost:8080/', 'http://foo.localhost/', 'http://intranet/',
+      'http://[::1]/', 'http://[::ffff:192.168.1.1]/', 'http://100.64.0.1/',
+      'http://name:secret@example.com/']) assert.equal(await fetchPageHtml(url), '');
+    assert.equal(calls.length, 0);
+    assert.equal(await fetchPageHtml('https://example.com/redirect'), '');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.redirect, 'error');
+    assert.equal(calls[0].init.credentials, 'omit');
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test('provider timeout also covers a response body that never finishes', async () => {
+  const { fetchJson } = await import('../providers/index.js');
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, { signal }) => ({
+    ok: true, status: 200,
+    json: () => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')))),
+  });
+  try {
+    await assert.rejects(fetchJson('https://example.com', {}, { timeoutMs: 15 }), /timed out/);
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ recovered: true }) });
+    assert.deepEqual(await fetchJson('https://example.com'), { recovered: true });
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test('a tag too long for the token pattern is still stripped, not quoted as text', () => {
+  const img = `<img alt="chart" src="data:image/png;base64,${'A'.repeat(6000)}">`;
+  const html = `<p>Unemployment fell to 4.2 percent in the last quarter ${img} the Labor Department said on Friday.</p>`;
+  const [para] = extractParagraphs(html, { minChars: 20 });
+  assert.ok(para, 'the paragraph is still found');
+  assert.ok(!para.includes('base64') && !para.includes('<'), `markup leaked into the text: ${para.slice(0, 80)}`);
+  assert.match(para, /4\.2 percent in the last quarter the Labor Department said/);
+});

@@ -97,7 +97,9 @@ globalThis.fetch = async (url) => {
 
 function send(msg, tabId = TAB) {
   return new Promise((resolve) => {
-    const keep = messageListener(msg, { tab: { id: tabId } }, resolve);
+    const content = new Set(['getState', 'pagePrivate', 'pageLanguage', 'pageSources', 'pageChanged', 'unlocated', 'sentences', 'highlightClicked', 'captionHint', 'navState']);
+    const sender = content.has(msg.type) ? { tab: { id: tabId } } : { url: chrome.runtime.getURL('src/sidepanel/panel.html') };
+    const keep = messageListener(msg, sender, resolve);
     if (!keep) resolve(undefined);
   });
 }
@@ -326,4 +328,31 @@ test('a check is told what the other claims on the page already show, and puts t
   const urls = stored.claims.c2.results.map((r) => r.url);
   // The engine returned AP first; AP is already under c1, so BBC leads for c2.
   assert.deepEqual(urls, [BBC, AP], JSON.stringify(urls));
+});
+
+
+test('both citation paths avoid the disk cache in incognito', async () => {
+  const tab = await seedChecked();
+  chrome.tabs.get = async (id) => ({ id, url: PAGE, incognito: true });
+  chrome.tabs.query = async () => [{ id: tab, url: PAGE, incognito: true }];
+  await send({ type: 'citeSources', claimId: 'c1', url: AP });
+  await send({ type: 'citeMaterial', claimId: 'c1', url: BBC });
+  assert.deepEqual(Object.keys(await chrome.storage.local.get(null)).filter((key) => key.startsWith('fccache:')), []);
+});
+
+test('citation material rejects a URL that is not one of the claim sources before fetching', async () => {
+  await seedChecked();
+  const result = await send({ type: 'citeMaterial', claimId: 'c1', url: 'http://192.168.1.1/admin' });
+  assert.equal(result.source, null);
+  assert.deepEqual(fetched, []);
+});
+
+test('reading and auto-citing the same results fetches each page only once', async () => {
+  const tab = await useTab({ readSources: true, autoCitationData: true });
+  await send({ type: 'sentences', sentences: [{ id: 'dedup', text: 'Inflation reached 4.2 percent in the year to June.' }] }, tab);
+  await settle();
+  await send({ type: 'checkClaim', claimId: 'dedup' });
+  await settle();
+  assert.equal(fetched.filter((url) => url === AP).length, 1);
+  assert.equal(fetched.filter((url) => url === BBC).length, 1);
 });

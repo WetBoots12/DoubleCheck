@@ -1,4 +1,4 @@
-import { getSettings, saveSettings, MSG } from '../shared/messages.js';
+import { getSettings, saveSettings, changedSettings, MSG } from '../shared/messages.js';
 import { SEARCH_PROVIDERS, LLM_PROVIDERS, FACTCHECK_PROVIDERS } from '../providers/index.js';
 import { parseDomainList } from '../shared/privacy.js';
 import {
@@ -163,12 +163,11 @@ function validate() {
   return ok;
 }
 
-async function save() {
-  if (!validate()) return;
+let formBaseline = {};
 
-  const autoCheck = fields.autoCheck.checked;
-  await saveSettings({
-    autoCheck,
+function formValues() {
+  return {
+    autoCheck: fields.autoCheck.checked,
     threshold: Number(fields.threshold.value),
     searchProvider: fields.searchProvider.value,
     browserSearchEngine: fields.browserSearchEngine.value,
@@ -197,7 +196,15 @@ async function save() {
     llmModel: fields.llmModel.value.trim(),
     localLlmUrl: fields.localLlmUrl.value.trim() || 'http://localhost:11434/v1',
     localLlmModel: fields.localLlmModel.value.trim() || 'llama3.1',
-  });
+  };
+}
+
+async function save() {
+  if (!validate()) return;
+  const values = formValues();
+  const settings = await saveSettings(changedSettings(values, formBaseline));
+  formBaseline = values;
+  const autoCheck = settings.autoCheck;
 
   // Let the active tab's content script react without needing a reload.
   chrome.runtime.sendMessage({ type: MSG.SET_AUTOCHECK, autoCheck }).catch(() => {});
@@ -437,6 +444,7 @@ async function wireSources() {
   fields.localLlmUrl.value = s.localLlmUrl;
   fields.localLlmModel.value = s.localLlmModel;
   syncLlmKeyVisibility();
+  formBaseline = formValues();
 
   fields.threshold.addEventListener('input', () => {
     fields.thresholdVal.textContent = Number(fields.threshold.value).toFixed(2);

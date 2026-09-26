@@ -10,6 +10,7 @@
 import { extractQuantities } from '../shared/numbers.js';
 import { citationFactsPrompt, parseCitationFacts } from '../shared/citationprompt.js';
 import { refsForClaim } from './wikirefs.js';
+import { publicSourceUrl } from '../shared/privacy.js';
 
 export class ProviderError extends Error {
   constructor(kind, message) {
@@ -26,17 +27,25 @@ function domainOf(url) {
   }
 }
 
-async function fetchJson(url, init) {
-  let res;
+export async function fetchJson(url, init = {}, { timeoutMs = init.method === 'POST' ? 90000 : 20000 } = {}) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timer = setTimeout(abort, timeoutMs);
+  init.signal?.addEventListener('abort', abort, { once: true });
+  if (init.signal?.aborted) abort();
   try {
-    res = await fetch(url, init);
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    if (res.status === 401 || res.status === 403) throw new ProviderError('noKey', 'Invalid or missing API key');
+    if (res.status === 429) throw new ProviderError('rateLimited', 'Rate limited by provider');
+    if (!res.ok) throw new ProviderError('unknown', `Provider returned ${res.status}`);
+    return await res.json(); // keep the deadline active while reading the body
   } catch (err) {
-    throw new ProviderError('network', err.message);
+    if (err instanceof ProviderError) throw err;
+    throw new ProviderError('network', controller.signal.aborted ? 'Request timed out or was cancelled. Try again.' : err.message);
+  } finally {
+    clearTimeout(timer);
+    init.signal?.removeEventListener('abort', abort);
   }
-  if (res.status === 401 || res.status === 403) throw new ProviderError('noKey', 'Invalid or missing API key');
-  if (res.status === 429) throw new ProviderError('rateLimited', 'Rate limited by provider');
-  if (!res.ok) throw new ProviderError('unknown', `Provider returned ${res.status}`);
-  return res.json();
 }
 
 // --- Source exclusion -------------------------------------------------------
@@ -208,13 +217,16 @@ export async function fetchPageHtml(url, opts = {}) {
   let controller = null;
   let timer = null;
   try {
-    if (!/^https?:\/\//i.test(String(url || ''))) return '';
+    url = publicSourceUrl(url);
+    if (!url) return '';
     controller = typeof AbortController === 'function' ? new AbortController() : null;
     if (controller) timer = setTimeout(() => controller.abort(), timeout);
 
     const res = await fetch(url, {
       credentials: 'omit',
-      redirect: 'follow',
+      // Reject before a redirect can reach a private address. An opaque manual
+      // redirect cannot be inspected reliably in browsers; retain the snippet.
+      redirect: 'error',
       signal: controller?.signal,
     });
     if (!res.ok) return '';
@@ -224,6 +236,21 @@ export async function fetchPageHtml(url, opts = {}) {
     const length = Number(res.headers?.get?.('content-length') || 0);
     if (length && length > maxBytes) return '';
 
+    if (res.body?.getReader) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let bytes = 0;
+      let text = '';
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return text + decoder.decode();
+          bytes += value.byteLength;
+          if (bytes > maxBytes) { await reader.cancel(); return ''; }
+          text += decoder.decode(value, { stream: true });
+        }
+      } finally { reader.releaseLock(); }
+    }
     const text = await res.text();
     return text.length > maxBytes ? text.slice(0, maxBytes) : text;
   } catch {

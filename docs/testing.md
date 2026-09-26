@@ -6,14 +6,15 @@
 npm test
 ```
 
-Covers the scorer (tokenizing, features, heuristic ranking and bounds), throughput
-and degenerate input, and the AI response parser. Two tests skip until a model is
-trained: the Python-to-JavaScript parity check and the trained-model throughput
-check. Both start running automatically once `classifier/model/model.json` exists.
+The Node suite covers the classifier, providers, shared parsing and cache logic,
+worker messaging/lifecycle/citations, article navigation, and panel routing with
+browser API/DOM stubs. Model parity and throughput tests run when the bundled
+model and fixtures are present. Use the actual test output for pass/skip counts.
 
-Not covered by automation, and worth knowing: the background worker, the provider
-adapters against live APIs, and both content scripts. Those need the manual passes
-below, because they depend on real pages and real browser lifecycle behavior.
+Stubs do not establish real Chrome behavior. Live provider integration, YouTube
+selectors, fullscreen overlays, rendering, keyboard focus and multiple browser
+windows still require the manual passes below. The audit repair report records
+which checks were actually run.
 
 ## Stress fixture
 
@@ -84,9 +85,8 @@ because at that speed a cue can appear and vanish between polls.
 
 **Quota discipline.** This is the one worth being careful about, since mistakes here
 cost real money. Confirm that loading a page dense with claims fires zero search
-calls, that "Check sources" fires exactly one, that "Summarize with AI" fires none,
-and that double-clicking a button does not double-fire. Watch the provider's usage
-dashboard rather than trusting the UI.
+calls, that "Check sources" fires one primary search request on a cache miss (document any provider fallback request), that "Summarize with AI" fires none,
+and that double-clicking a button does not double-fire. Use request spies for quota tests; live calls require an explicitly configured test provider.
 
 **Failure paths.** Wrong key, no key, provider rate limit, aeroplane mode, and a
 local model endpoint that is not running. Each should produce a readable per-claim

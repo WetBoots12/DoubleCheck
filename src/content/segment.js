@@ -50,6 +50,36 @@
     return /^[A-Z]$/.test(token);
   }
 
+  // Reference markers written straight after the full stop, as Wikipedia does:
+  // "quarter.[1] Economists", "2024.[12][13] Prices", "sharply.[citation needed] Prices".
+  // ICU breaks inside the first two, leaving the next sentence starting "1] ", and not
+  // at all in the third, joining two sentences. So pieces that ICU cut after an open
+  // bracket are rejoined, and each piece is then cut after any terminal punctuation
+  // followed by marker groups and a capitalised word. Every cut is at an index into the
+  // same text, so each sentence stays a contiguous substring of it.
+  const MARKER_BREAK = /[.!?]["'”’]?(?:\[[^\[\]]{1,40}\])+ (?=["'“‘(]?[A-Z0-9])/g;
+
+  function splitAfterMarkers(pieces) {
+    const joined = [];
+    for (const piece of pieces) {
+      if (joined.length && joined[joined.length - 1].endsWith('[')) joined[joined.length - 1] += piece;
+      else joined.push(piece);
+    }
+    const out = [];
+    for (const piece of joined) {
+      let start = 0;
+      MARKER_BREAK.lastIndex = 0;
+      let m;
+      while ((m = MARKER_BREAK.exec(piece)) !== null) {
+        const end = m.index + m[0].length;
+        out.push(piece.slice(start, end));
+        start = end;
+      }
+      out.push(piece.slice(start));
+    }
+    return out.filter((p) => p.length);
+  }
+
   // Splits text into sentences. Whitespace is collapsed first, and each result is a
   // contiguous substring of that collapsed text, which the highlighter relies on.
   function splitSentences(text, minLength = 0) {
@@ -57,7 +87,7 @@
     if (!flat) return [];
 
     const merged = [];
-    for (const piece of rawSegments(flat)) {
+    for (const piece of splitAfterMarkers(rawSegments(flat))) {
       const last = merged.length - 1;
       if (last >= 0 && endsWithAbbreviation(merged[last], piece)) {
         merged[last] += piece;

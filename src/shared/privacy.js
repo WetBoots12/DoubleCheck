@@ -109,12 +109,24 @@ export function hostMatches(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
 }
 
-function isLocalHost(host) {
+export function isLocalHost(host) {
+  host = String(host || '').toLowerCase().replace(/\.$/, '');
   if (!host.includes('.')) return true; // single-label intranet names, localhost
   if (/^(127\.|10\.|192\.168\.|0\.0\.0\.0|169\.254\.)/.test(host)) return true;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) && Number(host.split('.')[0]) >= 224) return true;
   if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
   if (host === '[::1]' || host === '::1') return true;
-  return /\.(local|internal|lan|home|localdomain|corp|intranet)$/.test(host);
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)) return true;
+  if (/^(0\.|192\.0\.0\.|198\.(18|19)\.)/.test(host)) return true;
+  return /\.(localhost|local|internal|lan|home|localdomain|corp|intranet)$/.test(host);
+}
+
+// Source fetching has no user override. This is separate from scan preferences.
+export function publicSourceUrl(value) {
+  const safe = httpUrl(value);
+  if (!safe) return '';
+  const url = new URL(safe);
+  return url.username || url.password || isLocalHost(url.hostname) ? '' : safe;
 }
 
 // Returns { blocked, reason, domain, rule } where reason is one of

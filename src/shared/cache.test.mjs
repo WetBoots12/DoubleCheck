@@ -233,3 +233,46 @@ test('hasMany on nothing asks storage nothing', async () => {
   const cache = createCache(fakeStorage());
   assert.deepEqual([...await cache.hasMany([])], []);
 });
+
+
+test('a sweep removes expired orphan and indexed records without another read', async () => {
+  const storage = fakeStorage();
+  const clock = { t: 0 };
+  const cache = createCache(storage, { ttlMs: 100, now: at(clock) });
+  await cache.set('old', 'private claim');
+  await storage.set({ 'fccache:orphan': { exp: 100, v: 'orphaned claim' } });
+  clock.t = 101;
+  await cache.sweep();
+  assert.deepEqual([...storage.data.keys()].filter((k) => k !== INDEX_KEY), []);
+  assert.equal(await cache.size(), 0);
+});
+
+test('clearing during a request prevents its late response repopulating the cache', async () => {
+  const storage = fakeStorage();
+  const cache = createCache(storage);
+  let release;
+  let started;
+  const ready = new Promise((resolve) => { started = resolve; });
+  const pending = cache.wrap('claim', () => { started(); return new Promise((resolve) => { release = resolve; }); });
+  await ready;
+  await cache.clear();
+  release('late answer');
+  assert.equal(await pending, 'late answer');
+  assert.equal(await cache.get('claim'), null);
+});
+
+test('writes sweep the whole store at most once per interval, and again once it has passed', async () => {
+  const storage = fakeStorage();
+  let wholeReads = 0;
+  const get = storage.get.bind(storage);
+  storage.get = (key) => { if (key == null) wholeReads++; return get(key); };
+  const clock = { t: 0 };
+  const cache = createCache(storage, { ttlMs: 100, sweepEveryMs: 1000, now: at(clock) });
+  for (let i = 0; i < 6; i++) await cache.set(`search|${i}`, i); // one check's worth of writes
+  assert.equal(wholeReads, 1, 'a burst of writes sweeps once');
+
+  clock.t = 1500; // every entry above has expired, and the interval has passed
+  await cache.set('search|later', 'x');
+  assert.equal(wholeReads, 2);
+  assert.deepEqual([...storage.data.keys()].filter((k) => k !== INDEX_KEY).length, 1, 'the expired entries are gone');
+});

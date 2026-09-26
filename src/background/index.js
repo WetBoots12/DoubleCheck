@@ -8,7 +8,7 @@
 // it completes, and a tab that navigates or closes has its queued jobs dropped so
 // no search call is spent on a page nobody is reading any more.
 
-import { MSG, STATUS, getSettings, saveSettings, faintThreshold } from '../shared/messages.js';
+import { MSG, STATUS, getSettings as loadSettings, saveSettings as persistSettings, faintThreshold } from '../shared/messages.js';
 import { scoreClaimWorthiness, explainClaim } from '../../classifier/inference/classifier.js';
 import {
   getSearchProvider,
@@ -29,12 +29,42 @@ import { makeSource, sourceKey } from '../shared/sources.js';
 import { engineStyle, searchUrl } from '../shared/engines.js';
 import { tabStore, privateTabs } from './tabstate.js';
 import { sourceStore } from './sourcestore.js';
-import { evaluateUrl, applySiteRule, normalizeDomain, httpUrl } from '../shared/privacy.js';
+import { evaluateUrl, applySiteRule, normalizeDomain, httpUrl, publicSourceUrl } from '../shared/privacy.js';
 import { scoreEvidence } from '../shared/evidence.js';
 import { createCache, cacheKey } from '../shared/cache.js';
 // Content scripts are classic scripts and cannot import, so the worker computes the
 // appearance and sends it as plain values with every state reply.
 import { highlightVars, highlightStyleName } from '../shared/appearance.js';
+
+// Reuse settings until storage changes; all document writes still go through
+// the worker. Tests without a storage event API use uncached reads.
+let settingsSnapshot = null;
+let settingsPending = null;
+let settingsRevision = 0;
+function invalidateSettings() {
+  settingsRevision++;
+  settingsSnapshot = null;
+  settingsPending = null;
+}
+async function getSettings() {
+  if (!chrome.storage.onChanged) return loadSettings();
+  if (settingsSnapshot) return settingsSnapshot;
+  if (!settingsPending) {
+    const revision = settingsRevision;
+    settingsPending = loadSettings().then((value) => {
+      if (revision !== settingsRevision) return getSettings();
+      settingsSnapshot = value;
+      settingsPending = null;
+      return value;
+    }).catch((err) => { settingsPending = null; throw err; });
+  }
+  return settingsPending;
+}
+async function saveSettings(patch) {
+  const value = await persistSettings(patch);
+  invalidateSettings();
+  return value;
+}
 
 function appearanceOf(settings) {
   return {
@@ -83,20 +113,72 @@ const queue = createQueue(3);
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
 // A worker that died mid-check left claims spinning; put them back to actionable.
-tabStore.recoverStale().catch(() => {});
+const startupReady = Promise.all([tabStore.recoverStale(), loadSettings().then((s) => s.cacheResults ? cache.sweep() : cache.clear())]).catch(() => {});
+chrome.storage.onChanged?.addListener((changes, area) => {
+  if (area === 'local' && changes.fc_settings) invalidateSettings();
+  if (area === 'local' && changes.fc_settings?.newValue?.cacheResults === false) cache.clear().catch(() => {});
+});
 
-chrome.tabs.onRemoved.addListener((tabId) => {
+async function settingsForTab(tabId) {
+  const settings = await getSettings();
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  return !tab || tab.incognito ? { ...settings, cacheResults: false } : settings;
+}
+
+function pageIdentity(url) {
+  // Preserve hash-router paths; ordinary in-document anchors do not change pages.
+  const value = String(url || '');
+  return /#(?:!|\/)/.test(value) ? value : value.split('#')[0];
+}
+const navigationQueues = new Map();
+function navigateTab(tabId, url, reload = false) {
+  const work = async () => {
+    const key = `page:${tabId}`;
+    const previous = (await chrome.storage.session.get(key))[key];
+    const next = pageIdentity(url);
+    if (!reload && previous === next) return;
+    await resetTab(tabId);
+    await chrome.storage.session.set({ [key]: next });
+  };
+  const next = (navigationQueues.get(tabId) || startupReady).then(work);
+  navigationQueues.set(tabId, next.catch(() => {}));
+  return next;
+}
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await startupReady;
+  await navigationQueues.get(tabId);
+  navigationQueues.delete(tabId);
+  await chrome.storage.session.remove([`page:${tabId}`, `doc:${tabId}`, `caption:${tabId}`]);
   queue.drop(tabId);
-  publishers.delete(tabId);
+  await clearPublishers(tabId);
   privateTabs.forget(tabId).catch(() => {});
   tabStore.clear(tabId).catch(() => {});
 });
 
-// Any URL change resets the tab: a real load reports a status, while a single-page-app
-// navigation (history.pushState) reports only a url. Requiring both missed every SPA.
+// URL changes are serialized with content-script navigation reports.
+//
+// Only a changed address counts here. A status of 'loading' with no address is not
+// a reload: measured in Chrome 153, history.replaceState to the same address and an
+// iframe navigating after the page has loaded both report exactly that, and treating
+// them as reloads wiped every claim on the page while its highlights stayed behind.
+// A real reload is recognised by its new document instead; see documentChanged.
 chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (info.url) resetTab(tabId);
+  if (info.url) navigateTab(tabId, info.url).catch(() => {});
 });
+
+// Each content script instance names its document with a random id. A different id
+// from the same tab means a new document on it: a reload of the same address, or a
+// page restored from the back-forward cache, neither of which changes the URL the
+// worker last saw. The first id a tab reports is simply recorded.
+async function documentChanged(tabId, docId, url) {
+  if (typeof docId !== 'string' || !/^[a-z0-9-]{8,64}$/i.test(docId)) return;
+  const key = `doc:${tabId}`;
+  const previous = (await chrome.storage.session.get(key))[key];
+  if (previous === docId) return;
+  await chrome.storage.session.set({ [key]: docId });
+  if (previous) await navigateTab(tabId, url, true);
+}
 
 // Read the page again from nothing.
 //
@@ -109,14 +191,14 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 async function rescanTab(tabId) {
   if (tabId == null) return false;
   await resetTab(tabId);
-  publishers.delete(tabId);
   chrome.tabs.sendMessage(tabId, { type: MSG.RESCAN }).catch(() => {});
   return true;
 }
 
 async function resetTab(tabId) {
   queue.drop(tabId);
-  publishers.delete(tabId);
+  await clearPublishers(tabId);
+  await chrome.storage.session.remove(`caption:${tabId}`);
   await privateTabs.forget(tabId); // a new page is judged on its own merits
   await tabStore.clear(tabId);
   updateBadge(tabId);
@@ -229,12 +311,11 @@ async function pageCitationRecord(tabId, approvedUrl) {
 }
 
 async function pushPageStatus(tabId, policy) {
-  if ((await activeTabId()) !== tabId) return;
   chrome.runtime.sendMessage({ type: MSG.PAGE_STATUS, tabId, ...policy }).catch(() => {});
 }
 
-async function activeTabId() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+async function activeTabId(windowId) {
+  const [tab] = await chrome.tabs.query({ active: true, ...(Number.isInteger(windowId) ? { windowId } : { currentWindow: true }) });
   return tab?.id ?? null;
 }
 
@@ -260,13 +341,16 @@ async function panelClaims(tabId, state) {
   if (!stored.length) return stored;
   let cached = new Set();
   try {
-    cached = await cachedClaims(tabId, stored, await getSettings());
+    cached = await cachedClaims(tabId, stored, await settingsForTab(tabId));
   } catch { /* the panel is still worth sending without it */ }
   return stored.map((c) => (cached.has(c.id) ? { ...c, cached: true } : c));
 }
 
 async function pushPanel(tabId) {
-  if ((await activeTabId()) !== tabId) return;
+  // Panels only draw the active tab of their own window, so a background tab's
+  // update would be built, including its cache lookup, and then thrown away.
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (tab?.active === false) return;
   const state = await tabStore.peek(tabId);
   chrome.runtime
     .sendMessage({ type: MSG.PANEL_UPDATE, tabId, claims: await panelClaims(tabId, state) })
@@ -277,7 +361,7 @@ function pushHighlights(tabId, claims) {
   chrome.tabs
     .sendMessage(tabId, {
       type: MSG.CLAIM_STATUS,
-      claims: claims.map((c) => ({ id: c.id, text: c.text, status: c.status, band: c.band })),
+      claims: claims.map((c) => ({ id: c.id, text: c.text, status: c.status, band: c.band, ts: c.ts })),
     })
     .catch(() => {});
 }
@@ -351,8 +435,9 @@ async function handleSentences(tabId, sentences) {
 
 // withAi false: fetch sources only. withAi true: also summarize them. If sources are
 // already fetched, summarizing costs no further search call.
-async function requestCheck(claimId, withAi) {
-  const tabId = await activeTabId();
+async function requestCheck(claimId, withAi, windowId, panelId) {
+  const tabId = await activeTabId(windowId);
+  if ((await scanPolicy(tabId)).blocked) return;
   if (tabId == null) return;
   const state = await tabStore.peek(tabId);
   const claim = state?.claims.get(claimId);
@@ -364,9 +449,7 @@ async function requestCheck(claimId, withAi) {
   // runs in one shared worker across normal and incognito tabs unless it says
   // otherwise, so without this a check run in incognito left a day-long record of
   // the claim's answer, its AI summary and excerpts of the pages read for it.
-  const stored = await getSettings();
-  const tab = await chrome.tabs.get(tabId).catch(() => null);
-  const settings = tab?.incognito ? { ...stored, cacheResults: false } : stored;
+  const settings = { ...await settingsForTab(tabId), panelId };
 
   if (withAi && claim.results?.length) {
     summarize(tabId, claim, settings);
@@ -390,10 +473,10 @@ async function requestCheck(claimId, withAi) {
 
 // Claims left waiting on a summary that nobody is left to produce. Returns whether
 // anything changed, so the caller only writes when there is something to write.
-async function clearStrandedSummaries(tabId, state) {
+async function clearStrandedSummaries(tabId, state, panelId) {
   let changed = false;
   for (const claim of state.claims.values()) {
-    if (claim.summarizing) {
+    if (claim.summarizing && (!claim.summaryRequestId || claim.summaryOwner !== panelId)) {
       claim.summarizing = false;
       changed = true;
     }
@@ -412,12 +495,20 @@ async function summarize(tabId, claim, settings) {
   pushPanel(tabId);
 
   if (llm.runsInPage) {
+    const requestId = crypto.randomUUID();
+    claim.summaryRequestId = requestId;
+    claim.summaryOwner = settings.panelId;
+    await tabStore.save(tabId);
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
     // The browser's built-in model only exists in a document context, so the side
     // panel runs it and returns the summary via LLM_RESULT. No panel open means no
     // summary, which is fine since summaries are only ever read there.
     chrome.runtime
       .sendMessage({
         type: MSG.LLM_REQUEST,
+        tabId,
+        windowId: tab?.windowId,
+        requestId,
         claimId: claim.id,
         claim: claim.text,
         results: claim.results,
@@ -468,7 +559,9 @@ async function tabOrigin(tabId) {
 // bar, plus whoever actually wrote it. A portal's copy of a wire story and the
 // wire's own copy are one source, not two, and the content script reports the
 // second from the page's canonical link, Open Graph URL and credit line.
-const publishers = new Map(); // tabId -> domains
+async function clearPublishers(tabId) {
+  await chrome.storage.session.remove(`publishers:${tabId}`);
+}
 
 // The addresses under every other claim on the tab: what the reader can already
 // see, which is what a new check should try not to repeat.
@@ -483,7 +576,7 @@ function shownUrls(state, exceptClaimId) {
 
 async function excludedDomains(tabId) {
   const origin = await tabOrigin(tabId);
-  const extra = publishers.get(tabId) || [];
+  const extra = (await chrome.storage.session.get(`publishers:${tabId}`))[`publishers:${tabId}`] || [];
   return [...new Set([origin, ...extra].filter(Boolean))];
 }
 
@@ -504,7 +597,7 @@ const READ_TOP_N = 2;
 // page, or when the reader presses a Cite button, and the empty answer is a valid
 // one: shared/citation.js cites an unauthored page correctly in all four styles.
 async function pageMetadata(url, settings) {
-  if (!url) return null;
+  if (!publicSourceUrl(url)) return null;
   try {
     return await remember(settings, 'meta', [url], async () => {
       const html = await fetchPageHtml(url);
@@ -518,9 +611,9 @@ async function pageMetadata(url, settings) {
 // Metadata for a set of addresses, as a plain object the citation module can read.
 // Fetched in parallel, and a failure anywhere costs that one source its author and
 // nothing else.
-async function metadataFor(urls, settings) {
-  const wanted = [...new Set(urls.filter(Boolean))];
-  const found = {};
+async function metadataFor(urls, settings, results = []) {
+  const found = Object.fromEntries(results.filter((r) => r.metadata && publicSourceUrl(r.url)).map((r) => [r.url, r.metadata]));
+  const wanted = [...new Set(urls.filter((url) => publicSourceUrl(url) && !found[url]))];
   await Promise.all(wanted.map(async (url) => {
     const meta = await pageMetadata(url, settings);
     if (meta) found[url] = meta;
@@ -531,19 +624,24 @@ async function metadataFor(urls, settings) {
 async function readSources(claim, results, settings) {
   if (!settings.readSources) return;
   await Promise.all(results.slice(0, READ_TOP_N).map(async (r) => {
-    if (!r?.url) return;
+    if (!publicSourceUrl(r?.url)) return;
     try {
       // The excerpt and the date are cached, not the page: they are small, and
       // they are what gets used. The date the publisher put on the page beats a
       // search provider's guess at it, so it wins where both exist.
       const read = await remember(settings, 'read', [r.url, claim.text], async () => {
+        const epoch = cache.epoch();
         const html = await fetchPageHtml(r.url);
         if (!html) return { excerpt: '', date: '' };
+        const meta = metadataFromHtml(html);
+        if (settings.cacheResults) await cache.set(cacheKey('meta', [r.url]), meta, epoch);
         return {
+          meta,
           excerpt: relevantExcerpt(claim.text, extractParagraphs(html)),
           date: publishedDateFromHtml(html),
         };
       });
+      if (read?.meta) r.metadata = read.meta;
       if (read?.excerpt) r.excerpt = read.excerpt;
       if (read?.date) r.date = read.date;
     } catch {
@@ -625,9 +723,10 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
     // difference is only whether it happens now for all of them or later for the
     // one that gets cited.
     if (settings.autoCitationData) {
-      await metadataFor(results.map((r) => r?.url), settings);
+      await metadataFor(results.filter((r) => !r.metadata).map((r) => r?.url), settings);
     }
 
+    if ((await tabStore.peek(tabId)) !== state) return;
     claim.results = results;
     claim.factChecks = factChecks;
     claim.scholar = scholar;
@@ -643,7 +742,7 @@ async function checkClaim(tabId, claimId, settings, withAi = false) {
 
   await tabStore.save(tabId);
   pushPanel(tabId);
-  pushHighlights(tabId, [claim]);
+  if ((await tabStore.peek(tabId)) === state) pushHighlights(tabId, [claim]);
 }
 
 // --- context menu -----------------------------------------------------------
@@ -675,7 +774,9 @@ chrome.runtime.onInstalled?.addListener((details) => {
 
 chrome.contextMenus?.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== MENU_ID || tab?.id == null) return;
-  addUserClaim(tab.id, info.selectionText || '');
+  // Open during the actual gesture, before storage or policy awaits.
+  chrome.sidePanel.open?.({ tabId: tab.id }).catch(() => {});
+  startupReady.then(() => addUserClaim(tab.id, info.selectionText || '')).catch(() => {});
 });
 
 async function addUserClaim(tabId, selection) {
@@ -688,7 +789,6 @@ async function addUserClaim(tabId, selection) {
   // in the panel is the deliberate way to change your mind about a site.
   const policy = await scanPolicy(tabId);
   if (policy.blocked) {
-    await chrome.sidePanel?.open?.({ tabId }).catch(() => {});
     pushPageStatus(tabId, policy); // the banner says which rule, and how to override
     return;
   }
@@ -715,14 +815,12 @@ async function addUserClaim(tabId, selection) {
     pushHighlights(tabId, [state.claims.get(claimId)]);
   }
 
-  // A menu click is a user gesture, which is what opening the panel requires.
-  chrome.sidePanel.open?.({ tabId }).catch(() => {});
   await pushPanel(tabId);
-  chrome.runtime.sendMessage({ type: MSG.PANEL_FOCUS, claimId }).catch(() => {});
+  chrome.runtime.sendMessage({ type: MSG.PANEL_FOCUS, tabId, claimId }).catch(() => {});
 }
 
-async function sendToActiveTab(message) {
-  const tabId = await activeTabId();
+async function sendToActiveTab(message, windowId) {
+  const tabId = await activeTabId(windowId);
   if (tabId == null) return;
   chrome.tabs.sendMessage(tabId, message).catch(() => {});
 }
@@ -760,26 +858,62 @@ async function keepCitedSources(tabId, sources) {
   if (!sources.length) return;
   try {
     const tab = tabId == null ? null : await chrome.tabs.get(tabId).catch(() => null);
-    if (tab?.incognito) return;
+    if (!tab || tab.incognito) return;
 
     for (const source of sources) {
       if (!httpUrl(source.url)) continue;
-      if (evaluateUrl(source.url, { privateSitesRule: false }).blocked) continue; // local addresses
+      if (!publicSourceUrl(source.url)) continue;
       const record = makeSource(source);
       if (record) await sourceStore.add(record);
     }
   } catch { /* a citation the reader already has is worth more than the bookkeeping */ }
 }
 
+const CONTENT_MESSAGES = new Set([
+  MSG.GET_STATE, MSG.PAGE_PRIVATE, MSG.PAGE_LANGUAGE, MSG.PAGE_SOURCES,
+  MSG.PAGE_CHANGED, MSG.UNLOCATED, MSG.SENTENCES, MSG.HIGHLIGHT_CLICKED,
+  MSG.CAPTION_HINT, MSG.NAV_STATE,
+]);
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || typeof msg.type !== 'string') return false;
+  const fromDocument = typeof sender.url === 'string' &&
+    (sender.url === chrome.runtime.getURL('src/options/options.html') ||
+     sender.url.split('#')[0] === chrome.runtime.getURL('src/options/options.html') ||
+     sender.url === chrome.runtime.getURL('src/sidepanel/panel.html'));
+  if (sender.id && sender.id !== chrome.runtime.id) return false;
+  if (sender.tab?.id != null && !fromDocument && !CONTENT_MESSAGES.has(msg.type)) return false;
+  if (sender.tab?.id == null && !fromDocument && sender.url) return false;
+  startupReady.then(async () => {
+    if (msg.type !== MSG.PAGE_CHANGED && sender.tab?.id != null) await navigationQueues.get(sender.tab.id);
+    const keep = handleMessage(msg, sender, sendResponse);
+    if (!keep) sendResponse();
+  }).catch(() => sendResponse({ ok: false }));
+  return true;
+});
+
+function handleMessage(msg, sender, sendResponse) {
   const tabId = sender.tab?.id;
 
   switch (msg.type) {
+    case MSG.SAVE_SETTINGS:
+      return reply(sendResponse, async () => ({ settings: await saveSettings(msg.patch) }), { settings: null });
     case MSG.GET_STATE:
       // The fallback refuses: a page that cannot be judged is a page that is not read.
       return reply(sendResponse, async () => {
+        // A new document is reset before it is judged, so a password-field marker
+        // or claims from the previous document cannot carry into this answer.
+        if (tabId != null) await documentChanged(tabId, msg.docId, sender.tab?.url || '');
         const [settings, policy] = await Promise.all([getSettings(), scanPolicy(tabId)]);
-        if (tabId != null) pushPageStatus(tabId, policy);
+        if (tabId != null) {
+          const key = `page:${tabId}`;
+          const stored = await chrome.storage.session.get(key);
+          if (!stored[key]) {
+            const tab = await chrome.tabs.get(tabId);
+            await chrome.storage.session.set({ [key]: pageIdentity(tab?.url) });
+          }
+          pushPageStatus(tabId, policy);
+        }
         return {
           autoCheck: settings.autoCheck,
           scanAllowed: !policy.blocked,
@@ -828,12 +962,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // does not ship the same sentence twice, and the worker so it does not score
       // it twice. A changed threshold therefore does nothing to a page already on
       // screen until both of those are emptied, which is what this does.
-      return reply(sendResponse, async () => ({ ok: await rescanTab(await activeTabId()) }), { ok: false });
+      return reply(sendResponse, async () => ({ ok: await rescanTab(await activeTabId(msg.windowId)) }), { ok: false });
 
     case MSG.OPEN_TRANSCRIPT:
       // The panel asks; the video script does it, because only a content script can
       // touch YouTube's own controls.
-      activeTabId().then((id) => {
+      activeTabId(msg.windowId).then((id) => {
         if (id == null) return;
         chrome.tabs.sendMessage(id, { type: MSG.OPEN_TRANSCRIPT }).catch(() => {});
       });
@@ -849,16 +983,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           .map(normalizeDomain)
           .filter(Boolean)
           .slice(0, 5);
-        if (domains.length) publishers.set(tabId, domains);
-        else publishers.delete(tabId);
+        return reply(sendResponse, async () => {
+          await chrome.storage.session.set({ [`publishers:${tabId}`]: domains });
+          return { ok: true };
+        }, { ok: false });
       }
       return false;
 
     case MSG.SITE_RULE:
       return reply(sendResponse, async () => {
         const settings = await getSettings();
-        await saveSettings(applySiteRule(settings, msg.domain, msg.action));
-        const id = await activeTabId();
+        await saveSettings((current) => applySiteRule(current, msg.domain, msg.action));
+        const id = await activeTabId(msg.windowId);
         if (id == null) return { ok: false };
         const policy = await scanPolicy(id);
         chrome.tabs
@@ -887,7 +1023,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }, { ok: false });
 
     case MSG.PAGE_CHANGED:
-      if (tabId != null) resetTab(tabId);
+      if (tabId != null) return reply(sendResponse, async () => {
+        await navigateTab(tabId, msg.url || sender.tab.url);
+        return { ok: true };
+      }, { ok: false });
       return false;
 
     case MSG.UNLOCATED:
@@ -905,50 +1044,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case MSG.SENTENCES:
-      if (tabId != null) handleSentences(tabId, msg.sentences || []);
+      if (tabId != null) handleSentences(tabId, (Array.isArray(msg.sentences) ? msg.sentences : []).filter((s) => s && typeof s.id === 'string' && /^[a-z0-9_-]{1,100}$/i.test(s.id) && typeof s.text === 'string' && s.text.length <= 20000).slice(0, 1000)).catch(() => {});
       return false;
 
     case MSG.HIGHLIGHT_CLICKED:
-      chrome.runtime.sendMessage({ type: MSG.PANEL_FOCUS, claimId: msg.claimId }).catch(() => {});
+      chrome.runtime.sendMessage({ type: MSG.PANEL_FOCUS, tabId, claimId: msg.claimId }).catch(() => {});
       return false;
 
     case MSG.PANEL_READY:
       return reply(sendResponse, async () => {
-        const id = await activeTabId();
+        const id = await activeTabId(msg.windowId);
         const state = id == null ? null : await tabStore.peek(id);
         // A panel that has only just opened cannot be running a summary from before
         // it opened. The built-in model runs in the panel's document, so closing the
         // panel mid-summary destroys the only thing that could ever answer, and the
         // claim would sit marked summarizing with its buttons refusing to act. The
         // panel now answers on every path it can; this covers the one it cannot.
-        if (state && await clearStrandedSummaries(id, state)) pushHighlights(id, []);
+        if (state && await clearStrandedSummaries(id, state, msg.panelId)) pushHighlights(id, []);
+        const captionKey = `caption:${id}`;
         return {
           tabId: id,
           claims: await panelClaims(id, state),
           page: id == null ? null : await scanPolicy(id),
+          caption: id == null ? null : (await chrome.storage.session.get(captionKey))[captionKey] || null,
         };
       }, { tabId: null, claims: [], page: null });
 
     case MSG.SET_AUTOCHECK:
       return reply(sendResponse, async () => {
         await saveSettings({ autoCheck: msg.autoCheck });
-        const id = await activeTabId();
+        const id = await activeTabId(msg.windowId);
         const policy = await scanPolicy(id);
         sendToActiveTab({
           type: MSG.SCAN_CONFIG,
           autoCheck: msg.autoCheck,
           scanAllowed: !policy.blocked,
           appearance: appearanceOf(await getSettings()),
-        });
+        }, msg.windowId);
         return { ok: true };
       }, { ok: false });
 
     case MSG.LLM_RESULT:
-      activeTabId().then(async (id) => {
+      Promise.resolve(msg.tabId).then(async (id) => {
         const state = id == null ? null : await tabStore.peek(id);
         const claim = state?.claims.get(msg.claimId);
-        if (!claim) return;
+        if (!claim || !claim.summarizing || claim.summaryRequestId !== msg.requestId) return;
         claim.summarizing = false;
+        delete claim.summaryRequestId;
+        delete claim.summaryOwner;
         if (msg.analysis) {
           claim.analysis = msg.analysis;
           computeEvidence(claim, await getSettings());
@@ -968,7 +1111,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // and the same as the user typing the claim into the address bar. The results
       // open in a tab rather than the panel, because no browser hands them to
       // extensions as data.
-      activeTabId().then(async (id) => {
+      activeTabId(msg.windowId).then(async (id) => {
         const state = id == null ? null : await tabStore.peek(id);
         const claim = state?.claims.get(msg.claimId);
         if (!claim) return;
@@ -998,16 +1141,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // source pays nothing, and an unreadable page still cites from what the
       // search result gave us.
       return reply(sendResponse, async () => {
-        const id = await activeTabId();
+        const id = await activeTabId(msg.windowId);
         const state = id == null ? null : await tabStore.peek(id);
         const claim = state?.claims.get(msg.claimId);
         if (!claim) return { sources: [] };
 
-        const settings = await getSettings();
+        const settings = await settingsForTab(id);
         const wanted = msg.url
           ? (claim.results || []).filter((r) => r?.url === msg.url).map((r) => r.url)
           : (claim.results || []).map((r) => r?.url);
-        const meta = await metadataFor(wanted, settings);
+        const meta = await metadataFor(wanted, settings, claim.results);
 
         const accessed = new Date().toISOString().slice(0, 10);
         const all = sourcesForClaim(claim, meta, accessed);
@@ -1034,7 +1177,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // no permission to do so is requested. The policy consulted here is the strict
       // one, because this writes to disk and stays there.
       return reply(sendResponse, async () => {
-        const id = await activeTabId();
+        const id = await activeTabId(msg.windowId);
         if (id == null) return { ok: false, reason: 'unsupported' };
 
         const policy = await citationPolicy(id);
@@ -1067,13 +1210,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // that can answer and when the page itself did not say enough.
       return reply(sendResponse, async () => {
         const nothing = { source: null, missing: [], pageText: '', searchResults: [] };
-        const id = await activeTabId();
+        const id = await activeTabId(msg.windowId);
         const state = id == null ? null : await tabStore.peek(id);
         const claim = state?.claims.get(msg.claimId);
         if (!claim) return nothing;
 
-        const settings = await getSettings();
-        const meta = await metadataFor([msg.url], settings);
+        if (!(claim.results || []).some((r) => r?.url === msg.url) || !publicSourceUrl(msg.url)) return nothing;
+        const settings = await settingsForTab(id);
+        const meta = await metadataFor([msg.url], settings, claim.results);
         const accessed = new Date().toISOString().slice(0, 10);
         const source = sourcesForClaim(claim, meta, accessed).find((x) => x.url === msg.url) || null;
         if (!source) return nothing;
@@ -1114,22 +1258,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }, { source: null, missing: [], pageText: '', searchResults: [] });
 
     case MSG.CHECK_CLAIM:
-      requestCheck(msg.claimId, Boolean(msg.withAi));
+      requestCheck(msg.claimId, Boolean(msg.withAi), msg.windowId, msg.panelId).catch(() => {});
       return false;
 
     case MSG.NAV_CLAIM:
-      sendToActiveTab({ type: MSG.NAV_CLAIM, direction: msg.direction });
+      sendToActiveTab({ type: MSG.NAV_CLAIM, direction: msg.direction }, msg.windowId);
       return false;
 
     case MSG.CAPTION_HINT:
-      // Only the active tab's video may put a banner in the panel; a background tab
-      // with captions off must not nag about a page the user is not looking at.
-      activeTabId().then((id) => {
-        if (tabId == null || id !== tabId) return;
-        chrome.runtime
-          .sendMessage({ type: MSG.CAPTION_HINT, tabId, hint: msg.hint ?? null, scanned: msg.scanned ?? 0 })
-          .catch(() => {});
-      });
+      // Remembered as well as forwarded. The video script only reports a change, so
+      // a panel opened after the report, which is the usual order, would otherwise
+      // never show the captions-off banner or its "Open the transcript" button.
+      if (tabId != null) {
+        const caption = { hint: ['off', 'none', 'reading'].includes(msg.hint) ? msg.hint : null,
+          scanned: Number.isFinite(msg.scanned) ? msg.scanned : 0 };
+        chrome.storage.session.set({ [`caption:${tabId}`]: caption }).catch(() => {});
+        chrome.runtime.sendMessage({ type: MSG.CAPTION_HINT, tabId, ...caption }).catch(() => {});
+      }
       return false;
 
     case MSG.NAV_STATE:
@@ -1137,6 +1282,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.runtime
         .sendMessage({
           type: MSG.NAV_STATE,
+          tabId,
           claimId: msg.claimId,
           index: msg.index,
           total: msg.total,
@@ -1145,10 +1291,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case MSG.FOCUS_CLAIM:
-      sendToActiveTab({ type: MSG.FOCUS_SENTENCE, claimId: msg.claimId });
+      sendToActiveTab({ type: MSG.FOCUS_SENTENCE, claimId: msg.claimId }, msg.windowId);
       return false;
 
     default:
       return false;
   }
-});
+}

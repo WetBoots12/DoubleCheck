@@ -7,6 +7,38 @@ import { claimToMarkdown } from '../shared/exportclaim.js';
 import { FORMATS, DEFAULT_FORMAT, isFormat, formatCitation, worksCited, missingFields } from '../shared/citation.js';
 import { AI_DISCLAIMER, applyCitationFacts } from '../shared/citationprompt.js';
 
+// Keep every request and update attached to this panel's window.
+const panelId = crypto.randomUUID();
+let panelWindowId = null;
+let activePanelTab = null;
+const panelScope = chrome.windows.getCurrent().then(async (window) => {
+  panelWindowId = window.id;
+  const [tab] = await chrome.tabs.query({ active: true, windowId: window.id });
+  activePanelTab = tab?.id ?? null;
+});
+async function sendPanelMessage(message) {
+  await panelScope;
+  return chrome.runtime.sendMessage({ ...message, windowId: panelWindowId, panelId });
+}
+async function refreshPanel() {
+  const requestedTab = activePanelTab;
+  const res = await sendPanelMessage({ type: MSG.PANEL_READY });
+  if (requestedTab !== activePanelTab || res?.tabId !== activePanelTab) return;
+  renderedTabId = res?.tabId ?? null;
+  folded.clear();
+  clearTabBanners();
+  render(res?.claims || [], { keepScroll: false });
+  if (res?.page) renderPageStatus({ ...res.page, tabId: res.tabId });
+  if (res?.caption) renderCaptionHint({ ...res.caption, tabId: res.tabId });
+}
+chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  panelScope.then(() => {
+    if (windowId !== panelWindowId) return;
+    activePanelTab = tabId;
+    refreshPanel().catch(() => {});
+  });
+});
+
 // A link to a source, built so that where it goes matches what it says. The
 // address is checked by shared/privacy.js; anything that is not an ordinary web
 // address is shown as plain text rather than as a link that lies about itself.
@@ -94,7 +126,7 @@ function renderBanner() {
     open.addEventListener('click', () => {
       open.disabled = true;
       open.textContent = 'Opening…';
-      chrome.runtime.sendMessage({ type: MSG.OPEN_TRANSCRIPT }).catch(() => {});
+      sendPanelMessage({ type: MSG.OPEN_TRANSCRIPT }).catch(() => {});
     });
     banner.appendChild(open);
   }
@@ -149,7 +181,7 @@ async function copyCitation(button, request, { asList = false } = {}) {
   button.disabled = true;
   button.textContent = 'Citing…';
   try {
-    const res = await chrome.runtime.sendMessage(request);
+    const res = await sendPanelMessage(request);
     const sources = res?.sources || [];
     if (!sources.length) throw new Error('nothing to cite');
 
@@ -193,7 +225,7 @@ async function citeWithAi(button, claimId, url, statusLine) {
     const llm = getLlmProvider(settings.llmProvider);
     if (!llm.lookupCitationFacts) throw new Error('this provider cannot look up citations');
 
-    const material = await chrome.runtime.sendMessage({ type: MSG.CITE_MATERIAL, claimId, url });
+    const material = await sendPanelMessage({ type: MSG.CITE_MATERIAL, claimId, url });
     if (!material?.source) throw new Error('nothing to complete');
     if (!material.missing.length) throw new Error('nothing missing');
 
@@ -262,8 +294,7 @@ function clearTabBanners() {
 for (const [btn, action] of [[siteAllow, 'allow'], [siteBlock, 'block']]) {
   btn.addEventListener('click', () => {
     if (!pageStatus?.domain) return;
-    chrome.runtime
-      .sendMessage({ type: MSG.SITE_RULE, domain: pageStatus.domain, action })
+    sendPanelMessage({ type: MSG.SITE_RULE, domain: pageStatus.domain, action })
       .catch(() => {});
   });
 }
@@ -350,7 +381,7 @@ function render(claims, { keepScroll = true } = {}) {
       ? 'This claim has no highlight on the page'
       : 'Jump to this on the page';
     text.addEventListener('click', () => {
-      chrome.runtime.sendMessage({ type: MSG.FOCUS_CLAIM, claimId: c.id }).catch(() => {});
+      sendPanelMessage({ type: MSG.FOCUS_CLAIM, claimId: c.id }).catch(() => {});
     });
     el.appendChild(text);
     // A re-render rebuilds every card, so the outline goes back on the one it was on.
@@ -394,8 +425,7 @@ function render(claims, { keepScroll = true } = {}) {
         folded.delete(c.id);
         for (const other of actions.querySelectorAll('button')) other.disabled = true;
         b.textContent = busyLabel;
-        chrome.runtime
-          .sendMessage({ type: MSG.CHECK_CLAIM, claimId: c.id, withAi })
+        sendPanelMessage({ type: MSG.CHECK_CLAIM, claimId: c.id, withAi })
           .catch(() => {});
       });
       actions.appendChild(b);
@@ -432,7 +462,7 @@ function render(claims, { keepScroll = true } = {}) {
     browse.textContent = 'Search in browser';
     browse.title = 'Open this claim in your default search engine, in a new tab';
     browse.addEventListener('click', () => {
-      chrome.runtime.sendMessage({ type: MSG.BROWSER_SEARCH, claimId: c.id }).catch(() => {});
+      sendPanelMessage({ type: MSG.BROWSER_SEARCH, claimId: c.id }).catch(() => {});
     });
     if (searchKeyed) actions.appendChild(browse);
     else actions.insertBefore(browse, actions.firstChild);
@@ -443,7 +473,7 @@ function render(claims, { keepScroll = true } = {}) {
     if (c.cached && (c.status === STATUS.UNCHECKED || c.status === STATUS.ERROR)) {
       const free = document.createElement('div');
       free.className = 'muted-note';
-      free.textContent = 'You looked this one up recently, so the answer is already saved. No call will be made.';
+      free.textContent = 'Search results are cached. Other lookups and AI summaries may still make requests.';
       actions.appendChild(free);
     }
 
@@ -866,7 +896,7 @@ function focusClaim(claimId) {
 // because the provider changed under us left the claim's buttons dead.
 async function runInPageLlm(msg) {
   const answer = (payload) =>
-    chrome.runtime.sendMessage({ type: MSG.LLM_RESULT, claimId: msg.claimId, ...payload }).catch(() => {});
+    sendPanelMessage({ type: MSG.LLM_RESULT, tabId: msg.tabId, requestId: msg.requestId, claimId: msg.claimId, ...payload }).catch(() => {});
 
   let settings;
   try {
@@ -904,7 +934,7 @@ function showProgress(claimId, text) {
 // --- find bar ---------------------------------------------------------------
 
 function step(direction) {
-  chrome.runtime.sendMessage({ type: MSG.NAV_CLAIM, direction }).catch(() => {});
+  sendPanelMessage({ type: MSG.NAV_CLAIM, direction }).catch(() => {});
 }
 
 function renderNavState({ index, total, claimId }) {
@@ -922,7 +952,7 @@ nextBtn.addEventListener('click', () => step('next'));
 
 // Enter and the arrow keys step matches, as they do in a find bar.
 document.addEventListener('keydown', (e) => {
-  if (e.target.matches('input, textarea')) return;
+  if (e.target.closest('input, textarea, button, a, select, [contenteditable], [role=button]')) return;
   if (e.key === 'Enter') step(e.shiftKey ? 'prev' : 'next');
   else if (e.key === 'ArrowDown') step('next');
   else if (e.key === 'ArrowUp') step('prev');
@@ -931,20 +961,26 @@ document.addEventListener('keydown', (e) => {
 });
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === MSG.PANEL_UPDATE) {
-    // Banners and the site row belong to one tab; switching clears them.
-    if (bannerTabId != null && msg.tabId !== bannerTabId) clearTabBanners();
-    // So does what is folded and where the reader had scrolled to. A new page
-    // starts at the top with everything open.
-    const sameTab = renderedTabId != null && msg.tabId === renderedTabId;
-    if (!sameTab) folded.clear();
-    renderedTabId = msg.tabId;
-    render(msg.claims || [], { keepScroll: sameTab });
-  } else if (msg.type === MSG.CAPTION_HINT) renderCaptionHint(msg);
-  else if (msg.type === MSG.PAGE_STATUS) renderPageStatus(msg);
-  else if (msg.type === MSG.NAV_STATE) renderNavState(msg);
-  else if (msg.type === MSG.PANEL_FOCUS) focusClaim(msg.claimId);
-  else if (msg.type === MSG.LLM_REQUEST) runInPageLlm(msg);
+  panelScope.then(() => {
+    if (msg.type === MSG.LLM_REQUEST) {
+      if (msg.windowId === panelWindowId) runInPageLlm(msg);
+      return;
+    }
+    if (msg.tabId !== activePanelTab) return;
+    if (msg.type === MSG.PANEL_UPDATE) {
+      // Banners and the site row belong to one tab; switching clears them.
+      if (bannerTabId != null && msg.tabId !== bannerTabId) clearTabBanners();
+      // So does what is folded and where the reader had scrolled to. A new page
+      // starts at the top with everything open.
+      const sameTab = renderedTabId != null && msg.tabId === renderedTabId;
+      if (!sameTab) folded.clear();
+      renderedTabId = msg.tabId;
+      render(msg.claims || [], { keepScroll: sameTab });
+    } else if (msg.type === MSG.CAPTION_HINT) renderCaptionHint(msg);
+    else if (msg.type === MSG.PAGE_STATUS) renderPageStatus(msg);
+    else if (msg.type === MSG.NAV_STATE) renderNavState(msg);
+    else if (msg.type === MSG.PANEL_FOCUS) focusClaim(msg.claimId);
+  }).catch(() => {});
 });
 
 // Settings apply to sentences the extension has not judged yet, so changing the
@@ -983,7 +1019,7 @@ addSourceBtn?.addEventListener('click', async () => {
   keepNote.textContent = '';
   keepNote.className = 'keep-note';
 
-  const res = await chrome.runtime.sendMessage({ type: MSG.ADD_SOURCE }).catch(() => null);
+  const res = await sendPanelMessage({ type: MSG.ADD_SOURCE }).catch(() => null);
 
   if (res?.ok) {
     addSourceBtn.textContent = res.replaced ? 'Updated' : 'Kept';
@@ -1004,7 +1040,7 @@ rescanBtn?.addEventListener('click', async () => {
   const label = rescanBtn.textContent;
   rescanBtn.textContent = 'Rescanning…';
   feed.replaceChildren();
-  await chrome.runtime.sendMessage({ type: MSG.RESCAN }).catch(() => {});
+  await sendPanelMessage({ type: MSG.RESCAN }).catch(() => {});
   setTimeout(() => {
     rescanBtn.disabled = false;
     rescanBtn.textContent = label;
@@ -1012,8 +1048,7 @@ rescanBtn?.addEventListener('click', async () => {
 });
 
 toggle.addEventListener('change', () => {
-  chrome.runtime
-    .sendMessage({ type: MSG.SET_AUTOCHECK, autoCheck: toggle.checked })
+  sendPanelMessage({ type: MSG.SET_AUTOCHECK, autoCheck: toggle.checked })
     .catch(() => {});
 });
 
@@ -1024,7 +1059,8 @@ function applyPanelSize(settings) {
 
 // Changing the AI provider or the appearance in settings takes effect here without
 // the panel needing to be reopened.
-chrome.storage.onChanged.addListener(async () => {
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== 'local' || !changes.fc_settings) return;
   const s = await getSettings();
   applyPanelSize(s);
   if (isFormat(s.citationFormat) && s.citationFormat !== citationFormat) {
@@ -1056,10 +1092,8 @@ chrome.storage.onChanged.addListener(async () => {
   // wait to a moment when nobody is waiting.
   warmUpLlm(settings);
 
-  const res = await chrome.runtime.sendMessage({ type: MSG.PANEL_READY }).catch(() => null);
-  renderedTabId = res?.tabId ?? null;
-  render(res?.claims || [], { keepScroll: false });
-  if (res?.page) renderPageStatus({ ...res.page, tabId: res.tabId });
+  await panelScope;
+  await refreshPanel();
 })();
 
 function warmUpLlm(settings) {

@@ -122,3 +122,32 @@ test('ordinals such as 21st. are sentence ends, not St.', () => {
   assert.equal(endsWithAbbreviation('The city ranks 21st.'), false);
   assert.equal(endsWithAbbreviation('They moved to St.', 'Louis last year.'), true);
 });
+
+// Wikipedia puts its reference markers straight after the full stop. ICU then breaks
+// inside the marker, so the next claim began "1] Economists said..." in the panel and
+// in the search query, or it did not break at all and two sentences became one.
+// Measured in Chrome 153 on a page shaped like a Wikipedia article.
+test('a reference marker after the full stop stays with the sentence it supports', () => {
+  assert.deepEqual(
+    splitSentences('Unemployment fell to 4.2 percent in the quarter.[1] Economists said the decline was broad.'),
+    ['Unemployment fell to 4.2 percent in the quarter.[1]', 'Economists said the decline was broad.'],
+  );
+  assert.deepEqual(
+    splitSentences('It rose sharply in 2024.[12][13] Prices fell later that year.'),
+    ['It rose sharply in 2024.[12][13]', 'Prices fell later that year.'],
+  );
+});
+
+test('a bracketed note after the full stop still ends the sentence', () => {
+  assert.deepEqual(
+    splitSentences('It rose sharply in 2024.[citation needed] Prices fell later that year.'),
+    ['It rose sharply in 2024.[citation needed]', 'Prices fell later that year.'],
+  );
+});
+
+test('with markers, every sentence is still a contiguous piece of the text', () => {
+  const text = 'The council raised the budget by 12 million dollars.[2] Officials said ridership grew 18 percent.[3][4] Wages rose.[note 1] Prices did not.';
+  const flat = text.replace(/\s+/g, ' ');
+  for (const s of splitSentences(text)) assert.ok(flat.includes(s), s);
+  assert.equal(splitSentences(text).join(' '), flat);
+});
