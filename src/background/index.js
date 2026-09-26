@@ -71,6 +71,7 @@ function appearanceOf(settings) {
     vars: highlightVars(settings),
     style: highlightStyleName(settings),
     showVideoOverlay: settings.showVideoOverlay !== false,
+    autoTranscript: settings.autoTranscript !== false,
   };
 }
 

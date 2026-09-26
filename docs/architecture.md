@@ -187,9 +187,11 @@ so the obstacle is not the isolated world. The obstacle is the endpoint: it answ
 That was tested against a live video, not assumed, and it is why this is not built.
 
 What works is the transcript YouTube already offers, which the video script reads
-whenever it is open. The side panel offers a button that opens it, so the viewer
-does not have to find it under "…more". It is their page and their click, one step
-further along, and no request goes anywhere YouTube did not send it.
+whenever it is open. By default the video script opens it automatically, once per
+video, when the description shows the video has one and the page may be read; a
+reader who closes it has answered for that video. The setting can be switched off,
+and the side panel still offers a button that opens it. Either way it is YouTube's
+own panel on YouTube's own page, and no request goes anywhere YouTube did not send it.
 
 ### 3.6g Appearance
 

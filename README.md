@@ -116,7 +116,7 @@ cannot be used; the local model option covers Brave.
 | **Search in browser** | Opens a search for the claim in your default search engine, in a new tab. The claim is turned into a query, with the figure and the names quoted, rather than pasted in whole. No key needed, and it leads until you add one |
 | **Add background** | Without a search key: looks the claim up in Wikipedia and shows any published fact-check. Context, not coverage |
 | **Check sources** | With a search key: real web results in the panel, with dates, tiers and the full evidence reading. One search call per press |
-| **Open the transcript** | On YouTube with subtitles off, opens the video's transcript so it can be read |
+| **Open the transcript** | On YouTube, opens the video's transcript so it can be read. Done automatically by default when a video has one; switch that off in settings |
 | **Check with AI** | Searches, then summarizes the results |
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |
 | **Rescan** | Reads the page again with the current settings, after you change the threshold or a provider |
