@@ -313,3 +313,12 @@ test('high word overlap cannot swap the subject of a published verdict', async (
   assert.equal(factCheckMatches('Alice defeated Bob in 2024.', 'Bob defeated Alice in 2024.'), false);
   assert.equal(factCheckMatches('Alice defeated Bob in 2024.', '  ALICE defeated Bob in 2024! '), true);
 });
+
+// Measured in Chrome: with the reference marker left on the sentence, a claim ending
+// "months.[1]" was compared as if it stated the figure 1.
+test('a claim split from a Wikipedia-style paragraph carries no marker figure', async () => {
+  await import('../content/segment.js');
+  const [claim] = globalThis.FCSegment.splitSentences('Unemployment fell to 4.2 percent in the final quarter of 2025, down from 4.4 percent.[1] Economists agreed.');
+  const e = scoreEvidence(claim, [{ url: 'https://en.wikipedia.org/wiki/U', title: 'Unemployment', snippet: 'Unemployment fell to 4.2 percent in 2025.' }]);
+  assert.ok(!e.lines.join(' ').includes('claim says 1,'), e.lines.join(' | '));
+});

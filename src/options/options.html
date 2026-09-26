@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>FactCheck settings</title>
+    <title>Double Check settings</title>
     <style>
       /* Colors live in variables so light/dark can't be broken by rule order. */
       :root {
@@ -228,6 +228,9 @@
       }
       .tabpanel a.coffee-button:hover { filter: brightness(1.08); }
       .tabpanel a.coffee-button:focus-visible { outline: 3px solid var(--coffee-tint); outline-offset: 2px; }
+      /* The disclaimer is the first thing a new reader sees, so it looks like it matters. */
+      .disclaimer-box { border-left: 4px solid var(--err); }
+      .disclaimer-box ul.plain li { margin-bottom: 8px; }
       figure.qr { margin: 0 auto 14px; }
       figure.qr img {
         width: 220px; height: 220px; max-width: 100%;
@@ -274,7 +277,7 @@
   </head>
   <body>
     <div class="wrap">
-      <h1>FactCheck</h1>
+      <h1>Double Check</h1>
       <p class="sub">
         Keys are stored locally on this device and are only ever sent to the provider you
         select below. This extension has no server of its own.
@@ -283,7 +286,8 @@
         <strong>This is a cross-checking aid, not a source of fact.</strong> A flagged
         sentence is not a false one, search results are not verification, and AI
         summaries can be confidently wrong. Read the sources and judge for yourself.
-        Provided as is, with no warranty and no liability accepted.
+        Provided as is, with no warranty and no liability accepted:
+        <a href="#guide" id="disclaimerLink">read the full disclaimer</a>.
       </p>
 
       <nav class="tabs" role="tablist" aria-label="Sections">
@@ -295,6 +299,47 @@
       </nav>
 
       <div class="tabpanel" id="tab-guide" role="tabpanel" aria-labelledby="tab-guide-btn">
+        <section class="disclaimer-box" id="disclaimer">
+          <h2>Disclaimer and liability: please read this first</h2>
+          <p>
+            <strong>Nothing Double Check shows you is a statement of fact.</strong> It is a
+            research aid that helps you check what you read and watch for yourself. It is
+            not an authority on what is true.
+          </p>
+          <ul class="plain">
+            <li><strong>A flag says nothing about truth.</strong> A highlighted sentence is one
+              that looks worth checking. It is not a suspect claim, and an unmarked sentence
+              is not a verified one. Plenty of false statements are never flagged.</li>
+            <li><strong>Search results are not verification.</strong> They are links a search
+              engine returned. They can be irrelevant, outdated, wrong, or contradicted by
+              better sources the search never found.</li>
+            <li><strong>AI summaries can be confidently wrong.</strong> Language models misread
+              sources, overstate agreement and invent detail.</li>
+            <li><strong>The thermometer measures evidence, not truth,</strong> and the source tiers
+              and outlet-lean estimates are this project's own rough guides, not ratings from
+              any media-ratings organisation.</li>
+            <li><strong>Read the actual sources.</strong> The links are the point; everything above
+              them is a shortcut that can be wrong.</li>
+          </ul>
+          <p>
+            <strong>No warranty, no liability.</strong> Double Check is provided "as is", without
+            warranty of any kind, express or implied. Its author accepts no liability for what
+            you find with it, for what you conclude from it, for decisions you make on the basis
+            of it, or for any loss or damage arising from its use. You are responsible for
+            verifying anything that matters to you, and you use it at your own risk.
+          </p>
+          <p>
+            <strong>Third-party services are yours to answer for.</strong> Search engines, AI
+            models and fact-check databases you connect are governed by their own terms and
+            pricing, and any costs they charge are between you and them. Their results belong
+            to them, not to this project.
+          </p>
+          <p class="hint">
+            This is a plain-language statement, not legal advice. The MIT licence under
+            Credits and licences sets out the same terms for the software itself.
+          </p>
+        </section>
+
         <section>
           <h2>In one paragraph</h2>
           <p class="lead">
@@ -388,7 +433,7 @@
               <td>
                 <strong>Highlight the sentence first</strong>, by dragging across it with
                 the mouse, then right-click the highlighted text and choose
-                "Fact-check the highlighted text". The menu item only appears when text is
+                "Double-check the highlighted text". The menu item only appears when text is
                 selected. Use this when something was not marked and you think it
                 should have been.
               </td>
@@ -757,10 +802,9 @@
           </label>
           <div class="hint">
             Strips lead-in attributions such as "officials said that" and, for long
-            sentences, searches only the distinctive words. Off until you have checked it
-            helps: <a id="compareLink" href="#">compare both forms on your own claims</a>.
-            That page uses the key saved here and caches results, so it spends a few
-            search calls the first time and none after.
+            sentences, searches only the distinctive words. Experimental and off by
+            default: shorter queries sometimes find more and sometimes lose the detail
+            that mattered.
           </div>
         </div>
         <div class="field">
@@ -917,7 +961,7 @@
         <section>
           <h2>This extension</h2>
           <p>
-            FactCheck Sidebar is released under the <strong>MIT licence</strong>,
+            Double Check is released under the <strong>MIT licence</strong>,
             Copyright &copy; 2026 John Sluk. You may use, modify and redistribute it,
             including commercially, provided the licence and copyright notice travel with
             it. It comes with no warranty and no liability, which for a tool that touches
@@ -933,7 +977,7 @@
         <section>
           <h2>Supporting it</h2>
           <p>
-            FactCheck Sidebar is free and has no ads, accounts or tracking. If it is useful
+            Double Check is free and has no ads, accounts or tracking. If it is useful
             to you, you can <a href="https://buymeacoffee.com/generousmango" target="_blank" rel="noreferrer">buy me a coffee</a>.
             It unlocks nothing and changes nothing about how the extension works; the link
             simply opens that page in a new tab.
@@ -1028,7 +1072,7 @@
         <section class="support-card">
           <h2>Buy me a coffee</h2>
           <p>
-            FactCheck Sidebar is free, with no ads, no accounts and no tracking. If it
+            Double Check is free, with no ads, no accounts and no tracking. If it
             helps you read the news a little more carefully, a coffee keeps it going.
           </p>
           <a class="coffee-button" href="https://buymeacoffee.com/generousmango" target="_blank" rel="noreferrer">&#9749; Buy me a coffee</a>

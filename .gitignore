@@ -10,3 +10,6 @@ classifier/train/data/
 classifier/train/raw/
 # The exported model IS shipped: the extension needs it to flag anything, and it
 # carries its dataset attribution internally. See ATTRIBUTION.md.
+
+# Built store packages: npm run package
+dist/

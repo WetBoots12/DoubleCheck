@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FactCheck Sidebar",
+  "name": "Double Check",
   "version": "0.1.0",
-  "description": "Flags check-worthy claims on pages and videos in real time and cross-references them with search results.",
+  "description": "Spots claims worth double-checking as you read or watch, entirely on your device, then finds sources for the ones you pick.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
@@ -36,7 +36,7 @@
     }
   },
   "action": {
-    "default_title": "FactCheck Sidebar"
+    "default_title": "Double Check"
   },
   "content_scripts": [
     {

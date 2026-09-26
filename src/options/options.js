@@ -39,6 +39,13 @@ function wireTabs() {
   }
   const requested = location.hash.slice(1);
   showTab(TABS.includes(requested) ? requested : 'guide');
+
+  // The header's "read the full disclaimer" works from whichever tab is open.
+  el('disclaimerLink')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    showTab('guide');
+    el('disclaimer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 const fields = {
   autoCheck: el('autoCheck'),
@@ -436,9 +443,6 @@ async function wireSources() {
   fields.allowedDomains.value = (s.allowedDomains || []).join('\n');
   fields.trustedDomains.value = (s.trustedDomains || []).join('\n');
   fields.distrustedDomains.value = (s.distrustedDomains || []).join('\n');
-  // The comparison page is an extension page, so it can read the saved key itself.
-  el('compareLink').href = chrome.runtime.getURL('tools/query-compare.html');
-  el('compareLink').target = '_blank';
   fields.factCheckProvider.value = s.factCheckProvider;
   fields.factCheckApiKey.value = s.factCheckApiKey;
   fields.llmProvider.value = llmOptions.some((p) => p.id === s.llmProvider) ? s.llmProvider : 'none';

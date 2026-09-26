@@ -80,3 +80,10 @@ test('saving an unchanged stale site list preserves the newer side-panel rule', 
   assert.deepEqual(result.blockedDomains, ['myclinic-notes.example']);
   assert.equal(result.threshold, 0.7);
 });
+
+test('opening YouTube transcripts automatically is on by default, and can be switched off', async () => {
+  assert.equal(DEFAULT_SETTINGS.autoTranscript, true);
+  await saveSettings({ autoTranscript: false });
+  assert.equal((await getSettings()).autoTranscript, false, 'the reader\'s "off" is kept');
+  await saveSettings({ autoTranscript: true });
+});

@@ -100,7 +100,7 @@ export function claimToMarkdown(claim, opts = {}) {
   // Always last, and never omitted. Text pasted elsewhere loses the panel around it,
   // and this is the sentence that stops a list of links reading as a ruling.
   lines.push('---');
-  lines.push('Gathered with FactCheck Sidebar, which finds sources rather than deciding '
+  lines.push('Gathered with Double Check, which finds sources rather than deciding '
     + 'what is true. Read them before repeating any of this.');
 
   return lines.join('\n');
