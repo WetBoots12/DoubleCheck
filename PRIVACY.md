@@ -124,4 +124,4 @@ in the extension's release notes.
 
 ## Contact
 
-Questions about this policy: **[add your contact email or GitHub issues link here]**.
+Questions about this policy: [github.com/WetBoots12/DoubleCheck/issues](https://github.com/WetBoots12/DoubleCheck/issues).

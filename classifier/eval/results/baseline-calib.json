@@ -1,5 +1,5 @@
 {
-  "model": "C:\\Users\\johns\\OneDrive\\Desktop\\FactCheck Browser extension\\classifier\\model\\model.json",
+  "model": "classifier/model/model.json",
   "split": "calib",
   "report": {
     "all": {

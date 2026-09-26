@@ -153,7 +153,7 @@ test('anything that is not http or https is refused', () => {
     'JavaScript:alert(1)',
     'data:text/html,<script>alert(1)</script>',
     'blob:https://example.com/abc',
-    'file:///C:/Users/johns/Desktop',
+    'file:///C:/Users/alice/Desktop',
     'chrome-extension://abc/panel.html',
     'vbscript:msgbox(1)',
   ]) {
