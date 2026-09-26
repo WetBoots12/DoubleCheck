@@ -34,13 +34,20 @@
   }
 
   let autoCheck = true;
-  let scanAllowed = true; // the worker's verdict on this page's URL
+  let scanAllowed = false; // the worker's verdict on this page's URL
   let privateFieldsReported = false;
   let languageReported = false;
   // Set when the user presses the thumbs-up on this site: their explicit yes
   // outranks our guess about the language.
   let languageOverride = false;
   const sent = new Set(); // sentence keys already shipped to the worker
+
+  // Names this document for the worker. A reload of the same address brings a new
+  // instance of this script and so a new id, which is how the worker tells a reload
+  // apart from the replaceState and iframe loads that report the same tab status.
+  // Not crypto.randomUUID: that needs a secure context, and plain http pages exist.
+  const newDocId = () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+  let docId = newDocId();
 
   // A password or card field marks a private page whatever its domain: login
   // screens and checkouts on sites that are otherwise fine to scan.
@@ -105,8 +112,13 @@
   // article a region holds, and asking every ancestor for its own text length would
   // walk the same subtrees hundreds of times.
   let rootChars = 0;
+  let excludedCache = new WeakMap();
+  let paragraphCache = new WeakMap();
 
   function inExcludedRegion(el, root) {
+    if (excludedCache.has(el)) return excludedCache.get(el);
+    const path = [];
+    let excluded = false;
     for (let node = el; node && node !== root; node = node.parentElement) {
       if (node === document.body || node === document.documentElement) break;
       // A class name is weak evidence. Fox News wraps stories in
@@ -114,23 +126,32 @@
       // rule, so every paragraph of every story with a video in it was discarded.
       // A region holding most of the article is the article, whatever it calls
       // itself; only a small region is really furniture. See content/regions.js.
-      if (node.matches(EXCLUDE) && FCRegions.isSideRegion(node.innerText?.length, rootChars)) {
-        return true;
+      path.push(node);
+      if (excludedCache.has(node)) { excluded = excludedCache.get(node); break; }
+      if (node.matches(EXCLUDE) && FCRegions.isSideRegion(node.textContent?.length, rootChars)) {
+        excluded = true;
+        break;
       }
     }
-    return false;
+    for (const node of path) excludedCache.set(node, excluded);
+    return excluded;
   }
 
   function visibleParagraphs(root) {
     const out = [];
     const seen = new Set();
-    rootChars = root.innerText?.length || 0;
+    rootChars = root.textContent?.length || 0;
+    excludedCache = new WeakMap();
     for (const el of root.querySelectorAll(BLOCK)) {
       if (inExcludedRegion(el, root)) continue;
       if (el.closest('.fc-highlight')) continue;
       if (el.querySelector(BLOCK)) continue; // not a leaf block
       if (!el.offsetParent && el.tagName !== 'BODY') continue; // not rendered
+      const raw = el.textContent;
+      if (raw !== undefined && paragraphCache.get(el) === raw) continue;
       const text = el.innerText?.trim();
+      // Only remember readable blocks; a hidden block may become visible later.
+      if (text && raw !== undefined) paragraphCache.set(el, raw);
       if (!text || text.length <= 40) continue;
       if (text.split(/\s+/).length < 8) continue; // control labels, not prose
       const k = text.toLowerCase();
@@ -200,6 +221,7 @@
   }
 
   function collect() {
+    if (checkNavigation()) return;
     if (!autoCheck || !scanAllowed) return;
     if (hasPrivateFields()) {
       scanAllowed = false;
@@ -288,35 +310,51 @@
   // A sentence often crosses several text nodes, because links and bold phrases
   // split it. Wrapping the whole span at once throws in that case, which used to
   // silently drop the claim; wrap each node's portion separately instead.
-  function highlight(claim) {
-    const existing = document.querySelectorAll(`[data-fc-id="${claim.id}"]`);
-    if (existing.length) {
-      for (const el of existing) el.dataset.fcStatus = claim.status;
-      return true;
+  function highlightBatch(claims) {
+    const fresh = [];
+    const missing = [];
+    for (const claim of claims) {
+      const existing = spansOf(claim.id);
+      if (existing.length) {
+        for (const el of existing) el.dataset.fcStatus = claim.status;
+      } else fresh.push(claim);
     }
-
+    if (!fresh.length) return missing;
     const nodes = textNodesIn(contentRoot());
-    const plan = FCTextMatch.buildMatchPlan(nodes.map((n) => n.nodeValue), claim.text);
-    if (!plan) return false;
-
-    // Back to front, so wrapping one node cannot shift offsets in an earlier one.
-    let wrapped = 0;
-    for (const part of [...plan].reverse()) {
-      const node = nodes[part.nodeIndex];
-      if (!node || part.end > node.nodeValue.length) continue;
-      const range = document.createRange();
-      range.setStart(node, part.start);
-      range.setEnd(node, part.end);
-      try {
-        range.surroundContents(makeSpan(claim));
-        wrapped++;
-      } catch {
-        // A node detached or changed under us; the remaining parts still stand.
+    const index = FCTextMatch.buildMatchIndex(nodes.map((n) => n.nodeValue));
+    const parts = [];
+    const occupied = new Map();
+    for (const claim of fresh) {
+      const plan = FCTextMatch.planFromIndex(index, claim.text);
+      if (!plan || plan.some((part) => (occupied.get(part.nodeIndex) || [])
+        .some((other) => part.start < other.end && other.start < part.end))) {
+        missing.push(claim.id);
+        continue;
+      }
+      for (const part of plan) {
+        const ranges = occupied.get(part.nodeIndex) || [];
+        ranges.push(part);
+        occupied.set(part.nodeIndex, ranges);
+        parts.push({ ...part, claim });
       }
     }
-
-    if (wrapped) highlighted.add(claim.id);
-    return wrapped > 0;
+    // Reverse document order preserves offsets even when two claims share a node.
+    parts.sort((a, b) => b.nodeIndex - a.nodeIndex || b.start - a.start);
+    const wrapped = new Set();
+    for (const part of parts) {
+      const node = nodes[part.nodeIndex];
+      if (!node || part.end > node.nodeValue.length) continue;
+      try {
+        const range = document.createRange();
+        range.setStart(node, part.start);
+        range.setEnd(node, part.end);
+        range.surroundContents(makeSpan(part.claim));
+        wrapped.add(part.claim.id);
+        highlighted.add(part.claim.id);
+      } catch { /* detached or changed nodes remain unlocated */ }
+    }
+    for (const claim of fresh) if (!wrapped.has(claim.id) && !missing.includes(claim.id)) missing.push(claim.id);
+    return missing;
   }
 
   // --- find-bar navigation --------------------------------------------------
@@ -414,7 +452,7 @@
     if (msg.type === MSG.CLAIM_STATUS) {
       // Report which claims could not be placed, so the panel can say so instead of
       // leaving the user hunting for a highlight that was never drawn.
-      const missing = msg.claims.filter((c) => !highlight(c)).map((c) => c.id);
+      const missing = highlightBatch(msg.claims);
       if (missing.length) {
         chrome.runtime.sendMessage({ type: MSG.UNLOCATED, ids: missing }).catch(() => {});
       }
@@ -465,10 +503,13 @@
       parent.normalize(); // re-join the text nodes the wrapping split
     }
     highlighted.clear();
+    paragraphCache = new WeakMap();
     currentId = null;
   }
 
   function rescan() {
+    const requestedUrl = pageIdentity(location.href);
+    scanAllowed = false;
     clearHighlights();
     sent.clear();
     privateFieldsReported = false;
@@ -477,10 +518,11 @@
     // languageOverride is not reset: the user pressing the thumbs-up on this site
     // is a decision about the site, not about this particular scan.
     chrome.runtime
-      .sendMessage({ type: MSG.GET_STATE })
+      .sendMessage({ type: MSG.GET_STATE, docId })
       .then((res) => {
+        if (requestedUrl !== pageIdentity(location.href)) return;
         autoCheck = res?.autoCheck ?? autoCheck;
-        scanAllowed = res?.scanAllowed !== false;
+        scanAllowed = res?.scanAllowed === true;
         applyAppearance(res?.appearance);
         collect();
       })
@@ -490,8 +532,8 @@
   }
 
   function onPageChanged() {
+    clearHighlights();
     sent.clear();
-    highlighted.clear();
     currentId = null;
     privateFieldsReported = false;
     languageReported = false;
@@ -509,8 +551,8 @@
 
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
+      .then(() => askPolicy())
       .catch(() => {});
-    askPolicy();
     setTimeout(() => { if (scanAllowed) collect(); }, 900); // let the new view render first
   }
 
@@ -518,50 +560,38 @@
   // once: the answer is now the only thing that permits any reading, so losing it to
   // a worker that was asleep when the message arrived would silence the page.
   function askPolicy(attempt = 0) {
+    const requestedUrl = pageIdentity(location.href);
     chrome.runtime
-      .sendMessage({ type: MSG.GET_STATE })
+      .sendMessage({ type: MSG.GET_STATE, docId })
       .then((res) => {
+        if (requestedUrl !== pageIdentity(location.href)) return;
         if (!res) throw new Error('no answer');
         autoCheck = res.autoCheck ?? autoCheck;
-        scanAllowed = res.scanAllowed !== false;
+        scanAllowed = res.scanAllowed === true;
         applyAppearance(res.appearance);
         if (scanAllowed && autoCheck) collect();
       })
       .catch(() => { if (attempt < 1) setTimeout(() => askPolicy(attempt + 1), 400); });
   }
 
-  let lastUrl = location.href;
-  setInterval(() => {
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      onPageChanged();
-    }
-  }, 1000);
-
-  // Ask whether this page may be read at all, and wait a moment for the answer.
-  //
-  // Two failures to avoid at once. Gating scanning on this round trip permanently
-  // killed the extension on a page whenever a sleeping service worker rejected it.
-  // Ignoring the round trip entirely meant a never-scan page was read locally first
-  // and refused afterwards. So: a short wait for the answer, then scan regardless.
-  // The worker refuses anything from a blocked page in any case, and the wait means
-  // that on a bank or a medical portal the page is usually never read at all.
-  const POLICY_WAIT_MS = 1200;
-  let firstScan = null;
-
-  function firstCollect() {
-    if (firstScan) return;
-    firstScan = true;
-    collect();
+  function pageIdentity(url) {
+    return /#(?:!|\/)/.test(url) ? url : url.split('#')[0];
   }
-  // Scanning is the expensive half, so a mutation only schedules one when it
-  // actually brought reading material with it. The observer stays on document.body
-  // rather than narrowing to contentRoot(): the pages that mutate hardest are
-  // infinite feeds that append whole articles as siblings of the one being read,
-  // and an observer scoped to the current article would go quiet exactly there.
-  setTimeout(firstCollect, POLICY_WAIT_MS); // no answer in time: read it anyway
+  let lastUrl = pageIdentity(location.href);
+  function checkNavigation() {
+    const next = pageIdentity(location.href);
+    if (next === lastUrl) return false;
+    lastUrl = next;
+    onPageChanged();
+    return true;
+  }
+  setInterval(checkNavigation, 1000);
 
   new MutationObserver((records) => {
+    if (checkNavigation() || !scanAllowed || !autoCheck) return;
+    // Triage reuses the last scan's rootChars: measuring the whole body here would
+    // rebuild the page's text on every mutation batch, which is the flood case.
+    excludedCache = new WeakMap();
     const worth = FCMutations.worthScanning(records, {
       isExcluded: (node) => inExcludedRegion(node, document.body),
       isOurs: (node) => node.classList?.contains('fc-highlight') || Boolean(node.closest?.('.fc-highlight')),
@@ -571,17 +601,20 @@
     childList: true,
     subtree: true,
   });
-  chrome.runtime
-    .sendMessage({ type: MSG.GET_STATE })
-    .then((res) => {
-      autoCheck = res?.autoCheck ?? true;
-      scanAllowed = res?.scanAllowed !== false;
-      applyAppearance(res?.appearance);
-      if (!scanAllowed) {
-        firstScan = true; // a "no" arrived first: never read this page
-        return;
-      }
-      if (autoCheck) firstCollect();
-    })
-    .catch(() => {}); // the timeout above still runs the first scan
+  // A page restored from the back-forward cache comes back with this script's old
+  // state, while the worker, having seen the address change, has already dropped the
+  // page's claims. Treat it as the new document it effectively is.
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    docId = newDocId();
+    lastUrl = pageIdentity(location.href);
+    clearHighlights();
+    sent.clear();
+    privateFieldsReported = false;
+    languageReported = false;
+    reportedPublishers = '';
+    scanAllowed = false;
+    askPolicy();
+  });
+  askPolicy();
 })();

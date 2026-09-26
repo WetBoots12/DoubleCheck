@@ -2,9 +2,11 @@ import { DEFAULT_APPEARANCE } from './appearance.js';
 
 // Shared message contract between content scripts, background worker, and side panel.
 // Every message is { type, ...payload }. Tab id is attached by the background worker
-// from sender.tab, never trusted from the message body.
+// from sender.tab. Extension panels use window IDs; AI replies also carry a
+// worker-issued request token bound to their original tab and claim.
 
 export const MSG = {
+  SAVE_SETTINGS: 'saveSettings',
   // content script -> background
   SENTENCES: 'sentences',           // { sentences: [{id, text, ts?}] }
   HIGHLIGHT_CLICKED: 'highlightClicked', // { claimId }
@@ -49,8 +51,8 @@ export const MSG = {
   SITE_RULE: 'siteRule',            // { domain, action: 'allow' | 'block' } -> thumbs up / down
 
   // The browser's built-in model needs a document context, so the panel runs it.
-  LLM_REQUEST: 'llmRequest',        // background -> panel { claimId, claim, results }
-  LLM_RESULT: 'llmResult',          // panel -> background { claimId, summary?, error? }
+  LLM_REQUEST: 'llmRequest',        // background -> panel { tabId, windowId, requestId, claimId, claim, results }
+  LLM_RESULT: 'llmResult',          // panel -> background { tabId, requestId, claimId, analysis?, error? }
 };
 
 // Claim: { id, text, ts?, status, score, results?: SearchResult[], summary?, error? }
@@ -111,22 +113,26 @@ export async function getSettings() {
   return { ...DEFAULT_SETTINGS, ...(stored[SETTINGS_KEY] || {}) };
 }
 
-// Saving is a read, a change and a write, which is three chances for a second save
-// to start before the first has finished. Both of them then read the same settings,
-// and the one that writes last silently discards the other's change. It happens for
-// real: the options page and the side panel are both open, the reader drags the
-// confidence slider while pressing the thumbs-down on a site, and one of the two
-// does nothing. Measured with three concurrent saves, two were lost.
-//
-// So saves are queued. Each one reads only after the one before it has written.
-// This is the same fix, for the same reason, as the serialized index writes in
-// shared/cache.js.
+// The service worker owns all writes. The queue serializes both panel and options
+// changes because document contexts forward their patches to that one owner.
+export function changedSettings(values, baseline) {
+  return Object.fromEntries(Object.entries(values).filter(([key, value]) =>
+    JSON.stringify(value) !== JSON.stringify(baseline[key])));
+}
+
 let settingsQueue = Promise.resolve();
 
 export async function saveSettings(patch) {
+  if (typeof document !== 'undefined' && chrome.runtime?.id) {
+    const response = await chrome.runtime.sendMessage({ type: MSG.SAVE_SETTINGS, patch });
+    if (!response?.settings) throw new Error('Settings could not be saved.');
+    return response.settings;
+  }
   const work = async () => {
     const current = await getSettings();
-    const next = { ...current, ...patch };
+    const changes = typeof patch === 'function' ? patch(current) : patch;
+    const known = Object.fromEntries(Object.entries(changes || {}).filter(([key]) => Object.hasOwn(DEFAULT_SETTINGS, key)));
+    const next = { ...current, ...known };
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
     return next;
   };

@@ -136,6 +136,17 @@ export function ratingTone(rating) {
   return 'unknown';
 }
 
+// A search hit is not proof it reviewed this claim. Only the same statement,
+// allowing case/whitespace and terminal punctuation, may override the evidence.
+// Paraphrases remain listed for the reader; lexical overlap cannot distinguish
+// switched subjects, changed quantities, dates, or negation reliably enough.
+export function factCheckMatches(claim, reviewed) {
+  if (typeof reviewed !== 'string' || !reviewed.trim()) return false;
+  const normalize = (text) => String(text || '').normalize('NFKC').toLowerCase()
+    .trim().replace(/[.!?]+$/, '').replace(/\s+/g, ' ').trim();
+  return Boolean(normalize(claim)) && normalize(claim) === normalize(reviewed);
+}
+
 const RELEVANT = 0.15;
 const POSITION = { not_supported: 8, mixed: 50, supported: 92 };
 
@@ -245,11 +256,12 @@ export function scoreEvidence(claim, sources = [], { stances = null, factChecks 
   }
 
   // A published fact-check outranks everything above.
-  const toned = (factChecks || []).map((f) => ({ ...f, tone: ratingTone(f.rating) })).filter((f) => f.tone !== 'unknown');
+  const toned = (factChecks || []).filter((f) => factCheckMatches(claim, f.claim)).map((f) => ({ ...f, tone: ratingTone(f.rating) })).filter((f) => f.tone !== 'unknown');
   if (toned.length) {
     const f = toned[0];
-    verdict = f.tone === 'true' ? 'supported' : f.tone === 'false' ? 'not_supported' : 'mixed';
-    lines.unshift(`published fact-check: ${f.rating} (${f.publisher})`);
+    const tones = new Set(toned.map((item) => item.tone));
+    verdict = tones.size > 1 ? 'mixed' : f.tone === 'true' ? 'supported' : f.tone === 'false' ? 'not_supported' : 'mixed';
+    lines.unshift(tones.size > 1 ? 'Published fact-checks disagree on this claim' : `published fact-check: ${f.rating} (${f.publisher})`);
   }
 
   const position = toned.length || judged.length

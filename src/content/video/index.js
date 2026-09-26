@@ -20,7 +20,11 @@
     PAGE_META: 'pageMeta',
   };
 
-  let autoCheck = true;
+  let autoCheck = false;
+  // Names this document for the worker, so a reload is told apart from events that
+  // merely look like one; see the article script. Not crypto.randomUUID, which
+  // needs a secure context.
+  const docId = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
   // Some viewers want the panel and a clean player. The claims are still found and
   // still listed; only the markers over the video go away.
   let showOverlay = true;
@@ -98,6 +102,7 @@
   // Captions YouTube already renders for the user; grouped into sentences by
   // punctuation, or flushed on a pause in speech.
   function readCues() {
+    if (checkVideoNavigation() || !autoCheck) return;
     const seg = document.querySelectorAll('.ytp-caption-segment');
     if (!seg.length) return;
     const text = [...seg].map((s) => s.textContent).join(' ').replace(/\s+/g, ' ').trim();
@@ -326,7 +331,7 @@
     if (msg.type === MSG.CLAIM_STATUS) {
       for (const c of msg.claims) {
         const prev = markers.get(c.id);
-        markers.set(c.id, { ts: prev?.ts ?? now(), text: c.text });
+        markers.set(c.id, { ts: Number.isFinite(c.ts) ? c.ts : prev?.ts ?? now(), text: c.text });
       }
       renderMarkers();
       reportPosition(ordered(), currentId);
@@ -437,6 +442,7 @@
   }
 
   function ingestTranscript(force = false) {
+    if (checkVideoNavigation() || !autoCheck) return;
     const nodes = document.querySelectorAll('ytd-transcript-segment-renderer');
     if (!nodes.length) return;
     if (!force && nodes.length === lastTranscriptCount) return;
@@ -514,8 +520,9 @@
 
   // YouTube navigates between videos without reloading the document, so reset the
   // caption buffer and markers whenever the watch URL changes.
-  let lastUrl = location.href;
+  let lastUrl = location.href.split('#')[0];
   function onPageChanged() {
+    autoCheck = false;
     english = null;
     languageReported = false;
     dropHeld();
@@ -531,24 +538,31 @@
     renderMarkers();
     chrome.runtime
       .sendMessage({ type: MSG.PAGE_CHANGED, url: location.href })
-      .catch(() => {});
-    // The new URL may fall under a different rule; ask again.
-    chrome.runtime
-      .sendMessage({ type: MSG.GET_STATE })
-      .then((res) => {
-        autoCheck = (res?.autoCheck ?? true) && res?.scanAllowed !== false;
-        if (res?.appearance) showOverlay = res.appearance.showVideoOverlay !== false;
-      })
+      .then(() => askVideoPolicy())
       .catch(() => {});
   }
 
-  // Reading cues must not depend on the settings round trip succeeding; a sleeping
-  // service worker can reject it, which used to stop the video script permanently.
+  function askVideoPolicy(attempt = 0) {
+    const url = location.href.split('#')[0];
+    chrome.runtime.sendMessage({ type: MSG.GET_STATE, docId }).then((res) => {
+      if (url !== location.href.split('#')[0]) return;
+      if (!res) throw new Error('no policy answer');
+      autoCheck = Boolean(res.autoCheck) && res.scanAllowed === true;
+      if (res.appearance) showOverlay = res.appearance.showVideoOverlay !== false;
+    }).catch(() => { if (attempt < 1) setTimeout(() => askVideoPolicy(attempt + 1), 400); });
+  }
+
+  function checkVideoNavigation() {
+    const next = location.href.split('#')[0];
+    if (next === lastUrl) return false;
+    lastUrl = next;
+    onPageChanged();
+    return true;
+  }
+
+  // Polling backs up the caption observers; permission is required before reading.
   setInterval(() => {
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      onPageChanged();
-    }
+    checkVideoNavigation();
     // Redraw when an ad starts or ends, so the overlay leaves and returns with it.
     const ad = isAdShowing();
     if (ad !== lastAdShowing) {
@@ -569,10 +583,5 @@
     reportCaptionState();
   }, 1000);
 
-  chrome.runtime
-    .sendMessage({ type: MSG.GET_STATE })
-    .then((res) => {
-      autoCheck = (res?.autoCheck ?? true) && res?.scanAllowed !== false;
-    })
-    .catch(() => {}); // default (on) already applied
+  askVideoPolicy();
 })();

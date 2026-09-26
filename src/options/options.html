@@ -526,6 +526,13 @@
             <tr><th>Some marks are dashed and pale</th><td>Those sentences scored just below your threshold. They are "possibly a claim" and can be checked like any other. Turn them off in Settings if you would rather not see them.</td></tr>
           </table>
         </section>
+
+        <section>
+          <p class="hint">
+            Free, with no ads or accounts. If it helps you, you can
+            <a href="https://buymeacoffee.com/generousmango" target="_blank" rel="noreferrer">buy me a coffee</a>.
+          </p>
+        </section>
       </div>
 
       <div class="tabpanel" id="tab-settings" role="tabpanel" aria-labelledby="tab-settings-btn" hidden>
@@ -745,9 +752,10 @@
             <span>Remember search and AI answers for a day</span>
           </label>
           <div class="hint">
-            The same claim checked twice, or two articles about the same event, then
-            costs one call instead of two. Answers are kept on this machine only, in
-            the browser's own storage, and include the text of the claims you checked.
+            Matching requests can reuse saved answers. They stay on this machine
+            and include claim text. Answers expire after 24 hours; expired records
+            are deleted when the extension worker next starts, or when it writes to the cache (at most every ten minutes).
+            Closing Chrome can delay deletion. Turning this off clears saved answers.
             <button type="button" id="clearCache" class="ghost">Clear remembered answers</button>
             <span id="cacheStatus" class="hint"></span>
           </div>
@@ -868,6 +876,16 @@
             It has no third-party JavaScript dependencies. Nothing is bundled, minified or
             fetched from a CDN: every file in the extension was written for it, and the
             browser loads them directly.
+          </p>
+        </section>
+
+        <section>
+          <h2>Supporting it</h2>
+          <p>
+            FactCheck Sidebar is free and has no ads, accounts or tracking. If it is useful
+            to you, you can <a href="https://buymeacoffee.com/generousmango" target="_blank" rel="noreferrer">buy me a coffee</a>.
+            It unlocks nothing and changes nothing about how the extension works; the link
+            simply opens that page in a new tab.
           </p>
         </section>
 

@@ -18,7 +18,7 @@ Page/video text
    -> Classifier (NN): check-worthiness score per sentence
    -> threshold filter (skipped entirely if auto-check is toggled off)
    -> flagged claim
-   -> Search API: query built from the claim, returns source results
+   -> User presses Check sources: query built from the claim, returns source results
    -> LLM (optional, if user configured a key or enabled built-in browser AI):
       synthesizes/cross-references the search results into a short summary
    -> Side panel feed entry + inline highlight on the page
@@ -73,9 +73,8 @@ scrolls/focuses the matching entry in the side panel.
 
 The orchestrator. A Manifest V3 service worker (JavaScript) that behaves like
 a small pipeline script: receives scored sentences from the content script,
-applies the user's auto-check toggle and score threshold, and for each
-flagged sentence calls the provider adapter layer (search, then optionally
-LLM). It also:
+applies the user's auto-check toggle and score threshold, and stores flagged sentences without calling providers. On an explicit user
+action it calls the provider adapter layer (search, then optionally LLM). It also:
 
 - Tracks per-tab state (which claims have been found, their results).
 - Updates the toolbar badge count (`chrome.action.setBadgeText`) with the
@@ -152,8 +151,11 @@ asked for, the top two results are fetched and the paragraphs mentioning the cla
 are used instead.
 
 The service worker has no DOM, so the parsing is text work rather than a pretend
-DOM, and every failure falls back to the snippet. Requests omit credentials, so no
-cookies are sent, and carry a timeout, a content-type check and a size cap. The
+DOM, and every failure falls back to the snippet. Requests omit credentials and reject local-address URLs and redirects. Redirecting
+sources retain their search snippets. Reads have a timeout, content-type check and
+streaming byte cap; paragraph extraction also limits the input to 400,000 characters.
+Hostname checks do not resolve DNS and cannot establish the eventual address of a
+public hostname. The
 excerpt is cached rather than the page, since it is small and it is what is used.
 
 Syndication is handled alongside it: the content script reports the canonical link,
@@ -265,10 +267,10 @@ end to end.
    worker.
 2. Background worker runs the classifier, filters by threshold (no-op if
    auto-check is off).
-3. For each flagged sentence: background worker calls `SearchProvider.search`
-   using the sentence text as the query.
-4. If an LLM provider is configured, background worker calls
-   `LLMProvider.crossReference(sentence, results)` to get a short summary.
+3. Flagged sentences are listed locally. When the user presses a source-check
+   button, the worker calls `SearchProvider.search` using the claim as the query.
+4. Only when the user asks for AI does the selected provider summarize the
+   sources; configuring a provider alone does not trigger a call.
 5. Background worker stores the claim + results (+ summary) in per-tab state
    and pushes an update to the side panel if open.
 6. Background worker tells the content script which sentence to highlight and
@@ -284,7 +286,7 @@ end to end.
 - Search/LLM API call fails or is rate-limited: that claim's entry shows an
   inline error state; the rest of the queue is unaffected.
 - Restricted pages (chrome:// pages, PDFs without a content script, etc.):
-  extension icon shows a disabled state, no scanning attempted.
+  no content script runs; the panel reports that the page cannot be scanned.
 
 ## 5a. Reading a page again
 

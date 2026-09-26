@@ -150,7 +150,7 @@ test('stances that are all unrelated give no position and say so', () => {
 test('a published fact-check outranks the AI stances and leads the explanation', () => {
   const e = scoreEvidence(CLAIM, SOURCES, {
     stances: { 1: 'supports', 2: 'supports' },
-    factChecks: [{ publisher: 'PolitiFact', rating: 'False' }],
+    factChecks: [{ publisher: 'PolitiFact', rating: 'False', claim: CLAIM }],
   });
   assert.equal(e.verdict, 'not_supported');
   assert.equal(e.position, 8);
@@ -287,4 +287,29 @@ test('an acronym-heavy source keeps its quality score', () => {
   assert.equal(a.quality, b.quality,
     'writing an agency name the way the agency writes it should not cost a source anything');
   assert.ok(!a.lines.some((l) => l.includes('sensational')), JSON.stringify(a.lines));
+});
+
+
+test('unrelated, differently dated and missing claim text cannot set a fact-check verdict', () => {
+  const claim = 'Unemployment fell to 3.5 percent in 2024.';
+  const sources = [{ url: 'https://bls.gov/report', title: claim, snippet: claim }];
+  for (const reviewed of ['Vaccines contain microchips.', 'Unemployment fell to 3.5 percent in 2020.', '', 'Unemployment did not fall to 3.5 percent in 2024.']) {
+    const result = scoreEvidence(claim, sources, { factChecks: [{ claim: reviewed, rating: 'False', publisher: 'Example' }] });
+    assert.equal(result.verdict, 'unclear');
+    assert.equal(result.position, null);
+  }
+  assert.equal(scoreEvidence(claim, sources, { factChecks: [{ claim, rating: 'False' }] }).verdict, 'not_supported');
+});
+
+test('disagreeing applicable fact-checks do not select whichever arrived first', () => {
+  const reviews = [{ claim: CLAIM, rating: 'True' }, { claim: CLAIM, rating: 'False' }];
+  assert.equal(scoreEvidence(CLAIM, SOURCES, { factChecks: reviews }).verdict, 'mixed');
+  assert.equal(scoreEvidence(CLAIM, SOURCES, { factChecks: reviews.reverse() }).verdict, 'mixed');
+});
+
+
+test('high word overlap cannot swap the subject of a published verdict', async () => {
+  const { factCheckMatches } = await import('./evidence.js');
+  assert.equal(factCheckMatches('Alice defeated Bob in 2024.', 'Bob defeated Alice in 2024.'), false);
+  assert.equal(factCheckMatches('Alice defeated Bob in 2024.', '  ALICE defeated Bob in 2024! '), true);
 });

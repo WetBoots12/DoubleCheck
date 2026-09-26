@@ -66,8 +66,10 @@ That last point is deliberate. A page dense with claims could otherwise burn
 through an API quota in seconds.
 
 Answers are also remembered for a day, on your machine only, so checking the same
-claim twice, or reading a second article about the same event, costs one call
-instead of two. The options page can switch that off and empty what is stored.
+claim twice can reuse matching cached results. Entries expire after 24 hours and
+are deleted when the extension worker starts, or at a cache write at most every
+ten minutes; closing Chrome can delay physical deletion. Turning caching off clears stored answers, and the options
+page also provides a clear button.
 
 The claim detector reads English only. On a page in another language it says so in
 the panel and stays out of the way, rather than flagging sentences it cannot judge.
@@ -155,3 +157,9 @@ The classifier is trained on the ClaimBuster dataset from the IDIR Lab at the
 University of Texas at Arlington, used under CC BY 4.0. Attribution is a licence
 condition; see [`ATTRIBUTION.md`](ATTRIBUTION.md) for the citations that must
 travel with this project and with any model derived from it.
+
+## Support
+
+Free, with no ads, accounts or tracking. If it is useful to you, you can
+[buy me a coffee](https://buymeacoffee.com/generousmango). It unlocks nothing; the
+link in the side panel and on the options page only opens that page in a new tab.

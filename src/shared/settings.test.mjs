@@ -45,10 +45,10 @@ test('three changes made at once all survive', async () => {
 test('a great many changes at once still all survive', async () => {
   data.clear();
   const domains = Array.from({ length: 25 }, (_, i) => `site${i}.example`);
-  await Promise.all(domains.map((d) => saveSettings({ [`t_${d}`]: d })));
+  await Promise.all(domains.map((d) => saveSettings((current) => ({ blockedDomains: [...current.blockedDomains, d] }))));
 
   const s = await getSettings();
-  for (const d of domains) assert.equal(s[`t_${d}`], d, `${d} was lost`);
+  for (const d of domains) assert.ok(s.blockedDomains.includes(d), `${d} was lost`);
 });
 
 test('a save that fails does not stall every save after it', async () => {
@@ -67,4 +67,16 @@ test('unknown keys still fall back to their defaults', async () => {
   await saveSettings({ threshold: 0.6 });
   const s = await getSettings();
   assert.equal(s.searchProvider, DEFAULT_SETTINGS.searchProvider);
+});
+
+
+test('saving an unchanged stale site list preserves the newer side-panel rule', async () => {
+  const { changedSettings } = await import('./messages.js');
+  data.clear();
+  const baseline = await getSettings();
+  await saveSettings({ blockedDomains: ['myclinic-notes.example'] });
+  await saveSettings(changedSettings({ ...baseline, threshold: 0.7 }, baseline));
+  const result = await getSettings();
+  assert.deepEqual(result.blockedDomains, ['myclinic-notes.example']);
+  assert.equal(result.threshold, 0.7);
 });

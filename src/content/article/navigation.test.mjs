@@ -28,6 +28,13 @@ const ARTICLE_TEXT = 'The council raised the budget by 12 million dollars this y
 // A DOM with nothing in it but the one thing the test watches.
 function makeWorld({ onGetState }) {
   const reads = [];
+  let observer;
+  let unwrapped = 0;
+  let highlights = [];
+  let listener;
+  let textNodes = [];
+  const wrappedText = [];
+  let matchBuilds = 0;
   let href = 'https://www.riverbendgazette.example/2026/03/city-budget-vote';
 
   const body = {
@@ -56,23 +63,31 @@ function makeWorld({ onGetState }) {
     setInterval: (fn, ms) => setInterval(fn, ms).unref(),
     clearInterval,
     Date,
+    NodeFilter: { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2 },
     Set,
     Map,
     document: {
       body,
       documentElement,
       querySelector: () => null,
-      querySelectorAll: () => [],
-      createElement: () => ({ style: {}, classList: { add() {}, contains: () => false }, setAttribute() {}, appendChild() {} }),
-      createRange: () => ({ selectNodeContents() {}, setStart() {}, setEnd() {} }),
-      createTreeWalker: () => ({ nextNode: () => null }),
+      querySelectorAll: (selector) => selector === '.fc-highlight' ? highlights : [],
+      createElement: () => ({ dataset: {}, addEventListener() {}, style: {}, classList: { add() {}, contains: () => false }, setAttribute() {}, appendChild() {} }),
+      createRange: () => {
+        let node, start, end;
+        return { selectNodeContents() {}, setStart(n, offset) { node = n; start = offset; },
+          setEnd(_n, offset) { end = offset; }, surroundContents() {
+            wrappedText.push(node.nodeValue.slice(start, end));
+            node.nodeValue = node.nodeValue.slice(0, start);
+          } };
+      },
+      createTreeWalker: () => { let index = 0; return { nextNode: () => textNodes[index++] || null }; },
       addEventListener() {},
     },
-    MutationObserver: class { observe() {} disconnect() {} },
+    MutationObserver: class { constructor(fn) { observer = fn; } observe() {} disconnect() {} },
     get location() { return { get href() { return href; }, hostname: 'www.riverbendgazette.example' }; },
     chrome: {
       runtime: {
-        onMessage: { addListener() {} },
+        onMessage: { addListener(fn) { listener = fn; } },
         sendMessage: async (msg) => {
           sent.push(msg);
           if (msg.type === 'getState') return onGetState();
@@ -81,15 +96,31 @@ function makeWorld({ onGetState }) {
       },
     },
   };
+  let pageshow = null;
+  sandbox.addEventListener = (type, fn) => { if (type === 'pageshow') pageshow = fn; };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   for (const file of SCRIPTS) {
     new vm.Script(readFileSync(file, 'utf8'), { filename: file }).runInContext(sandbox);
   }
+  const build = sandbox.FCTextMatch.buildMatchIndex;
+  sandbox.FCTextMatch.buildMatchIndex = (...args) => { matchBuilds++; return build(...args); };
   return {
+    setTextNodes(texts) { textNodes = texts.map((nodeValue) => ({ nodeValue })); },
+    wrappedText,
+    matchBuilds: () => matchBuilds,
     reads,
     sent,
+    mutate() { observer([]); },
+    addHighlight() {
+      const span = { childNodes: [], parentNode: { normalize() {} },
+        replaceWith() { unwrapped++; highlights = highlights.filter((item) => item !== span); } };
+      highlights.push(span);
+    },
+    unwrapped() { return unwrapped; },
+    restoreFromCache() { pageshow?.({ persisted: true }); },
+    message(msg) { listener(msg, {}, () => {}); },
     navigateTo(next) { href = next; },
     currentUrl() { return href; },
   };
@@ -140,4 +171,71 @@ test('the new page is read once the worker allows it', async () => {
 
   assert.ok(world.reads.length > before,
     'an allowed page must still be read after a single-page navigation');
+});
+
+
+test('anchor navigation preserves claims and their highlight spans', async () => {
+  const world = makeWorld({ onGetState: async () => ({ autoCheck: true, scanAllowed: true }) });
+  await wait(30);
+  world.addHighlight();
+  world.navigateTo(FIRST + '#cite_note-5');
+  world.mutate();
+  await wait(1100);
+  assert.equal(world.sent.filter((msg) => msg.type === 'pageChanged').length, 0);
+  assert.equal(world.unwrapped(), 0);
+});
+
+test('real navigation unwraps highlights and blocks reads immediately on mutation', async () => {
+  let answers = 0;
+  const world = makeWorld({ onGetState: async () => ++answers === 1
+    ? { autoCheck: true, scanAllowed: true } : new Promise(() => {}) });
+  await wait(30);
+  world.addHighlight();
+  const before = world.reads.length;
+  world.navigateTo(PRIVATE);
+  world.mutate(); // before the one-second navigation poll
+  assert.equal(world.unwrapped(), 1);
+  assert.equal(world.reads.length, before);
+  assert.equal(world.sent.filter((msg) => msg.type === 'pageChanged').length, 1);
+});
+
+test('a slow first policy reply never permits early text reads', async () => {
+  const world = makeWorld({ onGetState: async () => new Promise(() => {}) });
+  world.mutate();
+  await wait(1300);
+  assert.deepEqual(world.reads, []);
+});
+
+test('hash-router navigation still changes the page', async () => {
+  const world = makeWorld({ onGetState: async () => ({ autoCheck: true, scanAllowed: true }) });
+  await wait(30);
+  world.navigateTo(FIRST + '#/another-article');
+  world.mutate();
+  assert.equal(world.sent.filter((msg) => msg.type === 'pageChanged').length, 1);
+});
+
+
+test('a batch highlights multiple claims in reverse order with one text index', async () => {
+  const world = makeWorld({ onGetState: async () => ({ autoCheck: true, scanAllowed: true }) });
+  await wait(30);
+  world.setTextNodes(['Revenue rose 20 percent. Employment rose 5 percent.']);
+  world.message({ type: 'claimStatus', claims: [
+    { id: 'c1', text: 'Revenue rose 20 percent.', status: 'unchecked' },
+    { id: 'c2', text: 'Employment rose 5 percent.', status: 'unchecked' },
+  ] });
+  assert.deepEqual(world.wrappedText, ['Employment rose 5 percent.', 'Revenue rose 20 percent.']);
+  assert.equal(world.matchBuilds(), 1);
+});
+
+test('every policy request names its document, and a back-forward restore is a new one', async () => {
+  const world = makeWorld({ onGetState: async () => ({ autoCheck: true, scanAllowed: true }) });
+  await wait(30);
+  const first = world.sent.filter((m) => m.type === 'getState').map((m) => m.docId);
+  assert.ok(first.length && first.every((id) => typeof id === 'string' && id.length >= 8), 'getState carries a document id');
+  world.addHighlight();
+  world.restoreFromCache();
+  await wait(30);
+  const ids = world.sent.filter((m) => m.type === 'getState').map((m) => m.docId);
+  assert.notEqual(ids.at(-1), first[0], 'the restored page is reported as a new document');
+  assert.equal(world.unwrapped(), 1, 'its old highlights are taken down, since the worker has dropped those claims');
 });

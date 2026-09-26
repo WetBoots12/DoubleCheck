@@ -33,6 +33,7 @@ let headHtml = '<head><meta property="og:site_name" content="Riverbend Gazette">
 
 const TAB = 9;
 let messageListener = null;
+let tabUpdatedListener = null;
 let hasContentScript = true;
 
 globalThis.chrome = {
@@ -45,7 +46,7 @@ globalThis.chrome = {
     getURL: (p) => 'chrome-extension://fake/' + p,
   },
   tabs: {
-    onRemoved: { addListener() {} }, onUpdated: { addListener() {} }, onActivated: { addListener() {} },
+    onRemoved: { addListener() {} }, onUpdated: { addListener(fn) { tabUpdatedListener = fn; } }, onActivated: { addListener() {} },
     query: async () => [{ id: TAB, url: tabUrl, incognito: tabIncognito, title: 'Tab title' }],
     get: async (id) => ({ id, url: tabUrl, incognito: tabIncognito, title: 'Tab title' }),
     sendMessage: async (_id, msg) => {
@@ -68,9 +69,19 @@ globalThis.fetch = async (url) => {
   throw new Error('nothing here should reach the network: ' + url);
 };
 
+let docSeq = 0;
+// A reload, as the worker sees one: a new content script instance, naming a new
+// document. The first id a tab reports is only recorded, so one is registered first.
+async function reloadDocument(tabId) {
+  if (docSeq === 0) await send({ type: 'getState', docId: 'document-0000' }, tabId);
+  await send({ type: 'getState', docId: `document-${String(++docSeq).padStart(4, '0')}` }, tabId);
+}
+
 function send(msg, tabId = TAB) {
   return new Promise((resolve) => {
-    const keep = messageListener(msg, { tab: { id: tabId } }, resolve);
+    const content = new Set(['getState', 'pagePrivate', 'pageLanguage', 'pageSources', 'pageChanged', 'unlocated', 'sentences', 'highlightClicked', 'captionHint', 'navState']);
+    const sender = content.has(msg.type) ? { tab: { id: tabId } } : { url: chrome.runtime.getURL('src/sidepanel/panel.html') };
+    const keep = messageListener(msg, sender, resolve);
     if (!keep) resolve(undefined);
   });
 }
@@ -89,7 +100,7 @@ async function reset(settings = {}) {
   // in memory as well as in storage, so deleting the stored key behind its back
   // clears nothing. Navigating is how the extension itself clears it, so that is what
   // the test does; anything else would be testing a state the code cannot reach.
-  await send({ type: 'pageChanged', url: tabUrl });
+  await reloadDocument(TAB);
   await settle();
 }
 
