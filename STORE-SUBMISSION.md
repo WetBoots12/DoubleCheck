@@ -183,6 +183,8 @@ dataset (CC BY 4.0), credited in the extension.
 - **Icon:** a bookworm in a bowtie, in `src/icons/` at 16, 32, 48 and 128 pixels and
   named in the manifest. The sources are `docs/icon/bookworm.svg` (32 px and up) and
   `docs/icon/bookworm-16.svg` (drawn separately for the toolbar size).
+- **Small promo tile:** `docs/store/promo-tile-440x280.png`, the icon beside the name
+  and the manifest's one-line description. The store requires this size.
 - **Screenshots:** `docs/store/`, four at 1280 by 800, in the order to upload them.
   They show the real extension; the article, its publication and the search results
   are fictional, and the search and AI answers were mocked in a test browser, so no
