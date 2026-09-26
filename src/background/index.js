@@ -768,7 +768,7 @@ chrome.runtime.onInstalled?.addListener((details) => {
   chrome.contextMenus?.create(
     // contexts: ['selection'] means the item only exists once text is highlighted,
     // which is why every instruction says to highlight the sentence first.
-    { id: MENU_ID, title: 'Fact-check the highlighted text', contexts: ['selection'] },
+    { id: MENU_ID, title: 'Double-check the highlighted text', contexts: ['selection'] },
     () => void chrome.runtime.lastError, // already exists after a reload; harmless
   );
 });

@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>FactCheck</title>
+    <title>Double Check</title>
     <style>
       /* Colors live in variables so light/dark can't be broken by rule order. */
       :root {
@@ -243,7 +243,7 @@
   </head>
   <body>
     <header>
-      <h1>FactCheck</h1>
+      <h1>Double Check</h1>
       <label class="toggle">
         <input type="checkbox" id="autocheck" />
         Auto-check
@@ -269,11 +269,12 @@
       <span class="keep-note" id="keepNote"></span>
     </div>
     <div class="banner" id="banner" hidden></div>
-    <main id="feed"><div class="empty">Nothing flagged yet on this page.<br>Highlight a sentence, then right-click it and choose "Fact-check the highlighted text".</div></main>
+    <main id="feed"><div class="empty">Nothing flagged yet on this page.<br>Highlight a sentence, then right-click it and choose "Double-check the highlighted text".</div></main>
     <footer class="disclaimer">
       A cross-checking aid, not a verdict. Flagging does not mean a claim is false,
-      and AI summaries can be wrong. Read the sources.
-      <button class="link" id="guideLink">How to use this</button>
+      and AI summaries can be wrong. Read the sources. Provided as is, with no
+      warranty and no liability accepted.
+      <button class="link" id="guideLink">Disclaimer and guide</button>
       &middot; <a href="https://buymeacoffee.com/generousmango" target="_blank" rel="noreferrer" title="Opens buymeacoffee.com in a new tab">Buy me a coffee</a>
     </footer>
     <script type="module" src="panel.js"></script>

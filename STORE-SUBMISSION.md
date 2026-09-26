@@ -120,25 +120,74 @@ in the content script, and again when sentences arrive; the rules are in
 
 ## Description wording
 
-The current description says the extension "flags check-worthy claims on pages
-and videos in real time and cross-references them with search results".
+The manifest description (123 characters; the limit is 132) separates the two
+halves honestly: the flagging happens as you read, the looking-up only when you ask.
 
-The flagging is real time. The cross-referencing is not: nothing is searched until
-the reader presses a button, which is a deliberate promise the extension makes
-about cost and privacy. A reviewer who installs it and waits for automatic
-cross-referencing has been told something not quite true, so the sentence should
-separate the two.
+> Spots claims worth double-checking as you read or watch, entirely on your device,
+> then finds sources for the ones you pick.
 
-Suggested: "Flags check-worthy claims on pages and videos as you read, entirely on
-your own machine, then looks up the ones you choose."
+### Store listing: detailed description
+
+Paste this into the dashboard's description field.
+
+```text
+Double Check highlights the sentences on a page, or in a YouTube video's captions,
+that state something checkable: figures, dates, named claims. Then it helps you
+look them up, but only when you ask.
+
+HOW IT WORKS
+- A small language model scores every sentence entirely on your own device. Nothing
+  is sent anywhere while you read.
+- Claims worth checking are marked on the page and listed in a side panel.
+- Press a button to look one up: Wikipedia works with no account, or add your own
+  SerpAPI or Brave Search key for full web results. Published fact-checks (Google
+  Fact Check Tools) and peer-reviewed papers (OpenAlex) are optional.
+- Optional AI summaries use your own Anthropic or OpenAI key, Chrome's built-in AI,
+  or a model running on your own computer.
+- "Search in browser" hands any claim to your usual search engine, no key needed.
+- An evidence meter shows how much credible coverage a claim has, and every input
+  behind it is listed.
+- Cite any source in MLA, APA, Chicago or Harvard and keep a works cited list you
+  can export to Word.
+
+PRIVACY
+- No account, no ads, no tracking, and no server of ours: your settings, keys and
+  history stay in your browser.
+- Page text leaves your device only when you press a button, and only to the
+  service you chose. Banking, health, email and account pages, and any page with a
+  password or card field, are never scanned.
+
+PLEASE READ: DISCLAIMER AND LIABILITY
+Nothing Double Check shows you is a statement of fact. A flagged sentence is not a
+false one, search results are not verification, and AI summaries can be confidently
+wrong. The evidence meter measures coverage, not truth. Always read the sources and
+judge for yourself.
+
+Double Check is provided "as is", without warranty of any kind. Its author accepts no
+liability for what you find with it, what you conclude from it, decisions you make
+on the basis of it, or any loss arising from its use. Third-party services you
+connect are governed by their own terms and pricing.
+
+Free and open source (MIT licence). The claim detector is trained on the ClaimBuster
+dataset (CC BY 4.0), credited in the extension.
+```
 
 ## Still outstanding before submission
 
 - **Icons.** There are none. The dashboard will not accept a submission without a
   128 by 128 icon, and the manifest needs 16, 32, 48 and 128 so the browser has
-  something to show in the toolbar and the install dialog.
-- **Packaging.** Zipping the working folder would ship about 21 MB of ClaimBuster
-  training data and debate transcripts from `classifier/train/raw`, plus the
-  developer pages in `tools/` and every `.test.mjs` file. Only `manifest.json`,
-  `src/`, `classifier/inference/`, `classifier/model/` and the icons belong in the
-  package.
+  something to show in the toolbar and the install dialog. Put them in `src/icons/`,
+  which is already packaged, and list them under `"icons"` (and `action.default_icon`)
+  in the manifest. `npm run package` refuses to build if a file the manifest names
+  is missing, so a wrong path cannot reach the store.
+- **Privacy policy.** Required, and it needs a public URL (a GitHub page will do).
+  The points it must cover are listed under "Privacy policy" above.
+
+## Building the package
+
+Run `npm run package`. It writes `dist/double-check-<version>.zip` from an explicit
+list (the manifest, `LICENSE`, `ATTRIBUTION.md`, `src/` without its tests, the
+three classifier files and the model) and checks that every file the manifest, the
+pages and the scripts refer to is inside it. Upload that zip, never a zip of the
+working folder, which would carry 25 MB of training data, the developer pages, the
+docs and every test file.

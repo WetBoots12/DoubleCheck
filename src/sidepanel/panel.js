@@ -359,7 +359,7 @@ function render(claims, { keepScroll = true } = {}) {
 
   feed.innerHTML = '';
   if (!claims.length) {
-    feed.innerHTML = '<div class="empty">Nothing flagged yet on this page.<br>Highlight a sentence, then right-click it and choose &quot;Fact-check the highlighted text&quot;.</div>';
+    feed.innerHTML = '<div class="empty">Nothing flagged yet on this page.<br>Highlight a sentence, then right-click it and choose &quot;Double-check the highlighted text&quot;.</div>';
     foldAll.hidden = true;
     return;
   }

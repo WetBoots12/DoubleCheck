@@ -1,4 +1,4 @@
-# FactCheck Sidebar
+# Double Check
 
 A Chromium extension that flags check-worthy claims on pages and in YouTube
 captions as you read and watch, then helps you cross-reference them against

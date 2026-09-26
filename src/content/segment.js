@@ -96,8 +96,16 @@
       }
     }
 
-    return merged.map((s) => s.trim()).filter((s) => s.length > minLength);
+    // Trailing reference markers come off. Kept on, "months.[1]" was read as a claim
+    // containing the figure 1, and the evidence line reported the source disagreeing
+    // with it. Only the end is trimmed, so each sentence is still a prefix of its
+    // stretch of the text, and still a contiguous substring the highlighter can find.
+    return merged
+      .map((s) => s.trim().replace(TRAILING_MARKERS, '').trim())
+      .filter((s) => s.length > minLength);
   }
+
+  const TRAILING_MARKERS = /(?:\[[^\[\]]{1,40}\])+$/;
 
   // Sentences that are page furniture rather than content: sign-up pitches, legal
   // lines, sharing prompts, app plugs. They reach the extractor when a site puts
