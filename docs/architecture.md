@@ -205,6 +205,19 @@ and dark pages and stay distinguishable from one another, which a picker cannot
 promise. The styles include one that draws nothing on the page at all, for readers
 who want only the side panel.
 
+The extension's own pages (the side panel and the options page) share
+`src/shared/neu.css`: a soft neumorphic style in which controls are raised out of the
+surface and anything holding a value is sunk into it. Neumorphism's usual failings
+are answered in the stylesheet itself: text colours are measured against their
+surface at 4.5:1 or better, white text on the accent gradient included, and every
+control draws a focus ring that does not depend on the shadows.
+
+The theme is a setting: System (the default), Light or Dark, chosen on the options
+page or with the panel's theme button. Settings are read asynchronously, so each page
+also keeps a copy of the choice in its localStorage, and `src/shared/theme-boot.js`,
+loaded first in `<head>`, applies it before the first paint. Without that a dark
+choice would draw a light page and then snap dark.
+
 ### 3.6h Which regions of a page count
 
 `src/content/regions.js`. Navigation, newsletter boxes, promos, share bars, players

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { MSG, STATUS, DEFAULT_SETTINGS } from '../shared/messages.js';
+import { THEMES, applyTheme } from '../shared/appearance.js';
 
 // Execute the real panel code with its imports supplied as doubles. This tests
 // routing and event behavior, not browser layout or extension API permissions.
@@ -20,8 +21,12 @@ async function panel(windowId = 1, initialTab = 10) {
   let settingsReads = 0;
   const nodes = new Map();
   function element() {
+    const on = {};
+    const attrs = {};
     return { style: { setProperty() {} }, dataset: {}, classList: { add() {}, remove() {}, toggle() {} },
-      addEventListener() {}, replaceChildren() {}, appendChild() {}, setAttribute() {},
+      addEventListener(type, fn) { on[type] = fn; }, click() { on.click?.({ preventDefault() {} }); },
+      replaceChildren() {}, appendChild() {}, append() {},
+      setAttribute(k, v) { attrs[k] = String(v); }, getAttribute: (k) => attrs[k] ?? null,
       querySelectorAll: () => [], querySelector: () => null };
   }
   const context = vm.createContext({
@@ -30,11 +35,12 @@ async function panel(windowId = 1, initialTab = 10) {
     DEFAULT_FORMAT: 'mla', FORMATS: [], isFormat: () => true,
     getSettings: async () => { settingsReads++; return { ...DEFAULT_SETTINGS }; },
     saveSettings: async () => {}, panelTextSize: () => '14px',
+    THEMES, applyTheme: (root, settings) => applyTheme(root, settings, null),
     getSearchProvider: () => ({ requiresKey: false }),
     getLlmProvider: () => ({}), LLM_PROVIDERS: {},
     document: {
       getElementById: (id) => { if (!nodes.has(id)) nodes.set(id, element()); return nodes.get(id); },
-      documentElement: element(), querySelectorAll: () => [], createElement: element,
+      documentElement: element(), querySelectorAll: () => [], createElement: element, createElementNS: element,
       addEventListener: (name, fn) => { events[name] = fn; },
     },
     chrome: {
@@ -50,7 +56,7 @@ async function panel(windowId = 1, initialTab = 10) {
   });
   new vm.Script(code + '\nrender = recordRender; runInPageLlm = recordAi;').runInContext(context);
   await settle();
-  return { sends, renders, ai, events, send: listener, storage: storageListener,
+  return { sends, renders, ai, events, send: listener, storage: storageListener, node: (id) => nodes.get(id),
     settingsReads: () => settingsReads,
     async activate(tabId, otherWindow = windowId) { active = tabId; activated({ tabId, windowId: otherWindow }); await settle(); },
   };
@@ -96,4 +102,46 @@ test('tab-state storage writes do not reload panel settings', async () => {
   assert.equal(p.settingsReads(), before);
   await p.storage({ fc_settings: { newValue: {} } }, 'local');
   assert.equal(p.settingsReads(), before + 1);
+});
+
+test('"Scan this site" sends Always, Default and Never, and a second press of the chosen one sends nothing', async () => {
+  const p = await panel();
+  p.send({ type: MSG.PAGE_STATUS, tabId: 10, domain: 'news.example', blocked: false, reason: null, rule: 'allow' });
+  await settle();
+  assert.equal(p.node('siteAllow').getAttribute('aria-pressed'), 'true');
+  assert.equal(p.node('siteDefault').getAttribute('aria-pressed'), 'false');
+
+  const rules = () => p.sends.filter((m) => m.type === MSG.SITE_RULE).map((m) => m.action);
+  p.node('siteAllow').click(); // already chosen
+  await settle();
+  assert.deepEqual(rules(), [], 'pressing the chosen option again must not undo it');
+
+  p.node('siteDefault').click();
+  p.node('siteBlock').click();
+  await settle();
+  assert.deepEqual(rules(), ['clear', 'block']);
+});
+
+test('changing a setting that affects the page offers a rescan; panel-only changes do not', async () => {
+  const p = await panel();
+  const change = (before, after) => p.storage({ fc_settings: { oldValue: { ...DEFAULT_SETTINGS, ...before }, newValue: { ...DEFAULT_SETTINGS, ...after } } }, 'local');
+  change({ theme: 'system' }, { theme: 'dark' });
+  change({ citationFormat: 'mla' }, { citationFormat: 'apa' });
+  await settle();
+  assert.notEqual(p.node('stale').hidden, false, 'the theme and citation style apply at once');
+  change({ threshold: 0.6 }, { threshold: 0.7 });
+  await settle();
+  assert.equal(p.node('stale').hidden, false);
+});
+
+test('the theme button steps System, Light, Dark and says which it is on', async () => {
+  const p = await panel();
+  const btn = p.node('themeToggle');
+  assert.equal(btn.getAttribute('aria-label'), 'Theme: System');
+  btn.click();
+  assert.equal(btn.getAttribute('aria-label'), 'Theme: Light');
+  btn.click();
+  assert.equal(btn.getAttribute('aria-label'), 'Theme: Dark');
+  btn.click();
+  assert.equal(btn.getAttribute('aria-label'), 'Theme: System');
 });

@@ -73,7 +73,7 @@ page also provides a clear button.
 
 The claim detector reads English only. On a page in another language it says so in
 the panel and stays out of the way, rather than flagging sentences it cannot judge.
-The thumbs-up on the site row overrides that if you want it to try anyway.
+Choosing Always under "Scan this site" in the panel overrides that if you want it to try anyway.
 
 The extension's own options page opens on a guide: what the flags mean, what each
 button costs, where to get an API key if you want one, and what every setting does.
@@ -122,7 +122,8 @@ cannot be used; the local model option covers Brave.
 | **Rescan** | Reads the page again with the current settings, after you change the threshold or a provider |
 | Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |
 | Highlight a sentence, then right-click it and choose **Fact-check the highlighted text** | Adds it as a claim, bypassing the classifier. The menu item appears only when text is selected |
-| Auto-check toggle | Stops all scanning |
+| Scan pages switch | Stops all scanning |
+| Theme button | System, Light or Dark, for the panel and the options page |
 
 ## Privacy
 

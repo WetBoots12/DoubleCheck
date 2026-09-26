@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Double Check: a bookworm in a bowtie. Artwork kept inside the central 96x96,
+       as the Chrome Web Store asks, with bold outlines so it survives small sizes. -->
+  <g stroke="#23202a" stroke-linejoin="round" stroke-linecap="round">
+    <!-- The open book: a red cover under two cream pages -->
+    <path d="M18 88 Q41 80 64 90 Q87 80 110 88 L110 110 Q87 102 64 112 Q41 102 18 110 Z" fill="#c9442a" stroke-width="4.5"/>
+    <path d="M23 84 Q43 76 64 86 L64 104 Q43 95 23 102 Z" fill="#fff8ec" stroke-width="4"/>
+    <path d="M105 84 Q85 76 64 86 L64 104 Q85 95 105 102 Z" fill="#fff8ec" stroke-width="4"/>
+    <path d="M30 88 Q44 83 56 88 M30 94 Q44 89 56 94 M72 88 Q84 83 98 88 M72 94 Q84 89 98 94" fill="none" stroke="#d9cbb4" stroke-width="2.5"/>
+    <!-- The worm, rising out of the gutter of the book -->
+    <path d="M62 92 C62 76 46 74 48 60 C50 50 62 50 70 52" fill="none" stroke-width="21"/>
+    <path d="M62 92 C62 76 46 74 48 60 C50 50 62 50 70 52" fill="none" stroke="#86c94f" stroke-width="13"/>
+    <!-- Head -->
+    <circle cx="78" cy="36" r="20" fill="#86c94f" stroke-width="4.5"/>
+    <!-- Round spectacles -->
+    <circle cx="71" cy="34" r="6.5" fill="#ffffff" stroke-width="3.2"/>
+    <circle cx="87" cy="34" r="6.5" fill="#ffffff" stroke-width="3.2"/>
+    <path d="M77.5 34 L80.5 34" fill="none" stroke-width="3.2"/>
+    <circle cx="72.5" cy="34.5" r="2.4" fill="#23202a" stroke="none"/>
+    <circle cx="88.5" cy="34.5" r="2.4" fill="#23202a" stroke="none"/>
+    <!-- Smile -->
+    <path d="M73 45 Q79 50 85 45" fill="none" stroke-width="3.2"/>
+    <!-- The bowtie, big enough to be the first thing you notice -->
+    <path d="M76 61 L60 52 L60 70 Z" fill="#e0492a" stroke-width="3.5"/>
+    <path d="M76 61 L92 52 L92 70 Z" fill="#e0492a" stroke-width="3.5"/>
+    <rect x="72" y="56.5" width="8" height="9" rx="2.5" fill="#b5341a" stroke-width="3"/>
+  </g>
+</svg>

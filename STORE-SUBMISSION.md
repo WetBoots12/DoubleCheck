@@ -174,14 +174,19 @@ dataset (CC BY 4.0), credited in the extension.
 
 ## Still outstanding before submission
 
-- **Icons.** There are none. The dashboard will not accept a submission without a
-  128 by 128 icon, and the manifest needs 16, 32, 48 and 128 so the browser has
-  something to show in the toolbar and the install dialog. Put them in `src/icons/`,
-  which is already packaged, and list them under `"icons"` (and `action.default_icon`)
-  in the manifest. `npm run package` refuses to build if a file the manifest names
-  is missing, so a wrong path cannot reach the store.
-- **Privacy policy.** Required, and it needs a public URL (a GitHub page will do).
-  The points it must cover are listed under "Privacy policy" above.
+- **Privacy policy.** Written: `PRIVACY.md`. Fill in the contact line at the end,
+  publish it at a public address (a GitHub page will do), and paste that address
+  into the dashboard's privacy policy field.
+
+## Listing assets
+
+- **Icon:** a bookworm in a bowtie, in `src/icons/` at 16, 32, 48 and 128 pixels and
+  named in the manifest. The sources are `docs/icon/bookworm.svg` (32 px and up) and
+  `docs/icon/bookworm-16.svg` (drawn separately for the toolbar size).
+- **Screenshots:** `docs/store/`, four at 1280 by 800, in the order to upload them.
+  They show the real extension; the article, its publication and the search results
+  are fictional, and the search and AI answers were mocked in a test browser, so no
+  real outlet or person is quoted.
 
 ## Building the package
 

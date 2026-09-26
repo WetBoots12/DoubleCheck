@@ -3,270 +3,204 @@
   <head>
     <meta charset="utf-8" />
     <title>Double Check</title>
+    <!-- Before the stylesheets: sets the reader's theme so the first paint is right. -->
+    <script src="../shared/theme-boot.js"></script>
+    <link rel="stylesheet" href="../shared/neu.css" />
     <style>
-      /* Colors live in variables so light/dark can't be broken by rule order. */
-      :root {
-        color-scheme: light dark;
-        --bg: #faf9f7;
-        --fg: #1c1b19;
-        --card: #ffffff;
-        --border: #e5e2db;
-        --muted: #6b675f;
-        --link: #2f6ea8;
-        --accent-soft: rgba(200, 150, 62, 0.16);
-        --ok-soft: rgba(61, 122, 90, 0.18);
-        --flat-soft: rgba(154, 154, 154, 0.2);
-        --cold: #b4462d;
-        --warm: #c8963e;
-        --hot: #3d7a5a;
-        --lean-left: rgba(66, 120, 190, 0.18);
-        --lean-center: rgba(150, 150, 150, 0.18);
-        --lean-right: rgba(190, 80, 70, 0.18);
-        --rating-false: rgba(180, 70, 45, 0.22);
-        --rating-true: rgba(61, 122, 90, 0.22);
-        --rating-mixed: rgba(200, 150, 62, 0.25);
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #16150f;
-          --fg: #ece9e2;
-          --card: #1f1e17;
-          --border: #33312a;
-          --muted: #a8a49a;
-          --link: #7fb0dd;
-          --accent-soft: rgba(200, 150, 62, 0.22);
-          --ok-soft: rgba(127, 183, 154, 0.22);
-          --flat-soft: rgba(200, 200, 200, 0.16);
-          --cold: #d4694f;
-          --warm: #d8ab55;
-          --hot: #6aa88a;
-          --lean-left: rgba(110, 160, 220, 0.22);
-          --lean-center: rgba(180, 180, 180, 0.2);
-          --lean-right: rgba(220, 120, 110, 0.22);
-          --rating-false: rgba(212, 105, 79, 0.3);
-          --rating-true: rgba(106, 168, 138, 0.3);
-          --rating-mixed: rgba(216, 171, 85, 0.3);
-        }
-      }
       body {
         margin: 0;
-        font: var(--fc-panel-size, 13px)/1.5 system-ui, -apple-system, sans-serif;
-        background: var(--bg);
-        color: var(--fg);
+        font: var(--fc-panel-size, 13px)/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
       }
+
+      /* The top: title, the switches that apply to every page, and the find bar. One
+         sticky block, so the find bar never has to guess the header's height. */
+      .top { position: sticky; top: 0; z-index: 3; background: var(--surface); padding-bottom: 4px; }
       header {
-        position: sticky; top: 0;
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 8px; padding: 10px 12px;
-        background: var(--card); color: var(--fg);
-        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; flex-wrap: wrap; gap: 8px 6px;
+        padding: 12px 12px 8px;
       }
-      h1 { font-size: 13px; margin: 0; letter-spacing: 0.01em; color: var(--fg); }
-      .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-      main { padding: 10px 12px 24px; }
-      /* Thumbs up / thumbs down: always scan this site, or never. */
-      .siterow {
-        display: flex; align-items: center; gap: 6px;
-        padding: 6px 12px; font-size: 12px;
-        background: var(--card); color: var(--fg); border-bottom: 1px solid var(--border);
-      }
-      .site-name { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .thumb {
-        font: inherit; font-size: 13px; line-height: 1; cursor: pointer;
-        padding: 3px 8px; border-radius: 6px;
-        border: 1px solid var(--border); background: transparent; color: var(--fg);
-      }
-      .thumb:hover { background: var(--accent-soft); }
-      .thumb.active { background: var(--accent-soft); border-color: var(--warm); }
-      /* Why nothing is being detected, when that has a cause the viewer can act on. */
-      .banner {
-        padding: 8px 12px; font-size: 12px; line-height: 1.45;
-        background: var(--accent-soft); color: var(--fg);
-        border-bottom: 1px solid var(--border);
-      }
-      /* Find bar: step through highlighted claims the way Ctrl+F steps matches. */
-      .findbar {
-        position: sticky; top: 37px; z-index: 2;
-        display: flex; align-items: center; gap: 6px;
-        padding: 6px 12px; font-size: 12px;
-        background: var(--card); color: var(--fg);
-        border-bottom: 1px solid var(--border);
-      }
-      .findbar button {
-        font: inherit; font-size: 11px; line-height: 1; cursor: pointer;
-        padding: 4px 8px; border-radius: 5px;
-        border: 1px solid var(--border); background: transparent; color: var(--fg);
-      }
-      .findbar button:hover:not(:disabled) { background: var(--accent-soft); }
-      .findbar button:disabled { opacity: 0.4; cursor: default; }
-      #counter { font-variant-numeric: tabular-nums; }
+      h1 { font-size: 14px; margin: 0; margin-right: auto; letter-spacing: 0.01em; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+      .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-right: 4px; }
+
+      /* Find bar: step through the highlighted claims the way Ctrl+F steps matches. */
+      .findbar { display: flex; align-items: center; gap: 8px; padding: 4px 14px 6px; font-size: 12px; }
+      .findbar[hidden] { display: none; }
+      #counter { font-weight: 600; font-variant-numeric: tabular-nums; }
       .findhint { color: var(--muted); }
-      .claim {
-        background: var(--card); color: var(--fg);
-        border: 1px solid var(--border); border-radius: 8px;
-        padding: 10px; margin-bottom: 10px;
-      }
-      .claim.fc-focused { outline: 2px solid #c8963e; }
-      /* A faint flag: dashed and dimmed, the same card with the same buttons. */
-      .claim.faint { border-style: dashed; opacity: 0.72; }
-      .claim.faint:hover, .claim.faint.fc-focused { opacity: 1; }
-      .faint-tag { font-style: italic; }
-      /* The fold control: a quiet word at the end of the meta row, not a button
-         competing with the ones that spend something. */
-      .fold {
-        margin-left: auto; background: none; border: 0; padding: 0 2px;
-        color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
-        white-space: nowrap;
-      }
-      .fold:hover { color: var(--fg); text-decoration: underline; }
       .findbar .fold { margin-left: auto; }
-      .claim-text { font-weight: 500; cursor: pointer; color: var(--fg); }
-      .meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
-      .badge { padding: 1px 6px; border-radius: 99px; background: var(--accent-soft); color: var(--fg); }
-      .badge.checked { background: var(--ok-soft); }
-      .badge.error, .badge.noKey { background: var(--flat-soft); }
-      .summary {
-        margin-top: 8px; padding: 8px; border-radius: 6px;
-        background: var(--accent-soft); color: var(--fg); font-size: 12px;
-      }
-      .result { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-      .result a { color: var(--link); text-decoration: none; font-weight: 500; }
-      .result a:hover { text-decoration: underline; }
-      .result .src { font-size: 11px; color: var(--muted); }
-      .result .snip { font-size: 12px; color: var(--fg); opacity: 0.85; margin-top: 2px; }
-      .result .age { font-size: 11px; color: var(--muted); margin-top: 2px; font-style: italic; }
-      .result .figures { font-size: 12px; color: var(--fg); margin-top: 3px; padding: 3px 6px; border-left: 2px solid var(--rating-mixed, var(--muted)); }
-      .empty { color: var(--muted); padding: 24px 4px; text-align: center; }
-      .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
-      /* The style sits beside the button that uses it, so the choice is made where
-         the citation is taken rather than in a settings page. */
-      .cite-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
-      /* What the AI said about a citation, including that it found nothing. */
+
+      /* This site: whether it is scanned, and keeping it as a source. */
+      .site { margin: 6px 14px 12px; padding: 12px; display: grid; gap: 10px; }
+      .site[hidden] { display: none; }
+      .site .line { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+      .site-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+      .site-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
       .keep-note { font-size: 11px; color: var(--muted); }
-      .keep-note.refused { color: var(--fg); }
-      .ai-note:empty { display: none; }
-      .ai-note { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
-      .ai-note.warn { color: var(--fg); border-left: 2px solid var(--rating-mixed, var(--muted)); padding-left: 6px; }
+      .keep-note:empty { display: none; }
+      .keep-note.refused { color: var(--text); }
+
+      /* Messages about the page: why nothing is being read, or that settings changed. */
+      .banner, .stale {
+        margin: 0 14px 12px; padding: 10px 12px; border-radius: 14px;
+        font-size: 12px; line-height: 1.45; box-shadow: var(--sink);
+      }
+      .banner[hidden], .stale[hidden] { display: none; }
+      .banner .check, .stale .check { margin-top: 8px; }
+
+      main { padding: 4px 14px 20px; }
+
+      /* A claim. */
+      .claim { background: var(--surface); border-radius: 16px; box-shadow: var(--raise); padding: 14px; margin-bottom: 16px; }
+      .claim.fc-focused { outline: 2px solid var(--accent-top); outline-offset: 2px; }
+      /* A faint flag: the classifier was unsure. Drawn dashed and flat, not faded, so
+         its text stays as readable as any other. */
+      .claim.faint { box-shadow: none; border: 1.5px dashed var(--sd); }
+      .claim-text { font-weight: 600; font-size: 1.04em; cursor: pointer; }
+      .claim-text:hover .jump { text-decoration: underline; }
+      .jump { color: var(--link); font-size: 0.86em; font-weight: 600; white-space: nowrap; margin-left: 4px; }
+      .meta { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 8px; font-size: 11px; color: var(--muted); }
+      .badge { padding: 1px 9px; border-radius: 99px; font-weight: 600; box-shadow: var(--sink-sm); color: var(--muted); }
+      .badge.checked { color: var(--ok); }
+      .faint-tag { font-style: italic; }
+      .signals { margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+
+      /* The fold control: a small raised button at the end of the meta row. */
+      button.fold {
+        margin-left: auto; min-height: 26px; padding: 0 10px;
+        font: inherit; font-size: 11px; font-weight: 600; color: var(--muted);
+        background: var(--surface); border: 0; border-radius: 10px; box-shadow: var(--raise-sm); cursor: pointer;
+      }
+      button.fold[hidden] { display: none; }
+      button.fold:active { box-shadow: var(--sink-sm); }
+
+      /* Buttons made by panel.js: .check is the main action, .secondary the rest. */
+      .actions, .cite-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: center; }
+      button.check {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 32px; padding: 0 14px;
+        font: inherit; font-size: 12px; font-weight: 600; line-height: 1.2; white-space: nowrap;
+        color: var(--accent-fg); background: var(--accent);
+        border: 0; border-radius: 12px; box-shadow: var(--raise-sm); cursor: pointer;
+        transition: box-shadow 0.12s ease, transform 0.12s ease;
+      }
+      button.check.secondary { color: var(--text); background: var(--surface); }
+      button.check:hover:not(:disabled) { transform: translateY(-1px); }
+      button.check:active:not(:disabled) { box-shadow: var(--sink-sm); transform: none; }
+      button.check:disabled { opacity: 0.55; cursor: default; }
       select.cite-format {
-        font: inherit; font-size: 11px; padding: 3px 4px; border-radius: 5px;
-        border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+        font: inherit; font-size: 12px; color: var(--text); background: var(--surface);
+        border: 0; border-radius: 12px; box-shadow: var(--sink); min-height: 32px; padding: 0 10px;
       }
       .muted-note { font-size: 12px; color: var(--muted); font-style: italic; }
-      /* What the model noticed in the sentence. Quiet, because it explains the
-         highlight rather than competing with it. */
-      .signals { margin-top: 4px; font-size: 11px; color: var(--muted); }
-      button.check {
-        padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 500;
-        cursor: pointer; border-radius: 6px;
-        border: 1px solid var(--border); background: var(--accent-soft); color: var(--fg);
-      }
-      button.check.secondary { background: transparent; }
+      .ai-note:empty { display: none; }
+      .ai-note { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+      .ai-note.warn { color: var(--text); border-left: 3px solid var(--warm); padding-left: 8px; }
 
-      /* Truth thermometer: how far the sources go toward supporting the claim. */
-      .analysis { margin-top: 10px; }
+      /* What a check found. */
+      .summary { margin-top: 10px; padding: 10px 12px; border-radius: 12px; box-shadow: var(--sink-sm); font-size: 12px; }
+      .result { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+      .result a { color: var(--link); text-decoration: none; font-weight: 600; }
+      .result a:hover { text-decoration: underline; }
+      .result .src { font-size: 11px; color: var(--muted); }
+      .result .snip { font-size: 12px; margin-top: 3px; }
+      .result .age { font-size: 11px; color: var(--muted); margin-top: 3px; font-style: italic; }
+      .result .figures { font-size: 12px; margin-top: 4px; padding: 3px 8px; border-left: 3px solid var(--warm); }
+
+      /* The thermometer: how far the sources go toward supporting the claim. */
+      .analysis { margin-top: 12px; padding: 12px; border-radius: 14px; box-shadow: var(--sink); }
       .verdict { font-weight: 600; font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
-      .confidence { font-weight: 400; color: var(--muted); }
-      .thermo { margin: 6px 0 8px; }
+      .confidence { font-weight: 500; color: var(--muted); }
+      .thermo { margin: 10px 0 6px; }
       .thermo-track {
-        position: relative; height: 8px; border-radius: 99px;
+        position: relative; height: 10px; border-radius: 99px;
         background: linear-gradient(to right, var(--cold), var(--warm), var(--hot));
+        box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.25);
       }
       .thermo.tone-flat .thermo-track { background: var(--flat-soft); }
+      .thermo.tone-quality .thermo-track { background: linear-gradient(to right, var(--flat-soft), var(--accent-soft)); }
       .thermo-marker {
-        position: absolute; top: -3px; width: 4px; height: 14px; border-radius: 2px;
-        background: var(--fg); transform: translateX(-2px);
-        box-shadow: 0 0 0 2px var(--card);
+        position: absolute; top: -4px; width: 18px; height: 18px; border-radius: 50%;
+        background: var(--surface); box-shadow: var(--raise-sm); transform: translateX(-9px);
       }
-      .thermo-scale {
-        display: flex; justify-content: space-between;
-        font-size: 10px; color: var(--muted); margin-top: 3px;
-      }
-      .facet { font-size: 12px; margin-top: 6px; }
+      .thermo-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+      .facet { font-size: 12px; margin-top: 8px; }
       .facet-label { font-weight: 600; color: var(--muted); }
-      .spread { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-      .chip {
-        font-size: 10px; padding: 2px 6px; border-radius: 99px;
-        border: 1px solid var(--border); color: var(--fg);
-      }
+      .spread { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .chip { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; box-shadow: var(--sink-sm); }
       .chip.lean-left { background: var(--lean-left); }
       .chip.lean-right { background: var(--lean-right); }
       .chip.lean-center { background: var(--lean-center); }
       .chip.lean-unclear { background: var(--flat-soft); }
-      .caveat { font-size: 10px; color: var(--muted); margin-top: 4px; font-style: italic; }
-      /* What went into the thermometer, in plain words. */
-      .explain { margin: 6px 0 0; padding-left: 16px; font-size: 11px; color: var(--muted); }
-      .explain li { margin: 1px 0; }
-      .thermo.tone-quality .thermo-track { background: linear-gradient(to right, var(--flat-soft), var(--accent-soft)); }
       .chip.stance-supports { margin-left: 6px; background: var(--ok-soft); }
       .chip.stance-contradicts { margin-left: 6px; background: var(--rating-false); }
-      .factchecks {
-        margin-top: 10px; padding: 8px 10px; border-radius: 6px;
-        background: var(--ok-soft); border: 1px solid var(--border);
-      }
-      .scholar {
-        margin-top: 10px; padding: 8px 10px; border-radius: 6px;
-        background: var(--lean-left); border: 1px solid var(--border);
-      }
       .chip.academic { margin-left: 6px; background: var(--lean-left); }
-      .fc-head { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-      .factcheck { margin-bottom: 8px; }
+      .caveat { font-size: 10px; color: var(--muted); margin-top: 6px; font-style: italic; }
+      .explain { margin: 8px 0 0; padding-left: 16px; font-size: 11.5px; color: var(--muted); }
+      .explain li { margin: 2px 0; }
+
+      /* Published fact-checks and peer-reviewed work. */
+      .factchecks, .scholar { margin-top: 12px; padding: 10px 12px; border-radius: 14px; box-shadow: var(--sink); }
+      .fc-head { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+      .factcheck { margin-bottom: 10px; }
       .factcheck:last-child { margin-bottom: 0; }
-      .factcheck a { color: var(--link); text-decoration: none; font-weight: 500; }
+      .factcheck a { color: var(--link); text-decoration: none; font-weight: 600; }
       .factcheck a:hover { text-decoration: underline; }
+      .factcheck .src, .scholar .src { font-size: 11px; color: var(--muted); }
+      .factcheck .snip { font-size: 12px; margin-top: 3px; }
       .rating {
-        display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 99px;
-        font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+        display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 99px;
+        font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
       }
       .rating.tone-false { background: var(--rating-false); }
       .rating.tone-true { background: var(--rating-true); }
       .rating.tone-mixed { background: var(--rating-mixed); }
       .rating.tone-unknown { background: var(--flat-soft); }
-      .disclaimer {
-        padding: 10px 12px 16px; font-size: 11px; line-height: 1.45;
-        color: var(--muted); border-top: 1px solid var(--border);
-      }
-      button.check:hover:not(:disabled) { filter: brightness(1.1); }
-      button.check:disabled { opacity: 0.6; cursor: default; }
+
+      .empty { color: var(--muted); padding: 28px 8px; text-align: center; }
+
+      footer.disclaimer { padding: 12px 14px 18px; font-size: 11px; line-height: 1.5; color: var(--muted); }
       button.link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
-      .disclaimer a { color: var(--link); }
-      button.icon {
-        background: transparent;
-        border: 1px solid var(--border);
-        color: var(--fg);
-        border-radius: 5px;
-        padding: 3px 8px;
-        font-size: 12px;
-        cursor: pointer;
-      }
-      button.icon:disabled { opacity: 0.55; cursor: default; }
     </style>
   </head>
   <body>
-    <header>
-      <h1>Double Check</h1>
-      <label class="toggle">
-        <input type="checkbox" id="autocheck" />
-        Auto-check
-      </label>
-      <button id="rescan" class="icon" title="Read this page again with the current settings">
-        Rescan
-      </button>
-    </header>
-    <div class="findbar" id="findbar" hidden>
-      <button id="prev" title="Previous claim (Alt+Shift+P)" aria-label="Previous claim">&#9650;</button>
-      <button id="next" title="Next claim (Alt+Shift+N)" aria-label="Next claim">&#9660;</button>
-      <span id="counter">0 of 0</span>
-      <span class="findhint">on this page</span>
-      <button id="foldAll" class="fold" hidden>Fold all</button>
+    <div class="top">
+      <header>
+        <h1><img class="logo" src="../icons/icon-32.png" width="20" height="20" alt="" />Double Check</h1>
+        <label class="toggle" title="Read pages for claims as you browse. Nothing is looked up until you press a button.">
+          <input type="checkbox" class="neu-switch" id="autocheck" role="switch" />
+          Scan pages
+        </label>
+        <button id="rescan" class="neu-btn icon" aria-label="Rescan this page" title="Rescan: read this page again with the current settings">&#8635;</button>
+        <button id="themeToggle" class="neu-btn icon" aria-label="Theme: System" title="Theme: System. Click for Light.">&#9680;</button>
+      </header>
+      <div class="findbar" id="findbar" hidden>
+        <button id="prev" class="neu-btn icon" title="Previous claim (Alt+Shift+P)" aria-label="Previous claim">&#9650;</button>
+        <button id="next" class="neu-btn icon" title="Next claim (Alt+Shift+N)" aria-label="Next claim">&#9660;</button>
+        <span id="counter">0 of 0</span>
+        <span class="findhint">on this page</span>
+        <button id="foldAll" class="fold" hidden>Fold all</button>
+      </div>
     </div>
-    <div class="siterow" id="site" hidden>
-      <span class="site-name" id="siteName"></span>
-      <button id="siteAllow" class="thumb" title="Always scan this site">&#128077;</button>
-      <button id="siteBlock" class="thumb" title="Never scan this site">&#128078;</button>
-    </div>
-    <div class="siterow" id="keeprow">
-      <button id="addSource" class="check secondary" title="Keep this page in your works cited list">Add this page as a source</button>
+
+    <section class="site neu-card" id="site" hidden>
+      <div class="line">
+        <span class="site-name" id="siteName"></span>
+        <button id="addSource" class="neu-btn" title="Keep this page in your works cited list">&#65291; Add as source</button>
+      </div>
       <span class="keep-note" id="keepNote"></span>
+      <div class="line">
+        <span class="site-label" id="siteLabel">Scan this site</span>
+        <span class="neu-seg" role="group" aria-labelledby="siteLabel">
+          <button id="siteAllow" aria-pressed="false" title="Always scan this site, even if it looks private or is not in English">Always</button>
+          <button id="siteDefault" aria-pressed="true" title="Use the normal rules for this site">Default</button>
+          <button id="siteBlock" aria-pressed="false" title="Never scan this site">Never</button>
+        </span>
+      </div>
+    </section>
+
+    <div class="stale" id="stale" hidden>
+      Settings changed. Rescan to apply them to this page.
+      <div><button class="check" id="staleRescan">Rescan now</button></div>
     </div>
     <div class="banner" id="banner" hidden></div>
     <main id="feed"><div class="empty">Nothing flagged yet on this page.<br>Highlight a sentence, then right-click it and choose "Double-check the highlighted text".</div></main>

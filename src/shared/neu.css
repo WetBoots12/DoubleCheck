@@ -1,0 +1,222 @@
+/* The look shared by the side panel and the options page: soft neumorphism.
+ *
+ * Controls a reader can press are raised out of the surface; places that hold a
+ * value (inputs, selects, the track of a switch, a segmented choice) are sunk into
+ * it; a pressed or chosen control sinks too. Neumorphism is known for two failings,
+ * low contrast and invisible focus, so both are answered here rather than left to
+ * chance: text colours are measured against their surface (4.5:1 or better, including
+ * white on the accent gradient), and every control draws a clear focus ring.
+ *
+ * Themes: light by default, dark when the system asks for it, and the reader's own
+ * choice wins either way through data-theme on <html>, which theme-boot.js sets
+ * before the first paint. The dark tokens are written twice because CSS cannot share
+ * one block between a media query and an attribute selector.
+ *
+ * The older variable names (--bg, --fg, --card, --border, --muted, --link ...) are
+ * kept as aliases so every component rule written against them keeps working. */
+
+:root {
+  color-scheme: light;
+  --surface: #e7ebf1;
+  --text: #232833;
+  --muted: #535b69;
+  --sd: rgba(150, 163, 186, 0.55);
+  --sl: rgba(255, 255, 255, 0.95);
+  --accent-top: #cf4a24;
+  --accent-bottom: #b5341a;
+  --accent-text: #b5341a;
+  --accent-fg: #ffffff;
+  --link: #2c64a8;
+  --ok: #276b4b;
+  --err: #b23a1f;
+  --focus: #2c64a8;
+  --hairline: rgba(120, 132, 155, 0.28);
+
+  --accent-soft: rgba(207, 74, 36, 0.12);
+  --ok-soft: rgba(39, 107, 75, 0.14);
+  --flat-soft: rgba(120, 132, 155, 0.16);
+  --cold: #c9563a;
+  --warm: #d99a3c;
+  --hot: #3a8a62;
+  --lean-left: rgba(66, 120, 190, 0.16);
+  --lean-center: rgba(120, 132, 155, 0.16);
+  --lean-right: rgba(190, 80, 70, 0.16);
+  --rating-false: rgba(178, 58, 31, 0.18);
+  --rating-true: rgba(39, 107, 75, 0.18);
+  --rating-mixed: rgba(217, 154, 60, 0.24);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #262a31;
+    --text: #e8eaf0;
+    --muted: #a6adba;
+    --sd: rgba(0, 0, 0, 0.5);
+    --sl: rgba(255, 255, 255, 0.055);
+    --accent-top: #ffab5e;
+    --accent-bottom: #ff6a45;
+    --accent-text: #ff8a5c;
+    --accent-fg: #1d1410;
+    --link: #8ab8ec;
+    --ok: #72c29b;
+    --err: #ff8f78;
+    --focus: #8ab8ec;
+    --hairline: rgba(255, 255, 255, 0.08);
+
+    --accent-soft: rgba(255, 138, 92, 0.16);
+    --ok-soft: rgba(114, 194, 155, 0.16);
+    --flat-soft: rgba(255, 255, 255, 0.08);
+    --cold: #e0735a;
+    --warm: #e4b25e;
+    --hot: #6fbf94;
+    --lean-left: rgba(110, 160, 220, 0.2);
+    --lean-center: rgba(255, 255, 255, 0.1);
+    --lean-right: rgba(220, 120, 110, 0.2);
+    --rating-false: rgba(255, 143, 120, 0.22);
+    --rating-true: rgba(114, 194, 155, 0.22);
+    --rating-mixed: rgba(228, 178, 94, 0.24);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #262a31;
+  --text: #e8eaf0;
+  --muted: #a6adba;
+  --sd: rgba(0, 0, 0, 0.5);
+  --sl: rgba(255, 255, 255, 0.055);
+  --accent-top: #ffab5e;
+  --accent-bottom: #ff6a45;
+  --accent-text: #ff8a5c;
+  --accent-fg: #1d1410;
+  --link: #8ab8ec;
+  --ok: #72c29b;
+  --err: #ff8f78;
+  --focus: #8ab8ec;
+  --hairline: rgba(255, 255, 255, 0.08);
+
+  --accent-soft: rgba(255, 138, 92, 0.16);
+  --ok-soft: rgba(114, 194, 155, 0.16);
+  --flat-soft: rgba(255, 255, 255, 0.08);
+  --cold: #e0735a;
+  --warm: #e4b25e;
+  --hot: #6fbf94;
+  --lean-left: rgba(110, 160, 220, 0.2);
+  --lean-center: rgba(255, 255, 255, 0.1);
+  --lean-right: rgba(220, 120, 110, 0.2);
+  --rating-false: rgba(255, 143, 120, 0.22);
+  --rating-true: rgba(114, 194, 155, 0.22);
+  --rating-mixed: rgba(228, 178, 94, 0.24);
+}
+
+:root {
+  /* Aliases for rules written before the redesign. */
+  --bg: var(--surface);
+  --fg: var(--text);
+  --card: var(--surface);
+  --border: var(--hairline);
+  --input-bg: var(--surface);
+  --input-border: var(--hairline);
+
+  --accent: linear-gradient(145deg, var(--accent-top), var(--accent-bottom));
+  --raise: 6px 6px 13px var(--sd), -6px -6px 13px var(--sl);
+  --raise-sm: 3px 3px 7px var(--sd), -3px -3px 7px var(--sl);
+  --sink: inset 3px 3px 7px var(--sd), inset -3px -3px 7px var(--sl);
+  --sink-sm: inset 2px 2px 5px var(--sd), inset -2px -2px 5px var(--sl);
+}
+
+body { background: var(--surface); color: var(--text); }
+a { color: var(--link); }
+
+/* Focus is always visible: a ring that does not depend on the shadows. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* --- surfaces ---------------------------------------------------------------- */
+
+.neu-card { background: var(--surface); border-radius: 16px; box-shadow: var(--raise); }
+.neu-well { border-radius: 14px; box-shadow: var(--sink); }
+
+/* --- buttons ------------------------------------------------------------------- */
+
+.neu-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 0 14px;
+  font: inherit; font-size: 12px; font-weight: 600; line-height: 1.2; color: var(--text);
+  background: var(--surface); border: 0; border-radius: 12px; box-shadow: var(--raise-sm);
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.neu-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.neu-btn:active:not(:disabled), .neu-btn[aria-pressed="true"] { box-shadow: var(--sink-sm); transform: none; }
+.neu-btn:disabled { opacity: 0.55; cursor: default; box-shadow: var(--sink-sm); }
+.neu-btn.primary { background: var(--accent); color: var(--accent-fg); }
+.neu-btn.primary:active:not(:disabled) { box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.28); }
+.neu-btn.icon { width: 32px; padding: 0; }
+.neu-btn.small { min-height: 28px; padding: 0 10px; font-size: 11px; border-radius: 10px; }
+
+/* A link that reads as one, for quiet actions inside running text. */
+.neu-link {
+  background: none; border: 0; padding: 0; font: inherit; color: var(--link);
+  text-decoration: underline; cursor: pointer;
+}
+
+/* --- segmented choice: one of a few ------------------------------------------------ */
+
+.neu-seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 14px; box-shadow: var(--sink); }
+.neu-seg button, .neu-seg label {
+  display: inline-flex; align-items: center; min-height: 28px; padding: 0 11px;
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--muted);
+  background: transparent; border: 0; border-radius: 10px; cursor: pointer;
+}
+.neu-seg button[aria-pressed="true"], .neu-seg label:has(input:checked) {
+  color: var(--text); background: var(--surface); box-shadow: var(--raise-sm);
+}
+.neu-seg.accent button[aria-pressed="true"], .neu-seg.accent label:has(input:checked) {
+  background: var(--accent); color: var(--accent-fg);
+}
+.neu-seg input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.neu-seg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* --- switch: a real checkbox, drawn as a track and a knob ------------------------------ */
+
+input.neu-switch {
+  appearance: none; -webkit-appearance: none; flex: none;
+  position: relative; width: 44px; height: 24px; margin: 0;
+  border-radius: 99px; box-shadow: var(--sink); background: var(--surface); cursor: pointer;
+  transition: background 0.15s ease;
+}
+input.neu-switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--surface); box-shadow: var(--raise-sm);
+  transition: left 0.15s ease;
+}
+input.neu-switch:checked { background: var(--accent); box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.25); }
+input.neu-switch:checked::after { left: 23px; }
+
+/* --- fields -------------------------------------------------------------------------- */
+
+.neu-field, select.neu-field, textarea.neu-field {
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 0; border-radius: 12px; box-shadow: var(--sink);
+  min-height: 36px; padding: 8px 12px; box-sizing: border-box;
+}
+select.neu-field { padding-right: 30px; }
+textarea.neu-field { min-height: 88px; resize: vertical; line-height: 1.5; }
+option { background: var(--surface); color: var(--text); }
+
+/* A range input: a sunk track, a raised thumb. */
+input[type="range"].neu-range { appearance: none; -webkit-appearance: none; height: 10px; border-radius: 99px; box-shadow: var(--sink); background: var(--surface); }
+input[type="range"].neu-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--surface); box-shadow: var(--raise-sm); border: 2px solid var(--accent-top); cursor: pointer;
+}
+
+/* --- small things -------------------------------------------------------------------- */
+
+.neu-chip {
+  display: inline-block; padding: 1px 9px; border-radius: 99px;
+  font-size: 11px; font-weight: 600; color: var(--muted); box-shadow: var(--sink-sm);
+}

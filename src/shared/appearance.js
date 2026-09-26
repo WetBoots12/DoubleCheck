@@ -42,7 +42,16 @@ export const PANEL_SIZES = [
   { id: 'xlarge', label: 'Larger still', px: '17px' },
 ];
 
+// The panel's and options page's own colours. System follows the browser; the other
+// two are the reader's choice and win over it.
+export const THEMES = [
+  { id: 'system', label: 'System' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+];
+
 export const DEFAULT_APPEARANCE = {
+  theme: 'system',
   highlightStyle: 'both',
   highlightColor: 'gold',
   highlightThickness: 'normal',
@@ -71,6 +80,27 @@ export function highlightStyleName(settings = {}) {
 
 export function panelTextSize(settings = {}) {
   return pick(PANEL_SIZES, settings.panelTextSize, 'normal').px;
+}
+
+// The theme a setting asks for: 'light', 'dark', or null to follow the system.
+export function themeChoice(settings = {}) {
+  const id = pick(THEMES, settings.theme, 'system').id;
+  return id === 'system' ? null : id;
+}
+
+// Applies the theme to an extension page, and remembers it for theme-boot.js so the
+// next page opened paints in the right colours from the start.
+export function applyTheme(root, settings = {}, storage = globalThis.localStorage) {
+  const choice = themeChoice(settings);
+  if (root?.dataset) {
+    if (choice) root.dataset.theme = choice;
+    else delete root.dataset.theme;
+  }
+  try {
+    if (choice) storage?.setItem('dc-theme', choice);
+    else storage?.removeItem('dc-theme');
+  } catch { /* storage unavailable: the page still follows the setting while open */ }
+  return choice;
 }
 
 // Applied to a document root. Used by the content script for the page and by the
