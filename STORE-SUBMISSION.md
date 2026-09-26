@@ -174,9 +174,9 @@ dataset (CC BY 4.0), credited in the extension.
 
 ## Still outstanding before submission
 
-- **Privacy policy.** Written: `PRIVACY.md`. Fill in the contact line at the end,
-  publish it at a public address (a GitHub page will do), and paste that address
-  into the dashboard's privacy policy field.
+- **Privacy policy.** Written: `PRIVACY.md`, with the repository's issues page as
+  the contact. Publish it at a public address (a GitHub page will do) and paste
+  that address into the dashboard's privacy policy field.
 
 ## Listing assets
 

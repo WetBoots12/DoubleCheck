@@ -121,7 +121,7 @@ cannot be used; the local model option covers Brave.
 | **Summarize with AI** | Summarizes sources already fetched, no extra search |
 | **Rescan** | Reads the page again with the current settings, after you change the threshold or a provider |
 | Alt+Shift+N / Alt+Shift+P | Step to the next or previous claim on the page |
-| Highlight a sentence, then right-click it and choose **Fact-check the highlighted text** | Adds it as a claim, bypassing the classifier. The menu item appears only when text is selected |
+| Highlight a sentence, then right-click it and choose **Double-check the highlighted text** | Adds it as a claim, bypassing the classifier. The menu item appears only when text is selected |
 | Scan pages switch | Stops all scanning |
 | Theme button | System, Light or Dark, for the panel and the options page |
 
