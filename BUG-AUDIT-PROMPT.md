@@ -1,230 +1,79 @@
-# Audit prompt: FactCheck Sidebar (Chrome MV3 extension)
+# Claude prompt: audit and bug-test this Chrome extension
 
-Feed this to a fresh Opus instance with no prior context. It has everything the auditor
-needs; it should not ask you to paste files, because it can read them.
+You are an experienced Chromium Manifest V3 engineer performing a skeptical, evidence-driven bug audit of this repository. The goal is to find reproducible defects and important untested failure modes in the Chrome extension, especially bugs that could cause incorrect behavior, privacy leaks, quota/API calls, crashes, or Chrome Web Store problems.
 
----
+## Repository and guardrails
 
-You are a senior Chrome extension security auditor and Manifest V3 expert. You are
-auditing a working, unpublished extension written by a beginner who intends to submit it
-to the Chrome Web Store. Your job is to find every defect, risk, and store-rejection
-hazard. Be adversarial. Do not be polite, do not summarise what works, do not pad. If a
-section of the audit turns up nothing, write "SECTION CLEAN" on one line and move on.
+- You are already in the repository root. Read the checked-in files directly; do not ask me to paste code.
+- Start by reading `README.md`, `docs/architecture.md`, `docs/testing.md`, `manifest.json`, `package.json`, and any applicable `AGENTS.md` files. Treat source code and tests as authoritative when prose disagrees; call out stale documentation.
+- Inspect the current git status before doing anything. Preserve existing user changes.
+- This project has no build step. Its automated tests use Node's built-in test runner; run `npm test` to establish the current baseline. Do not assume a test count, branch name, commit, manifest permission, or clean working tree from an older audit prompt.
+- Do not install dependencies or add a bundler. Do not access real user accounts, submit store listings, use paid APIs, or send page content to external services during the audit.
+- Audit and report first. Do not modify production code or tests unless I explicitly ask you to implement fixes. You may use temporary, isolated experiments if needed, and must remove your own temporary artifacts afterward.
+- Never claim browser behavior was tested unless you actually loaded the extension in Chrome and observed it. Mark such checks `NOT RUN — browser required` when no real browser run is available.
 
-Do NOT ask me to paste any code. Read the repository directly.
+## Product behavior and invariants to verify
 
-## The repository
+Use the repository's current implementation and documentation to confirm the product contract. At a minimum, examine these intended properties:
 
-`C:\Users\johns\OneDrive\Desktop\FactCheck Browser extension` — Windows, git branch
-`master`, no remote, working tree clean at commit `07b7a72`.
+1. Page/video scanning and classifier scoring happen locally. Network access to search, fact-check, scholarly, or AI providers must be caused by a deliberate user action. Verify every path rather than relying on comments or UI labels.
+2. Privacy policy is enforced consistently before page text is read, retained, scored, or sent, including rescans, context-menu claims, video/transcript paths, and changes to site permissions/settings. Check private or sensitive pages, password/card fields, local addresses, user block lists, and incognito behavior against the actual implementation.
+3. API keys stay in local extension storage and are sent only to the selected provider. Page text and cached claim data must follow the project's disclosed behavior.
+4. Scores and evidence are signals for research, not truth verdicts. Check calculations, labels, malformed/partial provider data, and UI states.
+5. The Manifest V3 service worker can be suspended and restarted without losing state required for correctness or privacy.
+6. Content scripts are classic scripts if the manifest loads them as classic scripts; do not assume they can use ES module imports.
+7. A provider failure, malformed response, timeout, or tab navigation should not strand claims, corrupt other tabs, or break the rest of the UI.
 
-Run the tests with `npm test` (Node's own test runner). 320 tests pass and 0 fail right
-now; that is your baseline and it must still hold when you are done. There are **no
-dependencies and no build step**: Chrome loads the folder directly. Do not add a bundler,
-a transpiler, or an npm package. Single files run with `node --test <file>`.
+Treat these as audit questions, not assumptions that the current code has these properties. Verify each against current code and tests.
 
-## What the extension does, in one sentence
+## Audit workflow
 
-As the user reads a news page or watches a YouTube video with captions, a classifier
-running entirely on the local machine scores each sentence for *check-worthiness*
-(whether it states a checkable factual claim), highlights the ones above a threshold, and
-lists them in a side panel where the user may press a button to look each one up.
+1. Establish the baseline with `npm test`; record the exact command and result. If it fails, report pre-existing failures separately and do not attribute them to your audit.
+2. Map the implementation from `manifest.json` through the background worker, content scripts, side panel, options UI, shared modules, providers, and model. Read relevant tests alongside the code. Search for dangerous sinks and boundaries such as `innerHTML`, URL construction, `fetch`, message listeners, storage writes, timers, dynamic code, and DOM observers.
+3. Trace the important user flows end to end: initial scan, incremental/SPA scan, rescan, context-menu claim, manual source check, AI summary, transcript/caption ingestion, tab switching, worker restart, and provider failure. Pay special attention to sender validation and message payload validation at the worker boundary.
+4. For each likely bug, identify the exact trigger, affected code path, user-visible impact, and a minimal reproduction. Prefer a focused automated regression test using the existing Node test conventions when a behavior can be tested without Chrome. Do not add tests or code to the repository unless authorized.
+5. Inspect the extension packaging and permissions against the code that actually uses them. Identify unnecessary permissions, overly broad host access, missing icons/locales/metadata, unsafe web-accessible resources, and minimum Chrome version/API mismatches. Explain actual functional or store-review impact; do not call something a rejection risk without a reason.
+6. Review privacy and security boundaries: page-originated input, content-script-to-worker messages, externally influenced provider data, HTML rendering, API-key handling, URL/query construction, regex and parser robustness, storage contents/retention, and network request credentials/redirects/timeouts.
+7. Review reliability and performance: async message replies, rejected promises, `chrome.runtime.lastError` or API rejection handling, read-modify-write races, queue/deduplication state, observer cleanup, repeated injection/listeners, unbounded work/storage, and expensive work on mutation-heavy or very large pages.
+8. Finish with a concise manual Chrome checklist for critical behavior that static tests cannot establish. Include how to load unpacked, inspect service-worker errors, inspect page content-script errors, and exercise navigation/worker restart only if those steps are relevant to this codebase.
+9. Re-run `npm test` only if you created an authorized change. Otherwise, report the baseline result and do not imply the repository was modified.
 
-## The parts, so you can navigate
+## Areas to inspect
 
-| Path | Role |
-|---|---|
-| `src/background/index.js` | Service worker. Scoring, search, fact-checks, scholarly lookup, AI summaries, per-tab state, badge, side-panel pushes, privacy decisions. |
-| `src/background/queue.js`, `tabstate.js` | Work queue; per-tab state in `chrome.storage.session`. |
-| `src/content/article/index.js` | Page scanner. A **classic script**: it cannot `import`. |
-| `src/content/textmatch.js`, `segment.js`, `mutations.js`, `language.js`, `regions.js` | Classic scripts installing the globals `FCTextMatch`, `FCSegment`, `FCMutations`, `FCLanguage`, `FCRegions`. |
-| `src/content/video/index.js` | YouTube captions, transcript ingestion, a closed-shadow-root overlay. |
-| `src/sidepanel/panel.js`, `panel.html` | The panel UI. |
-| `src/options/options.html`, `options.js` | Three tabs: a plain-language guide (shown first), Settings, Credits and licences. |
-| `src/shared/` | `messages.js` (message contract and settings defaults), `cache.js`, `privacy.js`, `evidence.js`, `dates.js`, `numbers.js`, `extract.js`, `appearance.js`, `engines.js`. |
-| `src/providers/index.js` | Every vendor call and every query builder: Wikipedia, SerpAPI, Brave, Google Fact Check Tools, OpenAlex, Anthropic, OpenAI, a local OpenAI-compatible server, and Chrome's built-in model. |
-| `classifier/inference/scorer.js`, `classifier/train/train.py` | Scoring in plain JS, and the trainer. The `scorer.js` FEATURES list and the `train.py` FEATURE_NAMES list must mirror each other exactly; a parity fixture test enforces it. |
+Cover the applicable items below, and add code-specific areas you discover:
 
-The manifest requests `storage`, `sidePanel`, `activeTab`, `scripting`, `tabs`,
-`contextMenus`, `search`, and `<all_urls>` host permissions, and registers two content
-script sets (one for YouTube, one for everywhere else). `classifier/model/*` is
-web-accessible to `<all_urls>`.
+- Manifest validity, permissions and host permissions, match/exclude patterns, content-script world/timing/frame scope, service-worker module configuration, web-accessible resources, CSP, and Chrome API version support.
+- Service-worker lifecycle, top-level listener registration, state persistence, tab isolation, navigation races, tab removal, side-panel routing, and worker wake-up paths.
+- Content-script extraction and highlighting: excluded/private regions, sentence segmentation across nodes, mutation triage/debounce, SPA/history navigation, duplicate claims, highlight cleanup, hostile page DOM/global interference, and video captions/transcripts.
+- Every runtime/tab message sender and receiver: supported message types, input validation, `sender` checks, tab identity, and privacy checks before privileged operations.
+- HTML/text/URL handling in the panel and options pages; provider and page text must not become executable markup or unsafe navigation.
+- Provider request construction, key routing, quota discipline, caches and invalidation, timeout/abort behavior, fallback behavior, response parsing, and partial failures.
+- Classifier feature parity with training, malformed/degenerate input handling, threshold boundaries, and performance on long or numerous sentences.
+- Evidence/date/numeric logic for non-finite values, missing data, contradictory quantities, boundary conditions, and misleading display language.
+- Accessibility and practical UI edge cases: narrow side panel, light/dark appearance, empty/loading/error states, keyboard behavior, restricted browser pages, unsupported languages, incognito, and revoked host permissions.
+- Web Store single-purpose/privacy disclosures and remotely hosted code/assets, based on the exact current implementation and manifest.
 
-## Invariants. A violation is a bug, whatever the code looks like
+## Reporting format
 
-1. **No network call may happen except as the direct result of a user pressing a
-   button.** Scanning, scoring and highlighting are local and free. There is no automatic
-   paid or rate-limited call, ever.
-2. **Private pages are never scanned.** Built-in rules cover banking, health, mail and
-   account domains; the user has a block list; local addresses are excluded; and any page
-   showing a password or card field is off limits. Every path that could read, score,
-   store or transmit page text must consult `scanPolicy` — including the right-click menu
-   and every rescan. A tab that once reported a password field stays blocked for the life
-   of that tab.
-3. **API keys live only in `chrome.storage.local`** and go only to the provider they
-   belong to. There is no backend server of any kind.
-4. **The classifier estimates check-worthiness, never truth.** No part of the UI may
-   present a score or a search result as a verdict.
-5. `npm test` passes with zero failures.
-6. **Content scripts are classic scripts and cannot `import`.** Anything they need from a
-   module must be computed in the worker and sent to them as plain data.
+Report only actionable findings. Sort by severity: Critical, High, Medium, Low. For each finding include:
 
-## Recent high-risk work, in the order I would look at it
+- **ID and severity**
+- **Title**
+- **Location:** file and line/function
+- **Status:** confirmed, likely (explain missing proof), or browser-only/unverified
+- **Trigger and impact:** concrete steps and what breaks or data/API boundary is affected
+- **Evidence:** exact code path, test result, trace, or minimal reproduction; distinguish observed evidence from inference
+- **Suggested fix:** specific and proportionate; include a small code sketch only when it clarifies the repair
+- **Regression test:** what test should capture the bug and whether it can run under the current test setup
+- **Chrome Web Store impact:** specific policy/review consequence, or `None identified`
 
-All of the following shipped in the last few days, and several were written to fix bugs
-found in the field rather than in review:
+Do not pad the report with generic best practices, unsupported speculation, or “clean” sections. If an important area has no findings, say briefly that it was reviewed and no actionable defect was confirmed. Keep suspicions separate from confirmed defects. Do not invent line numbers or evidence.
 
-- A provider-response cache (`shared/cache.js`) with serialized index writes and a
-  `clear()` that sweeps by key prefix. It replaced a version with a real write race.
-- Mutation triage and a debounce-with-a-ceiling (`content/mutations.js`).
-- An English-only gate for pages (`content/language.js`), plus a caption-based one in the
-  video script that *holds* the first sentences until it has enough text to judge.
-- Fetching the top two search results' own pages (`shared/extract.js`, `fetchPageHtml` in
-  the providers) with cookies omitted, then using matching paragraphs instead of snippets.
-- Publication-date weighting (`shared/dates.js`) and numeric-contradiction detection
-  (`shared/numbers.js`), both feeding `shared/evidence.js`.
-- `content/regions.js`: an exclusion rule that refuses to discard a region holding at
-  least half the article's text. This fixed Fox News, whose article container carries a
-  class containing "video" and was being thrown away whole.
-- `rescanTab()` in the worker, shared by the Rescan button and by allowing a site with the
-  thumbs-up.
-- Appearance settings (`shared/appearance.js`) pushed to content scripts as CSS variables.
-- Per-search-engine query shaping (`shared/engines.js`, `browserQuery` in the providers).
-- Three classifier features (`has_currency`, `has_unit`, `has_decimal`) and a retrained
-  model.
+Conclude with:
 
-## Never once exercised in a real browser with the extension loaded
+1. A ranked summary table of findings.
+2. The exact baseline test command and result, including any existing failures.
+3. Browser-only checks that still need a human/real Chrome run, each with clear steps and expected behavior.
+4. Any audit limitations, such as unavailable network credentials or inability to load a real Chrome profile.
 
-Treat these as unverified, not as working: restoring per-tab state from
-`chrome.storage.session`; the fullscreen video overlay; the transcript-ingestion
-selectors; whether Brave honours `-site:`; the built-in Chrome AI path end to end; the DOM
-unwrapping in `clearHighlights()`; and appearance settings applied to a live page. If a
-finding depends on real-browser behaviour, say so rather than assuming.
-
----
-
-# Run every audit below
-
-## AUDIT 1 — Manifest correctness
-
-Flag any MV2-only key. Justify **each** permission against the described behaviour or
-call it an over-request; `<all_urls>`, `tabs` and `scripting` are exactly what a store
-reviewer challenges first, so decide honestly whether `activeTab` plus `scripting` could
-replace the host permissions given that the extension must scan pages the user merely
-reads. Check `version` and `version_name` format, icons (there are none — say what that
-costs), `default_locale`, and `minimum_chrome_version` against the APIs actually used,
-`chrome.sidePanel` and `chrome.search` in particular. Judge whether exposing
-`classifier/model/*` to `<all_urls>` as a web-accessible resource is necessary, or is a
-fingerprinting surface.
-
-## AUDIT 2 — Service worker lifecycle
-
-Find every piece of module-level state that must survive the worker being killed: the
-publisher map, the private-tab set, the queue, the tab store, the seen-claim sets. For
-each, say what the user sees when it evaporates mid-session. Check that every listener is
-registered synchronously at the top level and not inside a promise or a conditional. Flag
-`setTimeout` and `setInterval` used for scheduling that should be `chrome.alarms`. Check
-every `onMessage` handler that returns `true`: does every path actually call
-`sendResponse`, including the failing ones? Say where an offscreen document is needed, if
-anywhere.
-
-## AUDIT 3 — Content script and isolation
-
-Look for DOM clobbering, meaning any read of `window.*` or of an element id that page
-script can overwrite; the content scripts install globals with `FC`-prefixed names, so
-check what happens when a hostile page defines those first. Find every `innerHTML` or
-`insertAdjacentHTML` carrying page-influenced or provider-returned text, in the panel and
-options pages as much as in the content scripts. Verify the isolated-world choices and any
-`postMessage` origin checks. Flag inline handlers, `eval`, and `new Function`. Check the
-message contract in `shared/messages.js` against every sender and every receiver.
-
-## AUDIT 4 — Security
-
-Any remotely loaded code is an instant BLOCKER; check that nothing fetches a script, a CDN
-library, or an executable config, and that the model files are bundled. Decide whether
-anything sits in `chrome.storage.local` that belongs in `session`, and whether an API key
-can leak into a log, a URL, or the wrong provider. Test message forgery: walk each path
-from a page, through a content script, to the worker, to a powerful API, and show
-concretely how a malicious page would abuse it; check `sender` validation on every
-`onMessage`. Hunt prototype pollution and ReDoS in every parser — `dates.js`, `numbers.js`,
-`extract.js`, `segment.js` and the query builders. Several past bugs here came from a
-trailing `\b` failing when a letter or digit follows, so check word boundaries
-specifically.
-
-## AUDIT 5 — API misuse and reliability
-
-Find `chrome.*` calls with no `lastError` check and no rejection handler. Find
-read-modify-write patterns on storage that two tabs can interleave. Validate every match
-pattern. Look for MutationObserver leaks, duplicate injection on History-API navigation,
-and listeners added inside loops. Check that each provider path degrades instead of
-throwing, and that a rejected promise can neither strand a claim in a "checking" state nor
-discard results that already arrived. Check the dedupe sets: the content script's
-shipped-sentence set and the worker's seen set. Anything that changes what the answer
-would be must clear **both**, or the change silently does nothing.
-
-## AUDIT 6 — Performance
-
-Heavy work on every mutation or keystroke without a cheap early exit. Polling that should
-be event-driven. Large storage reads on every worker wake. Detached nodes, unreleased
-ports, unbounded arrays or logs. Say what a ten-thousand-paragraph page costs.
-
-## AUDIT 7 — UX and edge cases
-
-Incognito, split versus spanning. First install: is `onInstalled` used correctly, and what
-happens when there is no active tab yet? Restricted pages where content scripts silently
-never run: `chrome://`, the Web Store, the PDF viewer, `about:blank`, and cross-origin
-iframes given the `all_frames` setting. Non-Latin and right-to-left locales against the
-English-only gate. Dark mode and a narrow panel. What happens when the user revokes host
-access from site settings mid-session.
-
-## AUDIT 8 — Web Store policy
-
-Single-purpose risk, given that the extension both flags claims and calls several AI
-providers. Deceptive-description triggers in the manifest description. Inventory precisely
-what user data the extension handles and decide whether a privacy policy is required; note
-that page text reaches a third party only on a button press, and say whether the
-disclosure obligations still bite. Draft the exact permission-justification text a
-reviewer will demand, one paragraph per permission. Check for any remotely hosted asset.
-
-## AUDIT 9 — The evidence score and the honesty invariant
-
-`shared/evidence.js` blends relevance, verbiage, source tier, stances, fact-checks,
-temporal fit and numeric conflicts. Find any input that yields NaN, divides by zero, or
-reads as a verdict rather than a signal. Check specifically whether a source that is
-undated, or that carries no measurable quantity, is silently penalised, which would
-misrank the honest sources.
-
----
-
-# For every finding, output exactly this
-
-- **SEVERITY**: BLOCKER / HIGH / MEDIUM / LOW
-- **FILE and LINE** (or function)
-- **WHY it breaks**: the exact mechanism, not advice
-- **EVIDENCE**: a failing test you wrote, a measurement, or a precise trace
-- **FIXED CODE**: a complete replacement snippet, never pseudocode
-- **STORE RISK**: whether this specific issue causes a Chrome Web Store rejection
-
-Write the failing test **before** the fix, and keep it. Separate confirmed bugs from
-suspicions, and label the suspicions as such.
-
-# After the audits, produce
-
-1. A ranked defect table, blockers first: ID, severity, file, one-line summary.
-2. The full fixed code for each defect.
-3. A complete, store-ready `manifest.json`.
-4. A manual test checklist for `chrome://extensions`, written for someone who has never
-   debugged an extension: how to load unpacked, how to open devtools on the service
-   worker, how to see content-script errors, how to watch the worker die and wake.
-5. A "gotcha graveyard": the five most likely ways **this** extension breaks in production
-   that static review cannot catch, each with the console symptom I would see and how to
-   confirm it.
-
-# House rules while you work
-
-Read the code and the existing tests before proposing anything. After any edit, scan the
-repository for stray control bytes; a past editing accident inserted backspace characters
-into regexes. In Python helper scripts, never write `\b`, `\s` or `\d` in a non-raw
-string. Parse-check ES modules with `vm.SourceTextModule` and classic content scripts with
-`vm.Script`. If my description and my permissions disagree, treat that as a blocker and
-interrogate the contradiction rather than smoothing it over.
+Start with the repository state and baseline. Then proceed with the audit.
