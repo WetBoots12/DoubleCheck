@@ -189,3 +189,10 @@ test('a domain a page invented is refused unless it could be a hostname', () => 
   assert.equal(normalizeDomain(`${'a'.repeat(300)}.example`), '');
   assert.equal(normalizeDomain(`${'a'.repeat(240)}.example`), `${'a'.repeat(240)}.example`);
 });
+
+test('"Default" clears a site rule from whichever list holds it', () => {
+  const both = { blockedDomains: ['a.example'], allowedDomains: ['b.example'] };
+  assert.deepEqual(applySiteRule(both, 'a.example', 'clear'), { blockedDomains: [], allowedDomains: ['b.example'] });
+  assert.deepEqual(applySiteRule(both, 'b.example', 'clear'), { blockedDomains: ['a.example'], allowedDomains: [] });
+  assert.deepEqual(applySiteRule(both, 'c.example', 'clear'), both, 'a site with no rule stays without one');
+});

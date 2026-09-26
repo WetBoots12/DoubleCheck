@@ -4,6 +4,12 @@
   "version": "0.1.0",
   "description": "Spots claims worth double-checking as you read or watch, entirely on your device, then finds sources for the ones you pick.",
   "minimum_chrome_version": "116",
+  "icons": {
+    "16": "src/icons/icon-16.png",
+    "32": "src/icons/icon-32.png",
+    "48": "src/icons/icon-48.png",
+    "128": "src/icons/icon-128.png"
+  },
   "permissions": [
     "storage",
     "sidePanel",
@@ -36,7 +42,11 @@
     }
   },
   "action": {
-    "default_title": "Double Check"
+    "default_title": "Double Check",
+    "default_icon": {
+      "16": "src/icons/icon-16.png",
+      "32": "src/icons/icon-32.png"
+    }
   },
   "content_scripts": [
     {

@@ -13,7 +13,8 @@ test('everything the manifest, pages and scripts refer to is in the package', ()
 
 test('the pieces the extension cannot run without are included', () => {
   for (const f of ['manifest.json', 'classifier/model/model.json', 'src/background/index.js',
-    'src/sidepanel/panel.html', 'src/options/options.html', 'src/options/support-qr.png']) {
+    'src/sidepanel/panel.html', 'src/options/options.html', 'src/options/support-qr.png',
+    'src/icons/icon-16.png', 'src/icons/icon-32.png', 'src/icons/icon-48.png', 'src/icons/icon-128.png']) {
     assert.ok(files.includes(f), `missing ${f}`);
   }
 });

@@ -1,5 +1,5 @@
 import { MSG, STATUS, getSettings, saveSettings } from '../shared/messages.js';
-import { panelTextSize } from '../shared/appearance.js';
+import { panelTextSize, applyTheme, THEMES } from '../shared/appearance.js';
 import { getLlmProvider, getSearchProvider, partialSummary, LLM_PROVIDERS } from '../providers/index.js';
 import { ratingTone } from '../shared/evidence.js';
 import { httpUrl } from '../shared/privacy.js';
@@ -99,14 +99,14 @@ const LANGUAGE_NAMES = {
 };
 
 const PRIVATE_REASONS = {
-  user: (d) => `Not scanning ${d}: you turned it off. Press \u{1F44D} to allow it.`,
-  builtin: (d) => `Not scanning ${d}: it looks like a private site (banking, health, email, accounts). Press \u{1F44D} to scan it anyway.`,
+  user: (d) => `Not scanning ${d}: you set it to Never. Choose Always or Default under "Scan this site" to allow it.`,
+  builtin: (d) => `Not scanning ${d}: it looks like a private site (banking, health, email, accounts). Choose Always under "Scan this site" to scan it anyway.`,
   local: () => 'Not scanning: this is a local or private network address.',
   fields: () => 'Not scanning this page: it has a password or card field.',
   language: (_d, msg) => {
     const name = LANGUAGE_NAMES[msg?.language] || '';
     return `Not scanning: this page looks like it is in ${name || 'another language'}. `
-      + 'The claim detector only reads English. Press \u{1F44D} to scan it anyway.';
+      + 'The claim detector only reads English. Choose Always under "Scan this site" to scan it anyway.';
   },
   unsupported: () => '',
 };
@@ -277,8 +277,9 @@ function renderPageStatus(msg) {
   if (usable) {
     siteName.textContent = msg.domain;
     siteName.title = msg.blocked ? 'Not being scanned' : 'Being scanned';
-    siteAllow.classList.toggle('active', msg.rule === 'allow');
-    siteBlock.classList.toggle('active', msg.rule === 'block');
+    siteAllow.setAttribute('aria-pressed', String(msg.rule === 'allow'));
+    siteDefault.setAttribute('aria-pressed', String(msg.rule !== 'allow' && msg.rule !== 'block'));
+    siteBlock.setAttribute('aria-pressed', String(msg.rule === 'block'));
   }
   renderBanner();
 }
@@ -291,9 +292,12 @@ function clearTabBanners() {
   renderBanner();
 }
 
-for (const [btn, action] of [[siteAllow, 'allow'], [siteBlock, 'block']]) {
+// "Scan this site": Always, Default or Never. Pressing the one already chosen does
+// nothing, so a second press cannot quietly undo the first.
+const siteDefault = document.getElementById('siteDefault');
+for (const [btn, action] of [[siteAllow, 'allow'], [siteDefault, 'clear'], [siteBlock, 'block']]) {
   btn.addEventListener('click', () => {
-    if (!pageStatus?.domain) return;
+    if (!pageStatus?.domain || btn.getAttribute('aria-pressed') === 'true') return;
     sendPanelMessage({ type: MSG.SITE_RULE, domain: pageStatus.domain, action })
       .catch(() => {});
   });
@@ -380,9 +384,22 @@ function render(claims, { keepScroll = true } = {}) {
     text.title = c.located === false
       ? 'This claim has no highlight on the page'
       : 'Jump to this on the page';
-    text.addEventListener('click', () => {
-      sendPanelMessage({ type: MSG.FOCUS_CLAIM, claimId: c.id }).catch(() => {});
-    });
+    // The sentence is a control: it says so, and it works from the keyboard too.
+    const jumpTo = () => sendPanelMessage({ type: MSG.FOCUS_CLAIM, claimId: c.id }).catch(() => {});
+    if (c.located !== false) {
+      const jump = document.createElement('span');
+      jump.className = 'jump';
+      jump.textContent = '↗ jump to';
+      text.append(' ', jump);
+      text.setAttribute('role', 'button');
+      text.tabIndex = 0;
+      text.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        jumpTo();
+      });
+    }
+    text.addEventListener('click', jumpTo);
     el.appendChild(text);
     // A re-render rebuilds every card, so the outline goes back on the one it was on.
     if (c.id === focusedId) el.classList.add('fc-focused');
@@ -390,11 +407,14 @@ function render(claims, { keepScroll = true } = {}) {
     const meta = document.createElement('div');
     meta.className = 'meta';
     meta.innerHTML = `<span class="badge ${c.status}">${STATUS_LABEL[c.status] || c.status}</span>`;
+    // The raw number is off by default: to most readers it looks like a truth rating.
+    // It stays on the badge's tooltip, and a setting shows it in full.
+    if (c.score != null) meta.firstElementChild.title = `Classifier score ${c.score}: how checkable the sentence looks, not whether it is true`;
     if (c.ts != null) meta.innerHTML += `<span>${fmtTime(c.ts)}</span>`;
     // Says so plainly rather than leaving the user looking for a highlight that
     // was never drawn, e.g. when the page rewrote the text after it was scanned.
     if (c.located === false) meta.innerHTML += '<span title="This sentence could not be located in the page text, so it has no highlight to jump to.">not on page</span>';
-    if (c.score != null) meta.innerHTML += `<span>score ${c.score}</span>`;
+    if (c.score != null && showScores) meta.innerHTML += `<span>score ${c.score}</span>`;
     if (c.userAdded) meta.innerHTML += '<span title="You added this by highlighting the sentence and right-clicking it.">added by you</span>';
     // Said plainly, so a dimmed card reads as "unsure" and not as "broken".
     if (c.band === 'faint') meta.innerHTML += '<span class="faint-tag" title="This sentence scored just below your flagging threshold. It may be a claim; the classifier was not sure.">possibly a claim</span>';
@@ -1036,14 +1056,18 @@ addSourceBtn?.addEventListener('click', async () => {
 
 const rescanBtn = document.getElementById('rescan');
 rescanBtn?.addEventListener('click', async () => {
+  // The button is an icon, so the progress is said in the feed where the claims go.
   rescanBtn.disabled = true;
-  const label = rescanBtn.textContent;
-  rescanBtn.textContent = 'Rescanning…';
-  feed.replaceChildren();
+  rescanBtn.setAttribute('aria-busy', 'true');
+  staleNote.hidden = true;
+  const note = document.createElement('div');
+  note.className = 'empty';
+  note.textContent = 'Reading the page again…';
+  feed.replaceChildren(note);
   await sendPanelMessage({ type: MSG.RESCAN }).catch(() => {});
   setTimeout(() => {
     rescanBtn.disabled = false;
-    rescanBtn.textContent = label;
+    rescanBtn.removeAttribute('aria-busy');
   }, 1200);
 });
 
@@ -1057,12 +1081,90 @@ function applyPanelSize(settings) {
   document.documentElement.style.setProperty('--fc-panel-size', panelTextSize(settings));
 }
 
+// Whether each claim shows the classifier's raw number. Off unless the reader asks.
+let showScores = false;
+
+// The theme button steps System, Light, Dark. It says what it is now and what the
+// next press does, since an icon alone says neither.
+const themeBtn = document.getElementById('themeToggle');
+let themeSetting = 'system';
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function themeIcon(theme) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('aria-hidden', 'true');
+  const shape = (tag, attrs) => {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    svg.appendChild(el);
+  };
+  const line = { stroke: 'currentColor', 'stroke-width': '1.6', 'stroke-linecap': 'round', fill: 'none' };
+  if (theme === 'light') {
+    shape('circle', { cx: 8, cy: 8, r: 3, fill: 'currentColor' });
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      shape('line', { ...line, x1: 8 + Math.cos(a) * 5, y1: 8 + Math.sin(a) * 5, x2: 8 + Math.cos(a) * 6.8, y2: 8 + Math.sin(a) * 6.8 });
+    }
+  } else if (theme === 'dark') {
+    shape('path', { d: 'M10.8 11.9A5.5 5.5 0 0 1 6.1 2.6a5.5 5.5 0 1 0 7.3 7.3 5.5 5.5 0 0 1-2.6 2z', fill: 'currentColor' });
+  } else {
+    shape('circle', { ...line, cx: 8, cy: 8, r: 5.8 });
+    shape('path', { d: 'M8 2.2a5.8 5.8 0 0 1 0 11.6z', fill: 'currentColor' });
+  }
+  return svg;
+}
+
+function renderTheme(settings) {
+  themeSetting = THEMES.some((t) => t.id === settings.theme) ? settings.theme : 'system';
+  applyTheme(document.documentElement, { theme: themeSetting });
+  const at = THEMES.findIndex((t) => t.id === themeSetting);
+  const now = THEMES[at].label;
+  const next = THEMES[(at + 1) % THEMES.length].label;
+  themeBtn.setAttribute('aria-label', `Theme: ${now}`);
+  themeBtn.title = `Theme: ${now}. Click for ${next}.`;
+  // Drawn, not typed: the sun and moon characters vary from font to font, and in the
+  // Windows symbol font the sun reads as an asterisk.
+  themeBtn.replaceChildren(themeIcon(themeSetting));
+}
+
+themeBtn.addEventListener('click', () => {
+  const at = THEMES.findIndex((t) => t.id === themeSetting);
+  const theme = THEMES[(at + 1) % THEMES.length].id;
+  renderTheme({ theme }); // at once; the saved setting follows
+  saveSettings({ theme }).catch(() => {});
+});
+
+// Settings that change what is found or drawn on a page only apply to that page once
+// it is read again. Said here, with the button that does it, rather than left to a
+// line of small print on the options page. Changes made in this panel apply at once
+// and are not listed.
+const PAGE_SETTINGS = ['threshold', 'faintFlags', 'highlightStyle', 'highlightColor',
+  'highlightThickness', 'privateSitesRule', 'showVideoOverlay'];
+const staleNote = document.getElementById('stale');
+
+function settingsTouchPage(change) {
+  const before = change.oldValue || {};
+  const after = change.newValue || {};
+  return PAGE_SETTINGS.some((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+}
+
+document.getElementById('staleRescan').addEventListener('click', () => rescanBtn.click());
+
 // Changing the AI provider or the appearance in settings takes effect here without
 // the panel needing to be reopened.
 chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area !== 'local' || !changes.fc_settings) return;
+  if (settingsTouchPage(changes.fc_settings) && renderedTabId != null) staleNote.hidden = false;
   const s = await getSettings();
   applyPanelSize(s);
+  renderTheme(s);
+  if (Boolean(s.showScores) !== showScores) {
+    showScores = Boolean(s.showScores);
+    render(lastClaims);
+  }
   if (isFormat(s.citationFormat) && s.citationFormat !== citationFormat) {
     // Changed in another window; follow it without writing it back.
     citationFormat = s.citationFormat;
@@ -1082,6 +1184,8 @@ chrome.storage.onChanged.addListener(async (changes, area) => {
 (async () => {
   const settings = await getSettings();
   applyPanelSize(settings);
+  renderTheme(settings);
+  showScores = Boolean(settings.showScores);
   llmEnabled = settings.llmProvider !== 'none';
   searchKeyed = keyedSearch(settings);
   if (isFormat(settings.citationFormat)) citationFormat = settings.citationFormat;

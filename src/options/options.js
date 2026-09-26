@@ -2,7 +2,7 @@ import { getSettings, saveSettings, changedSettings, MSG } from '../shared/messa
 import { SEARCH_PROVIDERS, LLM_PROVIDERS, FACTCHECK_PROVIDERS } from '../providers/index.js';
 import { parseDomainList } from '../shared/privacy.js';
 import {
-  HIGHLIGHT_STYLES, HIGHLIGHT_COLORS, THICKNESS, PANEL_SIZES, applyAppearance,
+  HIGHLIGHT_STYLES, HIGHLIGHT_COLORS, THICKNESS, PANEL_SIZES, applyAppearance, applyTheme,
 } from '../shared/appearance.js';
 import { SEARCH_ENGINES } from '../shared/engines.js';
 import {
@@ -64,6 +64,7 @@ const fields = {
   panelTextSize: el('panelTextSize'),
   showVideoOverlay: el('showVideoOverlay'),
   autoTranscript: el('autoTranscript'),
+  showScores: el('showScores'),
   readSources: el('readSources'),
   academicMode: el('academicMode'),
   privateSitesRule: el('privateSitesRule'),
@@ -141,40 +142,49 @@ function showError(id, message) {
   node.classList.toggle('show', Boolean(message));
 }
 
-// Cheap well-formedness check only — no live call against the provider.
+// Cheap well-formedness check only — no live call against the provider. Reports the
+// two groups separately, because settings save as they change: a half-typed key must
+// hold back only itself, not every other setting on the page.
 function validate() {
-  let ok = true;
+  let search = true;
+  let llm = true;
   showError('searchErr', '');
   showError('llmErr', '');
 
   const searchKey = fields.searchApiKey.value.trim();
   if (searchKey && searchKey.length < 16) {
-    showError('searchErr', 'That looks too short to be a valid API key.');
-    ok = false;
+    showError('searchErr', 'That looks too short to be a valid API key. It is not saved until it looks right.');
+    search = false;
   }
 
   const llmId = fields.llmProvider.value;
   const llmKey = fields.llmApiKey.value.trim();
   if (!KEYLESS_LLM.has(llmId)) {
     if (!llmKey) {
-      showError('llmErr', 'This provider needs an API key, or switch the provider to "None".');
-      ok = false;
+      showError('llmErr', 'This provider needs an API key, or switch the provider to "None". It is not switched until then.');
+      llm = false;
     } else if (llmId === 'anthropic' && !llmKey.startsWith('sk-ant-')) {
-      showError('llmErr', 'Anthropic keys normally start with "sk-ant-".');
-      ok = false;
+      showError('llmErr', 'Anthropic keys normally start with "sk-ant-". It is not saved until it does.');
+      llm = false;
     } else if (llmId === 'openai' && !llmKey.startsWith('sk-')) {
-      showError('llmErr', 'OpenAI keys normally start with "sk-".');
-      ok = false;
+      showError('llmErr', 'OpenAI keys normally start with "sk-". It is not saved until it does.');
+      llm = false;
     }
   }
 
-  return ok;
+  return { search, llm };
 }
 
 let formBaseline = {};
 
+function chosenTheme() {
+  return document.querySelector('input[name="theme"]:checked')?.value || 'system';
+}
+
 function formValues() {
   return {
+    theme: chosenTheme(),
+    showScores: fields.showScores.checked,
     autoCheck: fields.autoCheck.checked,
     threshold: Number(fields.threshold.value),
     searchProvider: fields.searchProvider.value,
@@ -208,18 +218,86 @@ function formValues() {
   };
 }
 
-async function save() {
-  if (!validate()) return;
-  const values = formValues();
-  const settings = await saveSettings(changedSettings(values, formBaseline));
-  formBaseline = values;
-  const autoCheck = settings.autoCheck;
+// Settings save as they change. There used to be a Save button at the foot of a long
+// page, and an edit made anywhere above it was lost, silently, by anyone who switched
+// tab or closed the page first.
+//
+// Only what changed is sent, so a rule set from the side panel meanwhile is not
+// overwritten by this page's older copy of it. A key that does not look right holds
+// back itself (and, for an AI provider, the switch to that provider) and nothing else.
+let savedTimer = null;
+let saving = Promise.resolve();
 
-  // Let the active tab's content script react without needing a reload.
-  chrome.runtime.sendMessage({ type: MSG.SET_AUTOCHECK, autoCheck }).catch(() => {});
+function save() {
+  saving = saving.then(async () => {
+    const ok = validate();
+    const values = formValues();
+    const patch = changedSettings(values, formBaseline);
+    if (!ok.search) delete patch.searchApiKey;
+    if (!ok.llm) { delete patch.llmApiKey; delete patch.llmProvider; }
+    if (!Object.keys(patch).length) return;
 
-  el('saved').classList.add('show');
-  setTimeout(() => el('saved').classList.remove('show'), 1800);
+    await saveSettings(patch);
+    formBaseline = { ...formBaseline, ...patch };
+
+    // Let the active tab's content script react without needing a reload.
+    if ('autoCheck' in patch) {
+      chrome.runtime.sendMessage({ type: MSG.SET_AUTOCHECK, autoCheck: patch.autoCheck }).catch(() => {});
+    }
+    const note = el('saved');
+    note.classList.add('show');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => note.classList.remove('show'), 1600);
+  }).catch(() => {
+    const note = el('saved');
+    note.textContent = 'Could not save. Try again.';
+    note.classList.add('show');
+  });
+  return saving;
+}
+
+// Switches, menus and the slider save the moment they change; typing saves after a
+// short pause, so a key is not saved one character at a time.
+function wireAutosave() {
+  let typing = null;
+  const form = el('tab-settings');
+  form.addEventListener('change', (e) => {
+    if (e.target.name === 'theme') applyTheme(document.documentElement, { theme: chosenTheme() });
+    save();
+  });
+  form.addEventListener('input', (e) => {
+    if (!e.target.matches('input[type="text"], input[type="password"], textarea')) return;
+    clearTimeout(typing);
+    typing = setTimeout(save, 700);
+  });
+}
+
+// A change made elsewhere, from the side panel or another copy of this page, is shown
+// here rather than left stale, unless the reader is editing that very field.
+function followOutsideChanges() {
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    if (area !== 'local' || !changes.fc_settings) return;
+    const s = await getSettings();
+    const typingIn = document.activeElement;
+    for (const key of ['blockedDomains', 'allowedDomains']) {
+      if (typingIn === fields[key]) continue;
+      const shown = parseDomainList(fields[key].value);
+      if (JSON.stringify(shown) !== JSON.stringify(s[key] || [])) {
+        fields[key].value = (s[key] || []).join('\n');
+        formBaseline[key] = s[key] || [];
+      }
+    }
+    if (s.autoCheck !== fields.autoCheck.checked) {
+      fields.autoCheck.checked = s.autoCheck;
+      formBaseline.autoCheck = s.autoCheck;
+    }
+    if ((s.theme || 'system') !== chosenTheme()) {
+      const radio = document.querySelector(`input[name="theme"][value="${s.theme || 'system'}"]`);
+      if (radio) radio.checked = true;
+      formBaseline.theme = s.theme || 'system';
+    }
+    applyTheme(document.documentElement, s);
+  });
 }
 
 
@@ -432,6 +510,10 @@ async function wireSources() {
   fields.panelTextSize.value = s.panelTextSize;
   fields.showVideoOverlay.checked = s.showVideoOverlay !== false;
   fields.autoTranscript.checked = s.autoTranscript !== false;
+  fields.showScores.checked = Boolean(s.showScores);
+  const themeRadio = document.querySelector('input[name="theme"][value="' + (s.theme || 'system') + '"]') || document.querySelector('input[name="theme"][value="system"]');
+  themeRadio.checked = true;
+  applyTheme(document.documentElement, s);
   previewAppearance();
   for (const f of [fields.highlightStyle, fields.highlightColor, fields.highlightThickness]) {
     f.addEventListener('change', previewAppearance);
@@ -452,6 +534,8 @@ async function wireSources() {
   fields.localLlmModel.value = s.localLlmModel;
   syncLlmKeyVisibility();
   formBaseline = formValues();
+  wireAutosave();
+  followOutsideChanges();
 
   fields.threshold.addEventListener('input', () => {
     fields.thresholdVal.textContent = Number(fields.threshold.value).toFixed(2);
@@ -467,7 +551,6 @@ async function wireSources() {
     setTimeout(() => { status.textContent = ''; }, 2500);
   });
   await wireSources();
-  el('save').addEventListener('click', save);
 })();
 
 // Wired before anything above is awaited: the tabs only switch panels, and the

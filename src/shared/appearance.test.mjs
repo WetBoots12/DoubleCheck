@@ -74,3 +74,28 @@ test('the panel size choices are real CSS lengths and differ from each other', (
 test('turning off page marks still leaves a style name, not an empty attribute', () => {
   assert.equal(highlightStyleName({ highlightStyle: 'none' }), 'none');
 });
+
+test('the theme setting becomes data-theme, and System removes it', async () => {
+  const { themeChoice, applyTheme, THEMES } = await import('./appearance.js');
+  assert.deepEqual(THEMES.map((t) => t.id), ['system', 'light', 'dark']);
+  assert.equal(themeChoice({ theme: 'dark' }), 'dark');
+  assert.equal(themeChoice({ theme: 'system' }), null);
+  assert.equal(themeChoice({ theme: 'purple' }), null, 'an unknown value follows the system');
+
+  const kept = new Map();
+  const storage = { setItem: (k, v) => kept.set(k, v), removeItem: (k) => kept.delete(k) };
+  const root = { dataset: {} };
+  applyTheme(root, { theme: 'light' }, storage);
+  assert.equal(root.dataset.theme, 'light');
+  assert.equal(kept.get('dc-theme'), 'light', 'remembered so the next page paints in it');
+  applyTheme(root, { theme: 'system' }, storage);
+  assert.equal(root.dataset.theme, undefined);
+  assert.equal(kept.has('dc-theme'), false);
+});
+
+test('a page that cannot write storage still takes the theme', async () => {
+  const { applyTheme } = await import('./appearance.js');
+  const root = { dataset: {} };
+  applyTheme(root, { theme: 'dark' }, { setItem() { throw new Error('denied'); }, removeItem() {} });
+  assert.equal(root.dataset.theme, 'dark');
+});

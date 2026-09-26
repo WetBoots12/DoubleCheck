@@ -87,3 +87,8 @@ test('opening YouTube transcripts automatically is on by default, and can be swi
   assert.equal((await getSettings()).autoTranscript, false, 'the reader\'s "off" is kept');
   await saveSettings({ autoTranscript: true });
 });
+
+test('the theme follows the system and scores are hidden until the reader asks', () => {
+  assert.equal(DEFAULT_SETTINGS.theme, 'system');
+  assert.equal(DEFAULT_SETTINGS.showScores, false);
+});

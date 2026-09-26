@@ -178,6 +178,8 @@ export function applySiteRule(settings, domain, action) {
   const current = (settings.blockedDomains || []).includes(d)
     ? 'block'
     : (settings.allowedDomains || []).includes(d) ? 'allow' : null;
+  // 'clear' puts the site back on the default rules, whichever list it was on.
+  if (action === 'clear') return { blockedDomains: blocked, allowedDomains: allowed };
   if (action === 'block' && current !== 'block') blocked.push(d);
   if (action === 'allow' && current !== 'allow') allowed.push(d);
   return { blockedDomains: blocked, allowedDomains: allowed };
